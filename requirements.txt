@@ -1,0 +1,17 @@
+fastapi==0.109.2
+uvicorn==0.27.1
+python-multipart==0.0.9
+pandas==2.2.0
+numpy==1.26.4
+openpyxl==3.1.2
+python-jose[cryptography]==3.3.0
+passlib[bcrypt]==1.7.4
+python-dotenv==1.0.1
+anthropic>=0.7.0
+plotly==5.19.0
+python-magic==0.4.27
+pydantic==2.6.1
+reportlab==4.1.0  # For static image export from plotly 
+streamlit==1.32.2
+streamlit-extras==0.4.0  # For additional components
+xlrd==2.0.1  # For Excel support 

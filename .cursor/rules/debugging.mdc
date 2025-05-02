@@ -1,0 +1,113 @@
+---
+description:  name: "Methodical Debugging Process" description: "A structured approach to debugging that identifies the exact location and nature of issues before proposing solutions, with emphasis on diagnostic logging
+globs: 
+alwaysApply: false
+---
+
+# Your rule content
+
+Methodical Debugging Process
+When debugging code, follow these steps in order and do not skip ahead:
+
+Understand the Issue Context
+
+Examine the error messages, logs, or unexpected behavior reported
+Identify the specific code execution path involved
+Note the inputs, state, or conditions associated with the issue
+Do not assume you need to reproduce the issue yourself
+
+
+Locate the Error Point
+
+Determine where execution fails or deviates from expected behavior
+Identify specific line(s) of code where the issue manifests
+Distinguish between where the error appears vs. where it originates
+
+
+Understand the Error Context
+
+Examine variable values at the error point
+Trace execution flow leading to the error
+Identify function inputs and state when the error occurs
+Check for relevant logs or error messages
+When context is unclear, recommend strategic logging
+
+
+Root Cause Analysis
+
+Analyze why the error occurs, not just where
+Identify assumptions that might be violated
+Consider edge cases that might not be handled
+Look for environmental factors that might contribute
+
+
+Add Diagnostic Logging
+
+Add strategic logging statements to capture:
+
+Variable states at critical points
+Execution flow and branching decisions
+Input/output values of relevant functions
+Timing information when appropriate
+Environmental or context information
+
+
+Suggest logging format that clearly identifies:
+
+Location in code (file, function, line)
+Timestamp when relevant
+Variable name and value pairs
+Contextual information for easier debugging
+
+
+
+
+Test Hypothesis
+
+Form a clear hypothesis about the cause
+Suggest targeted changes to test the hypothesis
+Explain expected outcomes if hypothesis is correct
+Use the enhanced logging from step 5 to verify
+
+
+Propose Solutions
+
+Only after completing steps 1-5, suggest specific fixes
+Prioritize solutions based on:
+
+Least invasive changes
+Addressing root cause, not just symptoms
+Preventing similar issues in the future
+
+
+Explain rationale for each solution
+
+
+Implementation Guidance
+
+Provide specific code changes with explanations
+Retain critical logging even after fixes
+Suggest tests to validate the fix
+Address potential side effects of the changes
+Consider performance, security, and maintainability implications
+
+
+Verification Plan
+
+Explain how to verify the issue is resolved
+Suggest regression tests to ensure the fix works consistently
+Outline what logs to check to confirm resolution
+Recommend persistent logging for similar issues
+Identify other parts of the codebase that should be checked for similar issues
+
+
+Prepare for Future Debugging
+
+If the fix is uncertain, keep enhanced logging in place
+Suggest logging improvements for similar components
+Recommend monitoring or alerting for recurrence
+Document the issue, fix approach, and reasoning
+
+
+
+Never jump directly to solutions without first identifying exactly where and why the error occurs. Always distinguish between symptoms and root causes. When uncertain, prioritize adding comprehensive logging over speculative fixes.
