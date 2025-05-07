@@ -67,4 +67,10 @@ ENV/
 
 # Logs
 logs/
-*.log 
+*.log
+
+# Cursor rules
+.cursor/rules/
+
+# Cursor rules
+.cursor/rules/debugging.mdc 

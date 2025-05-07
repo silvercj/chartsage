@@ -4,6 +4,8 @@ import { useEffect, useState, useRef } from 'react';
 import Plot from 'react-plotly.js';
 import { useSearchParams } from 'next/navigation';
 import dynamic from 'next/dynamic';
+// @ts-ignore
+import Plotly from 'plotly.js-dist-min';
 
 const VisualizationCard = dynamic(() => import('./VisualizationCard'), { ssr: false });
 
@@ -142,7 +144,9 @@ export default function VisualizationsPage() {
           marker: {
             size: spec?.style?.marker_size || 10,
             color: spec?.style?.color_scheme || 'rgb(55, 83, 109)'
-          }
+          },
+          text: spec.data.text || spec.data.labels,
+          hoverinfo: 'text+x+y'
         };
         break;
 
@@ -263,75 +267,79 @@ export default function VisualizationsPage() {
         <p className="text-lg md:text-xl text-gray-500 mb-1">{reportSubtitle}</p>
         <p className="text-sm text-gray-400">Generated: {reportDate}</p>
       </header>
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-        {visualizations.map((viz, index) => {
-          let plotData;
-          if ((viz.type === 'bar' || viz.type === 'pie') && Array.isArray(viz.data)) {
-            plotData = viz.data;
-          } else {
-            plotData = [createPlotlyData(viz)];
-          }
-          const layout = {
-            ...createPlotlyLayout(viz),
-            font: {
-              family: 'Inter, sans-serif',
-              size: 16,
-              color: '#222'
-            },
-            legend: {
-              font: { size: 15 },
-              orientation: 'h',
-              y: -0.2
-            },
-            margin: { l: 60, r: 40, t: 60, b: 60 },
-            paper_bgcolor: '#fff',
-            plot_bgcolor: '#fff',
-            xaxis: {
-              ...((createPlotlyLayout(viz).xaxis) || {}),
-              tickfont: { size: 15 },
-              titlefont: { size: 17 },
-              showgrid: false,
-              zeroline: false
-            },
-            yaxis: {
-              ...((createPlotlyLayout(viz).yaxis) || {}),
-              tickfont: { size: 15 },
-              titlefont: { size: 17 },
-              gridcolor: '#e5e7eb',
-              zeroline: false
-            },
-            hoverlabel: { font: { size: 15 } },
-            height: 400,
-            width: undefined
-          };
-          const config = {
-            ...createPlotlyConfig(viz),
-            toImageButtonOptions: {
-              format: 'png',
-              filename: viz?.title?.replace(/\s+/g, '_').toLowerCase() || `chart_${index + 1}`,
-              height: 500,
-              width: 900,
-              scale: 2
+      <div id="dashboard-root">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+          {visualizations.map((viz, index) => {
+            let plotData;
+            if (viz.type === 'pie' && typeof viz.data === 'object' && !Array.isArray(viz.data)) {
+              plotData = viz.data;
+            } else if (viz.type === 'bar' && Array.isArray(viz.data)) {
+              // For grouped bar charts, you may want to handle multiple traces
+              // For now, use the first trace
+              plotData = viz.data[0];
+            } else if (typeof viz.data === 'object') {
+              plotData = viz.data;
+            } else {
+              plotData = {};
             }
-          };
-          return (
-            <VisualizationCard
-              key={index}
-              viz={viz}
-              index={index}
-              plotData={plotData}
-              handleDownload={handleDownload}
-              layout={layout}
-              config={config}
-            />
-          );
-        })}
+            const layout = {
+              ...createPlotlyLayout(viz),
+              font: {
+                family: 'Inter, sans-serif',
+                size: 16,
+                color: '#222'
+              },
+              legend: {
+                font: { size: 15 },
+                orientation: 'h',
+                y: -0.2
+              },
+              margin: { l: 60, r: 40, t: 60, b: 60 },
+              paper_bgcolor: '#fff',
+              plot_bgcolor: '#fff',
+              xaxis: {
+                ...((createPlotlyLayout(viz).xaxis) || {}),
+                tickfont: { size: 15 },
+                titlefont: { size: 17 },
+                showgrid: false,
+                zeroline: false
+              },
+              yaxis: {
+                ...((createPlotlyLayout(viz).yaxis) || {}),
+                tickfont: { size: 15 },
+                titlefont: { size: 17 },
+                gridcolor: '#e5e7eb',
+                zeroline: false
+              },
+              hoverlabel: { font: { size: 15 } },
+              height: 400,
+              width: undefined
+            };
+            const config = {
+              ...createPlotlyConfig(viz),
+              toImageButtonOptions: {
+                format: 'png',
+                filename: viz?.title?.replace(/\s+/g, '_').toLowerCase() || `chart_${index + 1}`,
+                height: 500,
+                width: 900,
+                scale: 2
+              }
+            };
+            return (
+              <VisualizationCard
+                key={index}
+                viz={viz}
+                index={index}
+                plotData={plotData}
+                handleDownload={handleDownload}
+                layout={layout}
+                config={config}
+                plotRef={el => plotRefs.current[index] = el}
+              />
+            );
+          })}
+        </div>
       </div>
-      {/* Report Footer */}
-      <footer className="mt-16 text-center text-gray-400 text-sm">
-        <hr className="my-6 border-gray-200" />
-        <p>Report generated by ChartSage &mdash; Data-driven insights for better decisions.</p>
-      </footer>
     </div>
   );
 } 
