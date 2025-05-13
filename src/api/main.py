@@ -15,6 +15,11 @@ import shutil
 import scipy.stats
 from itertools import combinations
 import re
+from derived_fields import resolve_derived_field
+from chart_processing import process_visualizations
+import redis
+import uuid
+import logging
 
 load_dotenv()
 
@@ -34,7 +39,24 @@ claude = anthropic.Anthropic(
     api_key=os.getenv("ANTHROPIC_API_KEY")
 )
 
+# Initialize Redis client (local instance)
+redis_client = redis.Redis(host='localhost', port=6379, db=0, decode_responses=True)
+
 _last_uploaded_df = None
+
+# Set up logging to both console and file
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s %(levelname)s %(message)s',
+    handlers=[
+        logging.StreamHandler(),
+        logging.FileHandler('chartsage.log', mode='a', encoding='utf-8')
+    ]
+)
+
+# Redirect print to logging.info
+import builtins
+print = lambda *args, **kwargs: logging.info(' '.join(str(a) for a in args))
 
 def serialize_pandas_data(df: pd.DataFrame) -> dict:
     """Convert pandas DataFrame to JSON-serializable format."""
@@ -80,6 +102,9 @@ async def upload_file(file: UploadFile = File(...)):
         else:
             raise HTTPException(status_code=400, detail="Unsupported file format")
         print(f"✅ DataFrame loaded with shape: {df.shape}")
+        
+        # Lowercase all DataFrame column names immediately after loading any file (CSV or Excel)
+        df.columns = [col.lower() for col in df.columns]
         
         # Store the DataFrame globally
         global _last_uploaded_df
@@ -244,130 +269,55 @@ def validate_and_fix_field(field, df, field_key=None):
     print(f"[WARN] Field '{field_key}' is not a recognized type. Skipping.")
     return None
 
-def get_field_as_list(field, df, valid_indices=None, field_key=None):
-    # If it's a string and matches a column, return the column as a list
+def get_field_as_list(field, df, valid_indices=None, field_key=None, chart_obj=None):
     if isinstance(field, str):
         if field in df.columns:
             values = df[field].tolist()
         else:
-            # For derived fields (e.g., bins/frequencies), just return as-is
-            return field
+            derived = resolve_derived_field(field, df, chart_obj=chart_obj)
+            if derived is not None:
+                print(f"[INFO] Resolved derived field '{field}' for '{field_key}'.")
+                values = derived if isinstance(derived, list) else [derived]
+            else:
+                print(f"[WARN] Could not resolve field '{field}' for '{field_key}'. Skipping.")
+                return []
     elif isinstance(field, list):
-        if field_key and is_allowed_array_field(field_key):
+        # If it's a list of numbers, use as-is
+        if all(isinstance(f, (int, float, np.integer, np.floating)) for f in field):
+            values = [float(f) if isinstance(f, np.floating) else int(f) if isinstance(f, np.integer) else f for f in field]
+        # If it's a list of strings and this is the labels field, use as-is
+        elif all(isinstance(f, str) for f in field) and field_key == "labels":
             values = field
+        # If it's a list of strings for x/y/values, resolve each
+        elif all(isinstance(f, str) for f in field):
+            resolved = []
+            for f in field:
+                if f in df.columns:
+                    col_vals = df[f].tolist()
+                    print(f"[INFO] Resolved column '{f}' for '{field_key}'.")
+                    resolved.append(col_vals)
+                else:
+                    derived = resolve_derived_field(f, df, chart_obj=chart_obj)
+                    if derived is not None:
+                        print(f"[INFO] Resolved derived field '{f}' in list for '{field_key}'.")
+                        if isinstance(derived, list) and len(derived) == 1:
+                            resolved.append(derived[0])
+                        elif isinstance(derived, list) and all(isinstance(x, (int, float, str, np.integer, np.floating)) for x in derived):
+                            # If it's a list of values, flatten for bar/pie
+                            resolved.extend([float(x) if isinstance(x, np.floating) else int(x) if isinstance(x, np.integer) else x for x in derived])
+                        else:
+                            resolved.append(derived)
+                    else:
+                        print(f"[WARN] Could not resolve field '{f}' in list for '{field_key}'. Skipping.")
+                        resolved.append(None)
+            values = resolved
         else:
-            # Not allowed, return empty
             return []
     else:
         values = []
     if valid_indices is not None and isinstance(values, list):
         return [values[i] for i in valid_indices if i < len(values)]
     return values
-
-def process_visualization(viz, df, idx=None):
-    chart_type = viz.get('type')
-    title = viz.get('title', f'Chart {idx+1}' if idx is not None else 'Unknown')
-    print(f"\n🔍 Processing visualization {idx+1 if idx is not None else ''}: {title} (type: {chart_type})")
-    if chart_type == 'bar':
-        return process_bar_chart(viz, df, idx)
-    elif chart_type == 'scatter':
-        return process_scatter_chart(viz, df, idx)
-    elif chart_type == 'pie':
-        return process_pie_chart(viz, df, idx)
-    elif chart_type == 'box':
-        return process_box_chart(viz, df, idx)
-    else:
-        print(f"[WARN] Unknown chart type: {chart_type} (chart {idx+1 if idx is not None else ''})")
-        return None
-
-def process_bar_chart(viz, df, idx=None):
-    data = viz['data']
-    # Remove 'type' from data if present
-    if isinstance(data, dict) and 'type' in data:
-        print(f"[INFO] (Bar {idx+1}) Removing redundant 'type' field from data object.")
-        del data['type']
-    # Accept arrays for bins/frequencies, else use column
-    x_vals = get_field_as_list(data.get('x'), df)
-    y_vals = get_field_as_list(data.get('y'), df)
-    if isinstance(x_vals, str) or isinstance(y_vals, str):
-        print(f"[ERROR] (Bar {idx+1}) x or y is a derived field name or missing. Skipping.")
-        return None
-    if not isinstance(x_vals, list) or not isinstance(y_vals, list) or not x_vals or not y_vals:
-        print(f"[ERROR] (Bar {idx+1}) x or y is not a valid list. Skipping.")
-        return None
-    data['x'] = x_vals
-    data['y'] = y_vals
-    print(f"[INFO] (Bar {idx+1}) x: {x_vals[:5]}... y: {y_vals[:5]}...")
-    viz['data'] = data
-    return viz
-
-def process_scatter_chart(viz, df, idx=None):
-    data = viz['data']
-    if isinstance(data, dict) and 'type' in data:
-        print(f"[INFO] (Scatter {idx+1}) Removing redundant 'type' field from data object.")
-        del data['type']
-    x_vals = get_field_as_list(data.get('x'), df)
-    y_vals = get_field_as_list(data.get('y'), df)
-    if isinstance(x_vals, str) or isinstance(y_vals, str):
-        print(f"[ERROR] (Scatter {idx+1}) x or y is a derived field name or missing. Skipping.")
-        return None
-    valid_indices = [i for i, (x, y) in enumerate(zip(x_vals, y_vals)) if not (pd.isna(x) or pd.isna(y))]
-    if not valid_indices:
-        print(f"[ERROR] (Scatter {idx+1}) No valid data points after NaN filtering. Skipping.")
-        return None
-    data['x'] = [x_vals[i] for i in valid_indices]
-    data['y'] = [y_vals[i] for i in valid_indices]
-    if 'labels' in data:
-        data['labels'] = get_field_as_list(data['labels'], df, valid_indices)
-    if 'text' in data and isinstance(data['text'], list):
-        data['text'] = [data['text'][i] for i in valid_indices if i < len(data['text'])]
-    else:
-        if 'labels' in data:
-            data['text'] = [
-                f"{label}<br>X: {format_currency(x)}<br>Y: {format_currency(y)}"
-                for label, x, y in zip(data['labels'], data['x'], data['y'])
-            ]
-    print(f"[INFO] (Scatter {idx+1}) x: {data['x'][:5]}... y: {data['y'][:5]}... labels: {data.get('labels', [])[:5]}")
-    viz['data'] = data
-    return viz
-
-def process_pie_chart(viz, df, idx=None):
-    data = viz['data']
-    if isinstance(data, dict) and 'type' in data:
-        print(f"[INFO] (Pie {idx+1}) Removing redundant 'type' field from data object.")
-        del data['type']
-    labels = get_field_as_list(data.get('labels'), df)
-    values = get_field_as_list(data.get('values'), df)
-    if isinstance(labels, str) or isinstance(values, str):
-        print(f"[ERROR] (Pie {idx+1}) labels or values is a derived field name or missing. Skipping.")
-        return None
-    if not isinstance(labels, list) or not isinstance(values, list) or not labels or not values:
-        print(f"[ERROR] (Pie {idx+1}) labels or values is not a valid list. Skipping.")
-        return None
-    data['labels'] = labels
-    data['values'] = values
-    print(f"[INFO] (Pie {idx+1}) labels: {labels[:5]}... values: {values[:5]}...")
-    viz['data'] = data
-    return viz
-
-def process_box_chart(viz, df, idx=None):
-    data = viz['data']
-    if isinstance(data, dict) and 'type' in data:
-        print(f"[INFO] (Box {idx+1}) Removing redundant 'type' field from data object.")
-        del data['type']
-    x_vals = get_field_as_list(data.get('x'), df)
-    y_vals = get_field_as_list(data.get('y'), df)
-    if isinstance(x_vals, str) or isinstance(y_vals, str):
-        print(f"[ERROR] (Box {idx+1}) x or y is a derived field name or missing. Skipping.")
-        return None
-    if not isinstance(x_vals, list) or not isinstance(y_vals, list) or not x_vals or not y_vals:
-        print(f"[ERROR] (Box {idx+1}) x or y is not a valid list. Skipping.")
-        return None
-    data['x'] = x_vals
-    data['y'] = y_vals
-    print(f"[INFO] (Box {idx+1}) x: {x_vals[:5]}... y: {y_vals[:5]}...")
-    viz['data'] = data
-    return viz
 
 def generate_insights(df: pd.DataFrame) -> List[Dict]:
     """Generate visualization specifications using Claude."""
@@ -446,7 +396,7 @@ def generate_insights(df: pd.DataFrame) -> List[Dict]:
         )
         print("✅ Prompt loaded and filled")
         # Log the full prompt sent to Claude
-        print("📝 FULL PROMPT SENT TO CLAUDE:\n" + prompt)
+        print(f"📝 PROMPT SENT TO CLAUDE (first 1000 chars):\n{prompt[:1000]}{'...' if len(prompt) > 1000 else ''}")
         print("🤖 Sending request to Claude API...")
         try:
             print("📊 Data shape:", df.shape)
@@ -465,7 +415,7 @@ def generate_insights(df: pd.DataFrame) -> List[Dict]:
             
             # Extract and clean the response
             content = response.content[0].text.strip()
-            print("📝 RAW CLAUDE RESPONSE (FULL):\n" + content)
+            print(f"📝 RAW CLAUDE RESPONSE (first 1000 chars):\n{content[:1000]}{'...' if len(content) > 1000 else ''}")
             # Ensure we have a JSON array
             if not content.startswith('['):
                 content = content[content.find('['):]
@@ -483,23 +433,21 @@ def generate_insights(df: pd.DataFrame) -> List[Dict]:
                         viz['data'] = [resolve_column_names(trace, df) for trace in viz['data']]
                     elif isinstance(viz.get('data'), dict):
                         viz['data'] = resolve_column_names(viz['data'], df)
-                print("✅ After resolving column names:", json.dumps(visualizations, indent=2))
+                log_visualizations_list_concisely(visualizations, "✅ Visualizations after resolving column names:")
                 if not isinstance(visualizations, list):
                     raise ValueError("Response is not a JSON array")
-                # Validate and clean each visualization
-                cleaned_visualizations = []
-                for idx, viz in enumerate(visualizations):
-                    print(f"🔍 Processing visualization {idx + 1}")
-                    processed_viz = process_visualization(viz, df, idx)
-                    if processed_viz:
-                        cleaned_visualizations.append(processed_viz)
+                
+                # Process all visualizations using the new process_visualizations function
+                cleaned_visualizations = process_visualizations(visualizations, df)
                 
                 if not cleaned_visualizations:
                     raise ValueError("No valid visualizations found in response")
                 
-                print(f"✅ Final processed visualizations: {json.dumps(cleaned_visualizations, indent=2)}")
+                log_visualizations_list_concisely(cleaned_visualizations, "✅ Final processed visualizations:")
                 # Clean non-JSON-compliant floats before returning
                 cleaned_visualizations = clean_json_floats(cleaned_visualizations)
+                # Add a helper to recursively convert all numpy types to native Python types for JSON serialization
+                cleaned_visualizations = [make_json_serializable(viz) for viz in cleaned_visualizations]
                 return cleaned_visualizations
                 
             except json.JSONDecodeError as e:
@@ -508,12 +456,26 @@ def generate_insights(df: pd.DataFrame) -> List[Dict]:
                 raise HTTPException(status_code=500, detail="Failed to parse visualization specifications")
                 
         except Exception as api_error:
+            # Check for overloaded error (529 or overloaded in message)
+            if (hasattr(api_error, 'status_code') and api_error.status_code == 529) or \
+               ("overloaded" in str(api_error).lower()) or ("529" in str(api_error)):
+                print("Claude API overloaded, sending busy signal to frontend.")
+                raise HTTPException(
+                    status_code=503,
+                    detail={
+                        "status": "busy",
+                        "message": "All our AI agents are busy at the moment. Please wait 30 seconds and we will try again automatically."
+                    }
+                )
             print(f"❌ Claude API Error: {str(api_error)}")
             print(f"❌ Error type: {type(api_error).__name__}")
             import traceback
             print(f"❌ API error traceback:\n{traceback.format_exc()}")
             raise HTTPException(status_code=500, detail=f"Claude API Error: {str(api_error)}")
 
+    except HTTPException as http_exc:
+        # Propagate HTTPException (e.g., 503 busy) to FastAPI
+        raise http_exc
     except Exception as e:
         print(f"❌ Error in generate_insights: {str(e)}")
         print(f"❌ Error type: {type(e).__name__}")
@@ -533,13 +495,22 @@ async def generate_dashboard(file: UploadFile = File(...)):
             df = pd.read_excel(pd.io.common.BytesIO(content))
         else:
             return JSONResponse(content={"status": "error", "message": "Unsupported file format"}, status_code=400)
+        # Lowercase all DataFrame column names immediately after loading any file (CSV or Excel)
+        df.columns = [col.lower() for col in df.columns]
         analysis = analyze_data(df)
-        visualizations = generate_insights(df)
+        try:
+            visualizations = generate_insights(df)
+        except HTTPException as http_exc:
+            # Propagate HTTPException (e.g., 503 busy) to FastAPI
+            raise http_exc
         return JSONResponse(content={
             "status": "success",
             "analysis": analysis,
             "visualizations": visualizations
         })
+    except HTTPException as http_exc:
+        # Propagate HTTPException (e.g., 503 busy) to FastAPI
+        raise http_exc
     except Exception as e:
         print(f"[ERROR] Failed to process /generate-dashboard POST: {e}")
         return JSONResponse(content={"status": "error", "message": str(e)}, status_code=500)
@@ -567,7 +538,7 @@ def resolve_column_names(obj, df):
         for key in ['x', 'y', 'labels', 'values']:
             if key in obj and isinstance(obj[key], str):
                 colname = obj[key]
-                print(f"[DERIVED] Processing field: {key}={colname}")
+                print(f"[RESOLVING_FIELD] Chart field processing: {key}={colname}")
                 
                 # Real column
                 if colname in df.columns:
@@ -606,14 +577,74 @@ def resolve_column_names(obj, df):
     return obj
 
 def compute_histogram_bins_and_freqs(df, col, bins=10):
-    """Compute histogram bins and frequencies, handling NaN values."""
-    values = df[col].dropna()
-    if len(values) == 0:
+    """Compute histogram bins and frequencies, robustly handling data types."""
+    print(f"[HISTOGRAM] Processing column: {col} with dtype: {df[col].dtype}")
+    series = df[col].dropna()
+    
+    if len(series) == 0:
+        print(f"[HISTOGRAM] Column {col} is empty after dropna.")
         return [], []
+
+    numeric_values_for_hist = None
+    is_datetime_type = False
+
+    # Attempt to convert to datetime
+    # Make a copy to avoid SettingWithCopyWarning if series is a view
+    series_copy = series.copy() 
+    series_dt_coerced = pd.to_datetime(series_copy, errors='coerce')
+
+    if pd.api.types.is_datetime64_any_dtype(series_dt_coerced.dtype) and not series_dt_coerced.isnull().all():
+        # Successfully converted to datetime and not all values are NaT
+        valid_datetimes = series_dt_coerced.dropna()
+        if len(valid_datetimes) > 0:
+            numeric_values_for_hist = valid_datetimes.astype(np.int64) // 10**9  # Convert ns to s
+            is_datetime_type = True
+            print(f"[HISTOGRAM] Column {col} treated as DATETIME.")
+        else:
+             print(f"[HISTOGRAM] Column {col} converted to datetime but all values became NaT or NaN.")
+    
+    if numeric_values_for_hist is None: # Did not become valid datetime
+        # Check if original (or coerced if not datetime) is numeric
+        if pd.api.types.is_numeric_dtype(series.dtype):
+            numeric_values_for_hist = series.astype(float) # Ensure float for histogram
+            print(f"[HISTOGRAM] Column {col} treated as NUMERIC (original dtype).")
+        elif pd.api.types.is_numeric_dtype(series_dt_coerced.dtype): # e.g. if to_datetime produced numbers
+             numeric_values_for_hist = series_dt_coerced.dropna().astype(float)
+             print(f"[HISTOGRAM] Column {col} treated as NUMERIC (after to_datetime coerce gave numeric).")
+        else:
+            # If still not numeric (e.g. object type with mixed non-convertible strings)
+            print(f"[HISTOGRAM] Column '{col}' (dtype: {series.dtype}) is not convertible to datetime or numeric. Cannot generate histogram.")
+            return [], []
+
+    if numeric_values_for_hist is None or len(numeric_values_for_hist) == 0 : 
+        print(f"[HISTOGRAM] Column {col} resulted in no valid numeric values for histogram.")
+        return [], []
+        
     # Use numpy's histogram with automatic bin selection
-    counts, bin_edges = np.histogram(values, bins='auto')
-    # Format bin labels with proper number formatting
-    bin_labels = [f'${int(bin_edges[i]):,}-${int(bin_edges[i+1]):,}' for i in range(len(bin_edges)-1)]
+    try:
+        counts, bin_edges = np.histogram(numeric_values_for_hist, bins='auto')
+    except TypeError as e:
+        print(f"[ERROR] np.histogram failed for column '{col}'. Processed values head: {numeric_values_for_hist.head() if hasattr(numeric_values_for_hist, 'head') else str(numeric_values_for_hist)[:100]}. Error: {e}")
+        return [], []
+    
+    # Format bin labels
+    if is_datetime_type:
+        if len(bin_edges) < 2:
+            print(f"[HISTOGRAM] Not enough bin edges for column {col} to form labels (datetime).")
+            return [], []
+        bin_labels = [f'{pd.to_datetime(bin_edges[i], unit="s").strftime("%Y-%m-%d")} to {pd.to_datetime(bin_edges[i+1], unit="s").strftime("%Y-%m-%d")}' 
+                      for i in range(len(bin_edges)-1)]
+    else: # Numeric type
+        if len(bin_edges) < 2:
+            print(f"[HISTOGRAM] Not enough bin edges for column {col} to form labels (numeric).")
+            return [], []
+        if ('amount' in col.lower() or 'price' in col.lower() or 'currency' in col.lower() or '$' in col.lower()) and \
+           all(isinstance(x, (int, float)) for x in bin_edges) and \
+           all(x >= 0 for x in bin_edges):
+             bin_labels = [f'${int(bin_edges[i]):,}-${int(bin_edges[i+1]):,}' for i in range(len(bin_edges)-1)]
+        else: 
+             bin_labels = [f'{float(bin_edges[i]):,.2f}-{float(bin_edges[i+1]):,.2f}' for i in range(len(bin_edges)-1)]
+
     return bin_labels, counts.tolist()
 
 def compute_ratio(df, num_col, denom_col):
@@ -702,6 +733,91 @@ def is_allowed_array_field(field_name):
         if allowed in field_name:
             return True
     return False
+
+# Add a helper to recursively convert all numpy types to native Python types for JSON serialization
+def make_json_serializable(obj):
+    if isinstance(obj, dict):
+        return {k: make_json_serializable(v) for k, v in obj.items()}
+    elif isinstance(obj, list):
+        return [make_json_serializable(x) for x in obj]
+    elif isinstance(obj, np.integer):
+        return int(obj)
+    elif isinstance(obj, np.floating):
+        return float(obj)
+    else:
+        return obj
+
+@app.post("/session-dashboard")
+async def save_session_dashboard(request: Request):
+    data = await request.json()
+    session_id = str(uuid.uuid4())
+    redis_client.set(f"dashboard:{session_id}", json.dumps(data), ex=60*60*24)  # 24 hour expiry
+    return {"session_id": session_id}
+
+@app.get("/session-dashboard/{session_id}")
+async def get_session_dashboard(session_id: str):
+    raw = redis_client.get(f"dashboard:{session_id}")
+    if not raw:
+        raise HTTPException(status_code=404, detail="Session not found or expired")
+    return json.loads(raw)
+
+def log_chart_json(chart_json):
+    # Helper to log only the first 10 items of x, y, labels, values
+    def truncate(arr):
+        if isinstance(arr, list):
+            return arr[:10] + ([f"...+{len(arr)-10} more"] if len(arr) > 10 else [])
+        return arr
+    if isinstance(chart_json, dict):
+        for key in ['x', 'y', 'labels', 'values']:
+            if key in chart_json:
+                chart_json[key] = truncate(chart_json[key])
+        print(json.dumps(chart_json, indent=2, default=str))
+    else:
+        print(chart_json)
+
+def log_visualizations_list_concisely(viz_list, context_message=""):
+    if not viz_list:
+        print(f"{context_message} Empty list.")
+        return
+
+    print(f"{context_message} (Showing summary of {len(viz_list)} visualizations):")
+    summaries = []
+    for i, viz_item in enumerate(viz_list):
+        if isinstance(viz_item, dict):
+            summary_item = {}
+            for k, v in viz_item.items():
+                if k in ['x', 'y', 'labels', 'values', 'text'] and isinstance(v, list): # Add 'text' here
+                    summary_item[k] = v[:5] + ([f"...+{len(v)-5} more"] if len(v) > 5 else [])
+                elif isinstance(v, str) and len(v) > 100: # Truncate long strings like 'explanation' or title
+                    summary_item[k] = v[:100] + "..."
+                elif isinstance(v, dict) and k == 'data': # Handle nested 'data' dict
+                    nested_summary = {}
+                    for nk, nv in v.items():
+                        if nk in ['x', 'y', 'labels', 'values', 'text'] and isinstance(nv, list):
+                             nested_summary[nk] = nv[:5] + ([f"...+{len(nv)-5} more"] if len(nv) > 5 else [])
+                        elif isinstance(nv, str) and len(nv) > 100:
+                            nested_summary[nk] = nv[:100] + "..."
+                        else:
+                            nested_summary[nk] = nv
+                    summary_item[k] = nested_summary
+                else:
+                    summary_item[k] = v
+            summaries.append(summary_item)
+        else: 
+            # Should not happen if AI response and processing is correct, but good to handle
+            try:
+                summaries.append(str(viz_item)[:200] + "..." if len(str(viz_item)) > 200 else str(viz_item))
+            except Exception:
+                summaries.append("Unstringable item in visualization list")
+    try:
+        # Attempt to pretty print the summarized list
+        print(json.dumps(summaries, indent=2, default=str))
+    except TypeError: 
+        # Fallback if json.dumps fails (e.g. before make_json_serializable)
+        # This fallback might be less readable but better than crashing the log
+        print("Summary (fallback string representation):")
+        for s_item in summaries:
+            print(str(s_item))
 
 if __name__ == "__main__":
     import uvicorn

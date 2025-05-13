@@ -4,6 +4,34 @@ Important context:
 - The supported chart types are: bar, scatter, pie, and box.
 - The charts will be rendered using the ECharts library (https://echarts.apache.org/).
 
+Allowed Derived Fields:
+You may only use the following derived field names and patterns in the "data" object:
+- For ratios: "column1_to_column2_ratio" (e.g., "box_office_worldwide_to_budget_ratio")
+- For histograms: "column_bins" (e.g., "budget_bins"), "column_frequencies" (e.g., "budget_frequencies")
+- For group counts: "group_count_by_column" (e.g., "group_count_by_genre")
+- For sums (totals): "sum_<column>" (e.g., "sum_box_office_us_canada", "sum_box_office_other")
+- For means (averages): "mean_<column>" (e.g., "mean_budget")
+- For medians: "median_<column>" (e.g., "median_box_office_worldwide")
+- For correlations: "correlation_column1_column2" (e.g., "correlation_budget_box_office_worldwide")
+
+For every derived field used in the data object, you must include a sibling key at the top level of the chart JSON with the same name, containing a "derived_from" array specifying the columns used for the computation. For example:
+{{
+  "type": "bar",
+  "data": {{
+    "x": ["box_office_us_canada", "box_office_other", "box_office_worldwide"],
+    "y": [
+      "correlation_budget_box_office_us_canada",
+      "correlation_budget_box_office_other",
+      "correlation_budget_box_office_worldwide"
+    ]
+  }},
+  "correlation_budget_box_office_us_canada": {{ "derived_from": ["budget", "box_office_us_canada"] }},
+  "correlation_budget_box_office_other": {{ "derived_from": ["budget", "box_office_other"] }},
+  "correlation_budget_box_office_worldwide": {{ "derived_from": ["budget", "box_office_worldwide"] }}
+}}
+
+Do not invent or use any other derived field names. Do not use aliases like "total_us_revenue" or "total_international_revenue"—use "sum_box_office_us_canada" and "sum_box_office_other" instead.
+
 Important: Return exactly 10 JSON objects in a single array—no prose or explanations.
 
 Each visualization must follow this schema:
@@ -30,6 +58,16 @@ Each visualization must follow this schema:
   }}
 }}
 
+Strict Field Rules:
+- Allowed fields in the "data" object are:
+  - For bar: "x", "y", "derived_from" (optional)
+  - For scatter: "x", "y", "labels" (optional), "derived_from" (optional)
+  - For pie: "labels", "values", "derived_from" (optional)
+  - For box: "x", "y", "derived_from" (optional)
+- Do not include any extra keys in the "data" object (such as precomputed totals or summary values).
+- For "labels" and "values", only use column names, derived field names, or arrays of values. Do not reference extra keys.
+- If you need to show a total or summary, use a derived field name or let the backend compute it.
+
 Key Rules:
 1. For most fields (x, y, labels, values), use column names or derived field names as strings.
 2. For derived fields such as histogram bins, frequencies, or calculated arrays, you may provide an array of values.
@@ -40,6 +78,10 @@ Key Rules:
    - ratio: "column1_to_column2_ratio"
    - histogram: "column_bins" or "column_frequencies"
    - group count: "group_count_by_column"
+   - sum: "sum_<column>"
+   - mean: "mean_<column>"
+   - median: "median_<column>"
+   - correlation: "correlation_column1_column2"
 7. Include derived_from array for any computed fields
 8. No comments, no trailing commas
 9. Do not include a "type" field inside the data object
@@ -48,16 +90,45 @@ Key Rules:
 12. The output must be a valid JSON array containing exactly 10 objects
 
 Example (do not reuse values):
-{{
-  "title": "Budget vs Box Office",
-  "type": "scatter",
-  "data": {{
-    "x": "budget",
-    "y": "box_office_worldwide",
-    "labels": "title",
-    "derived_from": ["budget", "box_office_worldwide"]
+[
+  {{
+    "title": "Budget vs Box Office",
+    "type": "scatter",
+    "data": {{
+      "x": "budget",
+      "y": "box_office_worldwide",
+      "labels": "title",
+      "derived_from": ["budget", "box_office_worldwide"]
+    }}
+  }},
+  {{
+    "title": "Budget Distribution",
+    "type": "bar",
+    "data": {{
+      "x": "budget_bins",
+      "y": "budget_frequencies",
+      "derived_from": ["budget"]
+    }}
+  }},
+  {{
+    "title": "Box Office Revenue Distribution by Region",
+    "type": "pie",
+    "data": {{
+      "labels": ["Box Office US/Canada", "Box Office Other"],
+      "values": ["sum_box_office_us_canada", "sum_box_office_other"],
+      "derived_from": ["box_office_us_canada", "box_office_other"]
+    }}
+  }},
+  {{
+    "title": "Budget Efficiency Ratio",
+    "type": "box",
+    "data": {{
+      "x": "budget_efficiency_ratio",
+      "y": "box_office_worldwide_to_budget_ratio",
+      "derived_from": ["box_office_worldwide", "budget"]
+    }}
   }}
-}}
+]
 
 Data Sample:
 {data_sample}
@@ -82,4 +153,39 @@ Use the data analysis and summary statistics to:
 9. Identify opportunities for optimization
 10. Highlight key business insights
 
-Choose the most appropriate visualizations that will help tell the story of the data and provide actionable insights. 
+Choose the most appropriate visualizations that will help tell the story of the data and provide actionable insights.
+
+Field Type Hints (MANDATORY):
+- For every x, y, labels, and values field, you MUST include a '<field>_type' field (e.g., 'x_type', 'y_type', 'labels_type', 'values_type') to specify the type of data in the array or value.
+- Allowed types include: 'bin_labels', 'column_names', 'values', 'frequencies', 'derived', etc. If you use a new or unrecognized type, include it anyway; the backend will log and handle it.
+- Use 'category_labels' for arrays of distinct values from a categorical column (e.g., ["west", "east", "central", "south"] for a 'region' column). Only use this if you are aware of all possible categories; otherwise, use the column name as a string (e.g., "region").
+- Example:
+  "x": ["west", "east", "central", "south"],
+  "x_type": "category_labels"
+  // Only use this if you know all categories. Otherwise:
+  "x": "region",
+  "x_type": "column_name"
+
+Display Type Hints (MANDATORY):
+- For every x, y, labels, and values field, you MUST include a '<field>_display_type' field (e.g., 'y_display_type') to specify the semantic type of the data for display/formatting purposes.
+- Allowed display types include: 'currency', 'correlation', 'percentage', 'count', 'category', 'text', etc.
+- Use 'currency' for monetary values, 'correlation' for correlation coefficients, 'percentage' for percent values, 'count' for counts, 'category' for categorical labels, and 'text' for descriptive text.
+- Example:
+  "y": [1000000, 2000000, 3000000],
+  "y_type": "values",
+  "y_display_type": "currency"
+
+  "y": [0.29, 0.15, 0.33],
+  "y_type": "correlation",
+  "y_display_type": "correlation"
+
+Chart Explanation (MANDATORY):
+- For each chart object, you MUST include an 'explanation' field at the top level. This should be a plain-language explanation of the chart, why it was chosen, and what it can be used for, written for a business user (not a data expert).
+- Example:
+  "explanation": "This bar chart shows the total sales revenue for each product category, helping you quickly identify which categories are the most profitable and where to focus your business strategy."
+
+You must generate exactly 10 visualizations (charts) for the provided data.
+
+Additional Rules:
+- All column names in the returned JSON must be lower case, regardless of how they appear in the data sample or analysis.
+- When choosing fields for visualizations, always consider the number of distinct values (cardinality) in each field. Prefer fields with a reasonable number of distinct values for grouping, coloring, or axis labels, as this will make the resulting charts clearer and more interpretable. Avoid using fields with too many unique values for axes or groupings, as this can make charts unreadable.

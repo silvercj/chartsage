@@ -41,7 +41,7 @@ Consider edge cases that might not be handled
 Look for environmental factors that might contribute
 
 
-Add Diagnostic Logging
+ALWAYS Add Diagnostic Logging
 
 Add strategic logging statements to capture:
 

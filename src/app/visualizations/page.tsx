@@ -1,11 +1,8 @@
 'use client';
 
-import { useEffect, useState, useRef } from 'react';
-import Plot from 'react-plotly.js';
+import { useEffect, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import dynamic from 'next/dynamic';
-// @ts-ignore
-import Plotly from 'plotly.js-dist-min';
 
 const VisualizationCard = dynamic(() => import('./VisualizationCard'), { ssr: false });
 
@@ -23,7 +20,6 @@ export default function VisualizationsPage() {
   const [error, setError] = useState<string | null>(null);
   const [progress, setProgress] = useState(0);
   const [progressLabel, setProgressLabel] = useState(PROGRESS_STEPS[0].label);
-  const plotRefs = useRef<(Plotly.PlotlyHTMLElement | null)[]>([]);
 
   // Helper to simulate progress
   const nextProgress = (step: number) => {
@@ -33,179 +29,27 @@ export default function VisualizationsPage() {
 
   // Main report generation effect
   useEffect(() => {
-    // Load visualizations from query string
-    try {
-      const vizParam = searchParams.get('data');
-      if (!vizParam) throw new Error('No report data found. Please generate a report first.');
-      const decoded = JSON.parse(atob(decodeURIComponent(vizParam)));
-      setVisualizations(decoded);
+    // Load visualizations from session ID in query string
+    const sessionId = searchParams.get('session');
+    if (!sessionId) {
+      setError('No report session found. Please generate a report first.');
       setLoading(false);
-    } catch (err: any) {
-      setError(err.message || 'Failed to load report');
-      setLoading(false);
+      return;
     }
-  }, [searchParams]);
-
-  const createPlotlyConfig = (spec: any) => {
-    return {
-      displayModeBar: true,
-      responsive: true,
-      displaylogo: false,
-      modeBarButtonsToRemove: ['lasso2d', 'select2d'] as any[]
-    };
-  };
-
-  const createPlotlyLayout = (spec: any) => {
-    const layout: any = {
-      title: spec?.layout?.title || spec?.title || 'Untitled Chart',
-      showlegend: spec?.style?.show_legend ?? true,
-      paper_bgcolor: 'white',
-      plot_bgcolor: 'white',
-      margin: { l: 50, r: 50, t: 50, b: 50 },
-      width: undefined,  // Let it be responsive
-      height: 400
-    };
-
-    if (spec?.layout?.xaxis_title) {
-      layout.xaxis = { 
-        title: spec.layout.xaxis_title,
-        showgrid: spec?.layout?.show_grid ?? true
-      };
-    }
-    if (spec?.layout?.yaxis_title) {
-      layout.yaxis = { 
-        title: spec.layout.yaxis_title,
-        showgrid: spec?.layout?.show_grid ?? true
-      };
-    }
-    if (spec?.layout?.barmode) {
-      layout.barmode = spec.layout.barmode;
-    }
-
-    return layout;
-  };
-
-  const createPlotlyData = (spec: any) => {
-    console.log('Creating plot data for spec:', spec);
-    let data: any = {};
-
-    if (!spec?.data) {
-      console.error('Missing data in spec:', spec);
-      return {
-        type: 'scatter',
-        x: [],
-        y: [],
-        name: 'Error: No data'
-      };
-    }
-
-    // Get the actual data from the spec
-    const xData = Array.isArray(spec.data.x) ? spec.data.x : 
-                 spec.data.x ? [spec.data.x] : [];
-    const yData = Array.isArray(spec.data.y) ? spec.data.y :
-                 spec.data.y ? [spec.data.y] : [];
-
-    switch (spec.type) {
-      case 'bar':
-        data = {
-          type: 'bar',
-          x: xData,
-          y: yData,
-          name: spec.title || 'Bar Chart',
-          text: spec?.style?.show_values ? yData : undefined,
-          textposition: 'auto',
-          marker: {
-            color: spec?.style?.color_scheme || 'rgb(55, 83, 109)'
-          }
-        };
-        break;
-
-      case 'line':
-        data = {
-          type: 'scatter',
-          mode: spec?.style?.show_markers ? 'lines+markers' : 'lines',
-          x: xData,
-          y: yData,
-          name: spec.title || 'Line Chart',
-          line: {
-            width: spec?.style?.line_width || 2,
-            color: spec?.style?.color_scheme || 'rgb(55, 83, 109)'
-          }
-        };
-        break;
-
-      case 'scatter':
-        data = {
-          type: 'scatter',
-          mode: 'markers',
-          x: xData,
-          y: yData,
-          name: spec.title || 'Scatter Plot',
-          marker: {
-            size: spec?.style?.marker_size || 10,
-            color: spec?.style?.color_scheme || 'rgb(55, 83, 109)'
-          },
-          text: spec.data.text || spec.data.labels,
-          hoverinfo: 'text+x+y'
-        };
-        break;
-
-      case 'pie':
-        data = {
-          type: 'pie',
-          labels: spec.data.labels || xData,
-          values: spec.data.values || yData,
-          name: spec.title || 'Pie Chart',
-          hole: spec?.style?.hole || 0,
-          textinfo: spec?.style?.show_percentages ? 'label+percent' : 'label',
-          marker: {
-            colors: spec?.style?.color_scheme
-          }
-        };
-        break;
-
-      case 'box':
-        console.log('Box plot yData:', yData);
-        data = {
-          type: 'box',
-          y: yData,
-          name: spec.title || 'Box Plot',
-          boxpoints: spec?.style?.show_outliers ? 'outliers' : false,
-          marker: {
-            color: spec?.style?.color_scheme || 'rgb(55, 83, 109)'
-          }
-        };
-        break;
-
-      default:
-        console.error('Unknown chart type:', spec.type);
-        data = {
-          type: 'scatter',
-          x: [],
-          y: [],
-          name: 'Error: Unknown chart type'
-        };
-    }
-
-    console.log('Generated plot data:', data);
-    return data;
-  };
-
-  // Helper to download chart as PNG
-  const handleDownload = async (index: number, title: string) => {
-    const plotEl = plotRefs.current[index];
-    if (plotEl) {
-      // @ts-ignore
-      const Plotly = await import('plotly.js-dist-min');
-      Plotly.downloadImage(plotEl, {
-        format: 'png',
-        filename: title.replace(/\s+/g, '_').toLowerCase(),
-        width: 900,
-        height: 500,
-        scale: 2
+    fetch(`${process.env.NEXT_PUBLIC_API_URL}/session-dashboard/${sessionId}`)
+      .then(res => {
+        if (!res.ok) throw new Error('Failed to load dashboard session');
+        return res.json();
+      })
+      .then(data => {
+        setVisualizations(data);
+        setLoading(false);
+      })
+      .catch(err => {
+        setError(err.message || 'Failed to load report');
+        setLoading(false);
       });
-    }
-  };
+  }, [searchParams]);
 
   // Progress bar component
   const ProgressBar = ({ step }: { step: number }) => (
@@ -283,7 +127,6 @@ export default function VisualizationsPage() {
               plotData = {};
             }
             const layout = {
-              ...createPlotlyLayout(viz),
               font: {
                 family: 'Inter, sans-serif',
                 size: 16,
@@ -298,14 +141,12 @@ export default function VisualizationsPage() {
               paper_bgcolor: '#fff',
               plot_bgcolor: '#fff',
               xaxis: {
-                ...((createPlotlyLayout(viz).xaxis) || {}),
                 tickfont: { size: 15 },
                 titlefont: { size: 17 },
                 showgrid: false,
                 zeroline: false
               },
               yaxis: {
-                ...((createPlotlyLayout(viz).yaxis) || {}),
                 tickfont: { size: 15 },
                 titlefont: { size: 17 },
                 gridcolor: '#e5e7eb',
@@ -315,26 +156,13 @@ export default function VisualizationsPage() {
               height: 400,
               width: undefined
             };
-            const config = {
-              ...createPlotlyConfig(viz),
-              toImageButtonOptions: {
-                format: 'png',
-                filename: viz?.title?.replace(/\s+/g, '_').toLowerCase() || `chart_${index + 1}`,
-                height: 500,
-                width: 900,
-                scale: 2
-              }
-            };
             return (
               <VisualizationCard
                 key={index}
                 viz={viz}
                 index={index}
                 plotData={plotData}
-                handleDownload={handleDownload}
                 layout={layout}
-                config={config}
-                plotRef={el => plotRefs.current[index] = el}
               />
             );
           })}
