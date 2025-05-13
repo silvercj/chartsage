@@ -1,0 +1,31 @@
+# Rule: Prompt JSON Formatting
+
+**Description:**
+Whenever editing or updating any prompt template that will be used with Python's `.format()` method, always ensure that all curly braces in JSON examples or schemas are escaped:
+- Use `{{` and `}}` for literal braces in JSON.
+- Only leave single braces for actual Python format placeholders (e.g., `{data_sample}`).
+
+**Why:**
+Unescaped curly braces in JSON examples will cause `KeyError` or formatting errors when Python's `.format()` is called.
+
+**How:**
+- Before saving or committing any prompt template, search for `{` and `}` in JSON blocks and replace with `{{` and `}}` unless it's a real format placeholder.
+- Double-check after any prompt update or schema/example change.
+
+**Example:**
+
+# BAD (will cause KeyError)
+{
+  "type": "bar",
+  "data": {
+    "x": ...
+  }
+}
+
+# GOOD (safe for .format())
+{{
+  "type": "bar",
+  "data": {{
+    "x": ...
+  }}
+}} 

@@ -1,8 +1,10 @@
 'use client';
 
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { useDropzone } from 'react-dropzone';
 import { useRouter } from 'next/navigation';
+import Papa from 'papaparse';
+import type { ParseResult } from 'papaparse';
 
 interface DataPreview {
   columns: string[];
@@ -26,6 +28,9 @@ export default function Home() {
   const router = useRouter();
   const [progress, setProgress] = useState(0);
   const [progressLabel, setProgressLabel] = useState(PROGRESS_STEPS[0].label);
+  const [busyCountdown, setBusyCountdown] = useState<number | null>(null);
+  const [busyRetry, setBusyRetry] = useState(false);
+  const countdownRef = useRef<NodeJS.Timeout | null>(null);
 
   // Only log when dataPreview actually changes to a value
   useEffect(() => {
@@ -134,21 +139,23 @@ export default function Home() {
       reader.onload = async (e) => {
         try {
           const content = e.target?.result as string;
-          let previewData: Record<string, string>[];
-          let columns: string[];
-
-          // Parse CSV
-          const lines = content.split('\n');
-          columns = lines[0].split(',').map(col => col.trim());
-          
-          previewData = lines.slice(1, 11).map(line => {
-            const values = line.split(',');
-            return columns.reduce((obj: Record<string, string>, col: string, i: number) => {
-              obj[col] = values[i]?.trim() || '';
-              return obj;
-            }, {} as Record<string, string>);
+          // Use PapaParse for robust CSV parsing
+          const parsed = Papa.parse(content, { header: true, skipEmptyLines: true });
+          if (parsed.errors.length) {
+            console.error('❌ PapaParse errors:', parsed.errors);
+            setError('Error parsing CSV file. Please check your file format.');
+            return;
+          }
+          // Lowercase all column names
+          const columns = (parsed.meta.fields || []).map(col => col.toLowerCase());
+          // Lowercase all keys in preview rows
+          const previewData = parsed.data.slice(0, 10).map((row: any) => {
+            const newRow: Record<string, any> = {};
+            for (const key in row) {
+              newRow[key.toLowerCase()] = row[key];
+            }
+            return newRow;
           });
-
           setDataPreview({
             columns,
             data: previewData
@@ -191,40 +198,66 @@ export default function Home() {
 
     setIsProcessing(true);
     setError(null);  // Clear any previous errors
+    setBusyCountdown(null);
+    setBusyRetry(false);
     nextProgress(0); // Uploading Data
     // Read the file as base64 (for progress simulation only)
     const reader = new FileReader();
     reader.onload = async (e) => {
-      try {
-        // No need to store in localStorage, just pass file via router state
-        nextProgress(1); // Getting AI Insights
-        // Convert file to Blob (already a File object)
-        // Send to backend
-        const formData = new FormData();
-        formData.append('file', file);
-        const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/generate-dashboard`, {
-          method: 'POST',
-          body: formData,
-        });
-        if (!response.ok) {
-          const errorData = await response.json();
-          throw new Error(errorData.detail || 'Failed to generate dashboard');
-        }
-        nextProgress(2); // Creating Report
-        const data = await response.json();
-        // Pass the visualizations via router state (use query string for Next.js)
-        const vizParam = encodeURIComponent(btoa(JSON.stringify(data.visualizations)));
-        nextProgress(3); // Done!
-        setTimeout(() => {
+      let retryAttempted = false;
+      const doRequest = async () => {
+        try {
+          nextProgress(1); // Getting AI Insights
+          const formData = new FormData();
+          formData.append('file', file);
+          const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/generate-dashboard`, {
+            method: 'POST',
+            body: formData,
+          });
+
+          let data = null;
+          try {
+            data = await response.json();
+          } catch (e) {}
+
+          // Check for busy status in both 503 and 500 responses
+          const busyStatus = data?.detail?.status || data?.status;
+          if ((response.status === 503 || response.status === 500) && busyStatus === 'busy') {
+            setError(data?.detail?.message || data?.message || 'All our AI agents are busy at the moment. Please wait 30 seconds and we will try again automatically.');
+            // Optionally trigger your retry logic here
+            return;
+          }
+
+          if (!response.ok) {
+            throw new Error(data?.detail?.message || data?.message || 'Failed to generate dashboard');
+          }
+
+          nextProgress(2); // Creating Report
+          // POST visualizations to session-dashboard endpoint
+          const sessionRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/session-dashboard`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data.visualizations)
+          });
+          const sessionData = await sessionRes.json();
+          if (!sessionRes.ok || !sessionData.session_id) {
+            throw new Error('Failed to create dashboard session');
+          }
+          nextProgress(3); // Done!
+          setTimeout(() => {
+            setIsProcessing(false);
+            router.push(`/visualizations?session=${sessionData.session_id}`);
+          }, 500);
+        } catch (err: any) {
+          setError(err.message || 'Failed to generate report');
           setIsProcessing(false);
-          router.push(`/visualizations?data=${vizParam}`);
-        }, 500); // Short delay for smoothness
-      } catch (err: any) {
-        setError(err.message || 'Failed to generate report');
-        setIsProcessing(false);
-      }
+          setBusyCountdown(null);
+          setBusyRetry(false);
+        }
+      };
+      doRequest();
     };
-    reader.readAsDataURL(file); // Still triggers progress, but not used for storage
+    reader.readAsDataURL(file);
   };
 
   const handleViewVisualizations = () => {
@@ -311,6 +344,12 @@ export default function Home() {
               <div className="text-center">
                 <p className="text-lg font-medium text-gray-900">{progressLabel}</p>
                 <p className="text-sm text-gray-500 mt-1">Generating your report, please wait...</p>
+                {busyCountdown !== null && (
+                  <p className="text-red-600 font-semibold mt-2">All our AI agents are busy. Retrying in {busyCountdown} seconds...</p>
+                )}
+                {busyRetry && busyCountdown === null && error && (
+                  <p className="text-red-600 font-semibold mt-2">{error}</p>
+                )}
               </div>
             </div>
           </div>

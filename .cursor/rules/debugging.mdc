@@ -1,5 +1,5 @@
 ---
-description:  name: "Methodical Debugging Process" description: "A structured approach to debugging that identifies the exact location and nature of issues before proposing solutions, with emphasis on diagnostic logging
+description: name: "Methodical Debugging Process" description: "A structured approach to debugging that identifies the exact location and nature of issues before proposing solutions, with emphasis on diagnostic logging
 globs: 
 alwaysApply: false
 ---
@@ -41,7 +41,7 @@ Consider edge cases that might not be handled
 Look for environmental factors that might contribute
 
 
-Add Diagnostic Logging
+ALWAYS Add Diagnostic Logging
 
 Add strategic logging statements to capture:
 
@@ -107,7 +107,6 @@ If the fix is uncertain, keep enhanced logging in place
 Suggest logging improvements for similar components
 Recommend monitoring or alerting for recurrence
 Document the issue, fix approach, and reasoning
+Ensure we add strict logging for every attempted fix
 
-
-
-Never jump directly to solutions without first identifying exactly where and why the error occurs. Always distinguish between symptoms and root causes. When uncertain, prioritize adding comprehensive logging over speculative fixes.
+Important - if confident of the fix and the approach, proceed to make the fix without request for approval.
