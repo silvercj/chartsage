@@ -226,9 +226,108 @@ def execute_scatter_chart(df: pd.DataFrame, params: dict) -> ChartSpec | ToolErr
     )
 
 
+_LINE_AGGS = {"count", "sum", "mean", "median", "min", "max"}
+_GRANULARITIES = {
+    "day": "D", "week": "W", "month": "M",
+    "quarter": "Q", "year": "Y",
+}
+
+
+def _to_datetime(series: pd.Series) -> pd.Series:
+    return pd.to_datetime(series, errors="coerce")
+
+
+def execute_line_chart(df: pd.DataFrame, params: dict) -> ChartSpec | ToolError:
+    date_col = params["date_col"]
+    value_col = params["value_col"]
+    agg = params["agg"]
+    granularity = params["granularity"]
+    group_by = params.get("group_by")
+    title = params["title"]
+    intent = params["intent"]
+
+    if agg not in _LINE_AGGS:
+        return _err(f"agg='{agg}' is not allowed. Allowed: {sorted(_LINE_AGGS)}.")
+
+    if granularity not in _GRANULARITIES:
+        return _err(f"granularity='{granularity}' is not allowed. Allowed: {sorted(_GRANULARITIES.keys())}.")
+
+    if date_col not in df.columns:
+        return _err(f"date_col='{date_col}' is not a column.")
+
+    parsed_dates = _to_datetime(df[date_col])
+    if parsed_dates.notna().sum() < 0.5 * len(df):
+        return _err(f"'{date_col}' could not be parsed as a date column.")
+
+    if agg != "count":
+        if value_col not in df.columns:
+            return _err(f"value_col='{value_col}' is not a column.")
+        if not pd.api.types.is_numeric_dtype(df[value_col]):
+            return _err(f"value_col='{value_col}' is not numeric (required when agg != 'count').")
+
+    work = df.copy()
+    work["_date"] = parsed_dates
+    work = work.dropna(subset=["_date"])
+    work["_period"] = work["_date"].dt.to_period(_GRANULARITIES[granularity])
+
+    def _agg_one(g: pd.DataFrame) -> float:
+        if agg == "count":
+            return float(len(g))
+        return float(g[value_col].agg(agg))
+
+    if group_by is None:
+        grouped = work.groupby("_period").apply(_agg_one).sort_index()
+        return ChartSpec(
+            kind="line",
+            title=title,
+            intent=intent,
+            x=[str(p) for p in grouped.index.tolist()],
+            y=[float(v) for v in grouped.values.tolist()],
+            x_label=f"{granularity.capitalize()} ({date_col})",
+            y_label=f"{agg.capitalize()}" + (f" of {value_col}" if agg != "count" else ""),
+            x_display_type="date",
+            y_display_type="count" if agg == "count" else "number",
+            source_columns=[date_col] + ([value_col] if agg != "count" else []),
+            data_point_count=int(len(work)),
+        )
+
+    if group_by not in df.columns:
+        return _err(f"group_by='{group_by}' is not a column.")
+    if work[group_by].nunique() > MAX_CATEGORIES:
+        return _err(f"group_by='{group_by}' has {work[group_by].nunique()} unique values; max is {MAX_CATEGORIES}.")
+
+    series_list: list[dict] = []
+    all_periods: set = set()
+    per_group: dict[str, pd.Series] = {}
+    for gv, sub in work.groupby(group_by):
+        s = sub.groupby("_period").apply(_agg_one).sort_index()
+        per_group[str(gv)] = s
+        all_periods.update(s.index.tolist())
+
+    periods_sorted = sorted(all_periods)
+    period_labels = [str(p) for p in periods_sorted]
+    for name, s in per_group.items():
+        aligned = [float(s.get(p, 0.0)) for p in periods_sorted]
+        series_list.append({"name": name, "x": period_labels, "y": aligned})
+
+    return ChartSpec(
+        kind="line",
+        title=title,
+        intent=intent,
+        series=series_list,
+        x_label=f"{granularity.capitalize()} ({date_col})",
+        y_label=f"{agg.capitalize()}" + (f" of {value_col}" if agg != "count" else ""),
+        x_display_type="date",
+        y_display_type="count" if agg == "count" else "number",
+        source_columns=[date_col, group_by] + ([value_col] if agg != "count" else []),
+        data_point_count=int(len(work)),
+    )
+
+
 TOOL_EXECUTORS: dict[str, Callable[[pd.DataFrame, dict], ChartSpec | ToolError]] = {
     "frequency_bar_chart": execute_frequency_bar_chart,
     "aggregation_bar_chart": execute_aggregation_bar_chart,
     "histogram_chart": execute_histogram_chart,
     "scatter_chart": execute_scatter_chart,
+    "line_chart": execute_line_chart,
 }
