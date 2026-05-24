@@ -19,6 +19,7 @@ from claude_client import ClaudeClient, RetryableBusy
 from llm_config import MODEL_SELECTION, MODEL_NARRATIVE
 from profile import profile_dataframe
 from report_generator import ReportGenerator
+from schemas import ChartLayoutEntry, Report
 
 
 load_dotenv()
@@ -177,6 +178,32 @@ async def get_report(session_id: str, r=Depends(get_redis)):
     if not raw:
         raise HTTPException(status_code=404, detail="Report not found or expired.")
     return JSONResponse(content=json.loads(raw))
+
+
+@app.patch("/report/{session_id}/layout", status_code=204)
+async def patch_report_layout(
+    session_id: str,
+    new_layout: list[ChartLayoutEntry],
+    r=Depends(get_redis),
+):
+    raw = r.get(f"report:{session_id}")
+    if not raw:
+        raise HTTPException(status_code=404, detail="Report not found or expired.")
+
+    report_dict = json.loads(raw)
+    known_ids = {c["chart_id"] for c in report_dict.get("charts", [])}
+
+    submitted_ids = {entry.chart_id for entry in new_layout}
+    unknown = submitted_ids - known_ids
+    if unknown:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unknown chart_id(s) in layout: {sorted(unknown)}",
+        )
+
+    report_dict["layout"] = [entry.model_dump() for entry in new_layout]
+    r.set(f"report:{session_id}", json.dumps(report_dict), ex=SESSION_TTL_SECONDS)
+    return None
 
 
 @app.get("/health")
