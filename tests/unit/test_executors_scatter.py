@@ -28,16 +28,16 @@ def test_with_color_by(activities):
 
 
 def test_drops_nan_pairs():
-    # 15 rows, 13 unique x values (above MIN_SCATTER_X_CARDINALITY) with two NaN rows.
+    # 20 rows, 18 unique x values (above MIN_SCATTER_X_CARDINALITY=15) with two NaN rows.
     df = pd.DataFrame({
-        "x": [1.0, 2.0, None, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0,
-              10.0, 11.0, 12.0, 13.0, 14.0, 15.0],
-        "y": [10.0, None, 30.0, 40.0, 50.0, 60.0, 70.0, 80.0, 90.0,
-              100.0, 110.0, 120.0, 130.0, 140.0, 150.0],
+        "x": [1.0, 2.0, None, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0,
+              11.0, 12.0, 13.0, 14.0, 15.0, 16.0, 17.0, 18.0, 19.0, 20.0],
+        "y": [10.0, None, 30.0, 40.0, 50.0, 60.0, 70.0, 80.0, 90.0, 100.0,
+              110.0, 120.0, 130.0, 140.0, 150.0, 160.0, 170.0, 180.0, 190.0, 200.0],
     })
     result = execute_scatter_chart(df, _params(x_col="x", y_col="y"))
     assert isinstance(result, ChartSpec)
-    assert len(result.x) == 13   # 15 rows minus 2 NaN pairs
+    assert len(result.x) == 18   # 20 rows minus 2 NaN pairs
 
 
 def test_rejects_low_cardinality_x():
