@@ -81,15 +81,21 @@ export default function LineChart({ spec }: { spec: any }) {
               .join('<br/>'),
         },
         legend: showLegend
-          ? { bottom: 0, textStyle: { color: TEXT_COLOR, fontSize: 11 }, icon: 'roundRect' }
+          ? {
+              bottom: 0,
+              textStyle: { color: TEXT_COLOR, fontSize: 11 },
+              itemWidth: 18,
+              itemHeight: 2,
+              itemGap: 20,
+            }
           : undefined,
-        grid: { left: 70, right: 24, top: 24, bottom: showLegend ? 56 : 40 },
+        grid: { left: 70, right: 24, top: 24, bottom: showLegend ? 84 : 48 },
         xAxis: {
           type: 'category',
           data: xData,
           name: spec.x_label,
           nameLocation: 'middle',
-          nameGap: 32,
+          nameGap: 34,
           nameTextStyle: { color: AXIS_COLOR, fontSize: 11 },
           axisLine: { lineStyle: { color: '#E7E5E4' } },
           axisTick: { show: false },

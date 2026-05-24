@@ -15,7 +15,8 @@ from schemas import ChartSpec, ToolError
 MAX_CATEGORIES = 30
 MAX_PIE_SLICES = 8
 MAX_SCATTER_POINTS = 5000
-MIN_SCATTER_X_CARDINALITY = 12  # below this, scatter degenerates to vertical stripes
+MIN_SCATTER_X_CARDINALITY = 15  # below this, scatter degenerates to vertical stripes
+                                # (Superstore discount has 11 unique values — must be excluded)
 
 _CURRENCY_KEYWORDS = (
     "revenue", "sales", "price", "cost", "amount", "profit",

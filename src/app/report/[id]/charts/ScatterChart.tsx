@@ -39,14 +39,21 @@ export default function ScatterChart({ spec }: { spec: any }) {
             `${spec.x_label}: ${fmtX(p.value[0])}<br/>${spec.y_label}: ${fmtY(p.value[1])}`,
         },
         legend: hasSeries
-          ? { bottom: 0, textStyle: { color: TEXT_COLOR, fontSize: 11 }, icon: 'circle' }
+          ? {
+              bottom: 0,
+              textStyle: { color: TEXT_COLOR, fontSize: 11 },
+              icon: 'circle',
+              itemWidth: 10,
+              itemHeight: 10,
+              itemGap: 18,
+            }
           : undefined,
-        grid: { left: 70, right: 24, top: 24, bottom: hasSeries ? 56 : 40 },
+        grid: { left: 70, right: 24, top: 24, bottom: hasSeries ? 84 : 48 },
         xAxis: {
           type: 'value',
           name: spec.x_label,
           nameLocation: 'middle',
-          nameGap: 30,
+          nameGap: 32,
           nameTextStyle: { color: AXIS_COLOR, fontSize: 11 },
           axisLine: { lineStyle: { color: '#E7E5E4' } },
           axisTick: { show: false },
