@@ -458,6 +458,94 @@ def execute_box_plot(df: pd.DataFrame, params: dict) -> ChartSpec | ToolError:
     )
 
 
+_HEATMAP_AGGS = {"sum", "mean", "count"}
+
+
+def execute_heatmap_chart(df: pd.DataFrame, params: dict) -> ChartSpec | ToolError:
+    mode = params["mode"]
+    title = params["title"]
+    intent = params["intent"]
+
+    if mode == "correlation":
+        numeric_cols = [c for c in df.columns if pd.api.types.is_numeric_dtype(df[c])]
+        if len(numeric_cols) < 2:
+            return _err(f"Correlation heatmap needs ≥2 numeric columns; found {len(numeric_cols)}.")
+        corr = df[numeric_cols].corr(numeric_only=True).round(3)
+        series = []
+        for i, row in enumerate(numeric_cols):
+            for j, col in enumerate(numeric_cols):
+                v = corr.loc[row, col]
+                if pd.notna(v):
+                    series.append({"row": row, "col": col, "value": float(v)})
+        return ChartSpec(
+            kind="heatmap",
+            title=title,
+            intent=intent,
+            x=numeric_cols,
+            y=numeric_cols,
+            series=series,
+            x_label="",
+            y_label="",
+            x_display_type="category",
+            y_display_type="number",
+            source_columns=numeric_cols,
+            data_point_count=int(df.shape[0]),
+        )
+
+    if mode != "pivot":
+        return _err(f"mode='{mode}' is not allowed. Allowed: 'correlation', 'pivot'.")
+
+    row_col = params.get("row_col")
+    col_col = params.get("col_col")
+    agg = params.get("agg", "count")
+    value_col = params.get("value_col")
+
+    if agg not in _HEATMAP_AGGS:
+        return _err(f"agg='{agg}' is not allowed for pivot. Allowed: {sorted(_HEATMAP_AGGS)}.")
+    if not row_col or row_col not in df.columns:
+        return _err(f"row_col='{row_col}' is not a column.")
+    if not col_col or col_col not in df.columns:
+        return _err(f"col_col='{col_col}' is not a column.")
+    if agg != "count":
+        if not value_col:
+            return _err("value_col is required when agg is not 'count'.")
+        if value_col not in df.columns:
+            return _err(f"value_col='{value_col}' is not a column.")
+        if not pd.api.types.is_numeric_dtype(df[value_col]):
+            return _err(f"value_col='{value_col}' is not numeric.")
+
+    cols_needed = [row_col, col_col] + ([value_col] if agg != "count" else [])
+    work = df[cols_needed].dropna()
+
+    if agg == "count":
+        pivot = work.groupby([row_col, col_col]).size().unstack(fill_value=0)
+    else:
+        pivot = work.pivot_table(index=row_col, columns=col_col, values=value_col, aggfunc=agg, fill_value=0)
+
+    if pivot.shape[0] > MAX_CATEGORIES or pivot.shape[1] > MAX_CATEGORIES:
+        return _err(f"Heatmap dimensions {pivot.shape} exceed {MAX_CATEGORIES} × {MAX_CATEGORIES} max.")
+
+    series = []
+    for r in pivot.index:
+        for c in pivot.columns:
+            series.append({"row": str(r), "col": str(c), "value": float(pivot.loc[r, c])})
+
+    return ChartSpec(
+        kind="heatmap",
+        title=title,
+        intent=intent,
+        x=[str(c) for c in pivot.columns.tolist()],
+        y=[str(r) for r in pivot.index.tolist()],
+        series=series,
+        x_label=col_col,
+        y_label=row_col,
+        x_display_type="category",
+        y_display_type="number",
+        source_columns=cols_needed,
+        data_point_count=int(len(work)),
+    )
+
+
 TOOL_EXECUTORS: dict[str, Callable[[pd.DataFrame, dict], ChartSpec | ToolError]] = {
     "frequency_bar_chart": execute_frequency_bar_chart,
     "aggregation_bar_chart": execute_aggregation_bar_chart,
@@ -466,4 +554,5 @@ TOOL_EXECUTORS: dict[str, Callable[[pd.DataFrame, dict], ChartSpec | ToolError]]
     "line_chart": execute_line_chart,
     "pie_chart": execute_pie_chart,
     "box_plot": execute_box_plot,
+    "heatmap_chart": execute_heatmap_chart,
 }
