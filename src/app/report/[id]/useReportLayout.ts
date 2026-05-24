@@ -29,8 +29,10 @@ export function useReportLayout(initial: Report, sessionId: string) {
   const [saveError, setSaveError] = useState<string | null>(null);
   const patchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastSavedLayoutRef = useRef<ChartLayoutEntry[]>(initial.layout);
+  const patchDisabledRef = useRef<boolean>(false);
 
   const queuePatch = useCallback((nextLayout: ChartLayoutEntry[]) => {
+    if (patchDisabledRef.current) return;   // permanent stop after a 5xx
     if (patchTimerRef.current) clearTimeout(patchTimerRef.current);
     patchTimerRef.current = setTimeout(async () => {
       try {
@@ -42,11 +44,20 @@ export function useReportLayout(initial: Report, sessionId: string) {
             body: JSON.stringify(nextLayout),
           },
         );
-        if (!res.ok) throw new Error(`Save failed (${res.status})`);
+        if (!res.ok) {
+          // 5xx → backend is unhealthy. Stop trying for this session.
+          if (res.status >= 500) {
+            patchDisabledRef.current = true;
+          }
+          throw new Error(`Save failed (${res.status})`);
+        }
         lastSavedLayoutRef.current = nextLayout;
         setSaveError(null);
       } catch (e: any) {
-        setSaveError(e.message || 'Could not save layout');
+        const suffix = patchDisabledRef.current
+          ? ' — your changes are local only.'
+          : '';
+        setSaveError((e.message || 'Could not save layout') + suffix);
         // Revert to last saved state
         setReport((r) => ({ ...r, layout: lastSavedLayoutRef.current }));
       }
@@ -109,6 +120,7 @@ export function useReportLayout(initial: Report, sessionId: string) {
   const replaceReport = useCallback((newReport: Report) => {
     if (patchTimerRef.current) clearTimeout(patchTimerRef.current);
     lastSavedLayoutRef.current = newReport.layout;
+    patchDisabledRef.current = false;   // backend roundtripped, try saves again
     setSaveError(null);
     setReport(newReport);
   }, []);

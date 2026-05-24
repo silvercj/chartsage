@@ -161,10 +161,14 @@ async def generate_report(
         raise HTTPException(status_code=500, detail=f"Report generation failed: {e}")
 
     session_id = uuid.uuid4().hex
-    r.set(f"report:{session_id}", report.model_dump_json(), ex=SESSION_TTL_SECONDS)
-    # Persist the source data so /generate-more can re-execute tool calls
-    df_csv = df.to_csv(index=False)
-    r.set(f"report:{session_id}:df", df_csv, ex=SESSION_TTL_SECONDS)
+    try:
+        r.set(f"report:{session_id}", report.model_dump_json(), ex=SESSION_TTL_SECONDS)
+        # Persist the source data so /generate-more can re-execute tool calls
+        df_csv = df.to_csv(index=False)
+        r.set(f"report:{session_id}:df", df_csv, ex=SESSION_TTL_SECONDS)
+    except Exception as e:
+        logging.exception("Redis write failed")
+        raise HTTPException(status_code=502, detail=f"Storage unavailable: {e}")
 
     logging.info(
         "=== RUN SUMMARY ===\nrun_id: %s\nfile: %s\nrows: %d  cols: %d\n"
