@@ -1,69 +1,82 @@
 # ChartSage
 
-Turn any Excel file into a beautiful, interactive dashboard with AI-generated insights in seconds.
+Drop a CSV or Excel file. Get a narrated data report with charts in under 10 seconds.
 
-## Features
+## What it does
 
-- Upload Excel/CSV files and get instant visualizations
-- AI-powered insights and recommendations
-- Interactive dashboards with Plotly.js
-- Export to PDF/PowerPoint
-- Shareable web links
+ChartSage profiles your data, asks Claude to pick the 5-7 charts that tell the most useful story, renders them with ECharts, and wraps the result in a written executive summary plus a data-quality callout when something looks off in your data.
 
 ## Tech Stack
 
-- Frontend: Next.js 14, React, TypeScript, Tailwind CSS
-- Backend: FastAPI, Python
-- AI: Claude API
-- Data Processing: pandas, numpy
-- Visualization: Plotly.js
-- Authentication: NextAuth.js
-- Payments: Stripe
+- **Frontend:** Next.js 14, React, TypeScript, Tailwind CSS, ECharts
+- **Backend:** FastAPI, Python 3.11+, pandas, Pydantic v2
+- **AI:** Claude via Anthropic SDK (Haiku 4.5 default; switchable)
+- **Storage:** Redis (24-hour session TTL)
 
-## Getting Started
+## Getting started
 
-1. Clone the repository
-2. Install dependencies:
-   ```bash
-   npm install
-   ```
-3. Set up environment variables:
-   ```bash
-   cp .env.example .env.local
-   ```
-4. Start the development server:
-   ```bash
-   npm run dev
-   ```
+### Prerequisites
 
-## Environment Variables
+- Python 3.11+
+- Node.js 18+
+- Redis running on localhost:6379 (`brew install redis && brew services start redis`)
+- An Anthropic API key
 
-- `NEXT_PUBLIC_API_URL`: Backend API URL
-- `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY`: Stripe publishable key
-- `STRIPE_SECRET_KEY`: Stripe secret key
-- `ANTHROPIC_API_KEY`: Claude API key
-- `NEXTAUTH_SECRET`: NextAuth secret
-- `NEXTAUTH_URL`: NextAuth URL
+### Setup
 
-## Project Structure
+```bash
+# Backend
+cp .env.example .env
+# edit .env to add ANTHROPIC_API_KEY
+pip install -r requirements.txt
 
-```
-src/
-├── app/              # Next.js app directory
-├── components/       # React components
-├── lib/             # Utility functions
-├── styles/          # Global styles
-└── types/           # TypeScript types
+# Frontend
+npm install
 ```
 
-## Contributing
+### Run
 
-1. Fork the repository
-2. Create your feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add some amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
+In one terminal:
+
+```bash
+make dev          # FastAPI on :8000
+```
+
+In another:
+
+```bash
+npm run dev       # Next.js on :3000
+```
+
+Open `http://localhost:3000`, drop a CSV, see a report.
+
+## Switching models
+
+Default is `haiku-4-5` (~$0.01 per report). Switch by setting one env var:
+
+```bash
+CLAUDE_MODEL=sonnet-4-6 make dev          # ~$0.035/report
+CLAUDE_MODEL=opus-4-7 make dev            # ~$0.04/report
+```
+
+Per-pass overrides (cheap selection, smarter narrative):
+
+```bash
+CLAUDE_MODEL_SELECTION=haiku-4-5
+CLAUDE_MODEL_NARRATIVE=sonnet-4-6
+```
+
+## Tests
+
+```bash
+make test         # unit + integration (~4s, no API calls)
+make test-e2e     # real Claude smoke tests (~60s, ~$0.06)
+```
+
+## Architecture
+
+See [docs/superpowers/specs/2026-05-23-chartsage-rebuild-design.md](docs/superpowers/specs/2026-05-23-chartsage-rebuild-design.md).
 
 ## License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details. 
+MIT.
