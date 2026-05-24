@@ -25,6 +25,7 @@ export default function Home() {
     const f = accepted[0];
     if (f.size > 10 * 1024 * 1024) {
       setError('File must be under 10MB.');
+      return;
     }
     if (!/\.(csv|xlsx)$/i.test(f.name)) {
       setError('Please upload a .csv or .xlsx file.');
