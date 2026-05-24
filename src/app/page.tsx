@@ -1,418 +1,164 @@
 'use client';
 
-import { useState, useCallback, useEffect, useRef } from 'react';
+import { useState, useCallback } from 'react';
 import { useDropzone } from 'react-dropzone';
 import { useRouter } from 'next/navigation';
 import Papa from 'papaparse';
-import type { ParseResult } from 'papaparse';
 
 interface DataPreview {
   columns: string[];
   data: Record<string, any>[];
 }
 
-const PROGRESS_STEPS = [
-  { label: 'Uploading Data', key: 'upload' },
-  { label: 'Getting AI Insights', key: 'ai' },
-  { label: 'Creating Report', key: 'report' },
-  { label: 'Done!', key: 'done' }
-];
+const STEPS = ['Reading file', 'Analyzing with AI', 'Writing report', 'Done'];
 
 export default function Home() {
   const [file, setFile] = useState<File | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [dataPreview, setDataPreview] = useState<DataPreview | null>(null);
-  const [visualizations, setVisualizations] = useState<any[]>([]);
-  const [showJson, setShowJson] = useState(false);
+  const [preview, setPreview] = useState<DataPreview | null>(null);
+  const [step, setStep] = useState(0);
   const router = useRouter();
-  const [progress, setProgress] = useState(0);
-  const [progressLabel, setProgressLabel] = useState(PROGRESS_STEPS[0].label);
-  const [busyCountdown, setBusyCountdown] = useState<number | null>(null);
-  const [busyRetry, setBusyRetry] = useState(false);
-  const countdownRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Only log when dataPreview actually changes to a value
-  useEffect(() => {
-    if (dataPreview) {
-      console.log('Data preview updated:', {
-        columns: dataPreview.columns,
-        rowCount: dataPreview.data.length
-      });
+  const onDrop = useCallback((accepted: File[]) => {
+    if (accepted.length === 0) return;
+    const f = accepted[0];
+    if (f.size > 10 * 1024 * 1024) {
+      setError('File must be under 10MB.');
     }
-  }, [dataPreview]);
-
-  // Function to convert column index to Excel-style letter
-  const getColumnLetter = (index: number): string => {
-    let letter = '';
-    while (index >= 0) {
-      letter = String.fromCharCode(65 + (index % 26)) + letter;
-      index = Math.floor(index / 26) - 1;
+    if (!/\.(csv|xlsx)$/i.test(f.name)) {
+      setError('Please upload a .csv or .xlsx file.');
+      return;
     }
-    return letter;
-  };
+    setFile(f);
+    setError(null);
+    setPreview(null);
 
-  // Helper to simulate progress
-  const nextProgress = (step: number) => {
-    setProgress(step);
-    setProgressLabel(PROGRESS_STEPS[step].label);
-  };
-
-  const handleUpload = useCallback(async (file: File) => {
-    try {
-      console.log('📤 Uploading file:', file.name);
-      setIsProcessing(true);
-      setError(null);
-      
-      const formData = new FormData();
-      formData.append('file', file);
-
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/upload`, {
-        method: 'POST',
-        body: formData,
-      });
-
-      console.log('📡 Server response status:', response.status);
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        console.error('❌ Server error response:', errorData);
-        throw new Error(errorData.detail || 'Upload failed');
-      }
-
-      const data = await response.json();
-      console.log('📦 Server response:', data);
-
-      if (!data.preview || !data.preview.columns || !data.preview.data) {
-        console.error('❌ Invalid preview data structure:', data);
-        throw new Error('Invalid preview data structure');
-      }
-
-      setDataPreview({
-        columns: data.preview.columns,
-        data: data.preview.data
-      });
-      console.log('✅ Data preview updated:', {
-        columnCount: data.preview.columns.length,
-        rowCount: data.preview.data.length
-      });
-
-    } catch (error) {
-      console.error('❌ Upload error:', error);
-      setError(error instanceof Error ? error.message : 'Failed to upload file');
-    } finally {
-      setIsProcessing(false);
-    }
-  }, []);
-
-  const onDrop = useCallback((acceptedFiles: File[]) => {
-    if (acceptedFiles.length > 0) {
-      const file = acceptedFiles[0];
-      console.log('📄 File selected:', file.name);
-      
-      // Validate file size (max 10MB)
-      if (file.size > 10 * 1024 * 1024) {
-        console.log('❌ File too large');
-        setError('File size must be less than 10MB');
-        return;
-      }
-      // Validate file type
-      if (!file.type.match(/application\/vnd.openxmlformats-officedocument.spreadsheetml.sheet|text\/csv/)) {
-        console.log('❌ Invalid file type');
-        setError('Please upload an Excel (.xlsx) or CSV file');
-        return;
-      }
-
-      setFile(file);
-      setError(null);
-
-      // For Excel files, trigger upload immediately
-      if (file.type === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet') {
-        console.log('📊 Processing Excel file');
-        handleUpload(file);
-        return;
-      }
-
-      // For CSV files, read and preview immediately
-      console.log('📊 Processing CSV file');
+    if (f.name.toLowerCase().endsWith('.csv')) {
       const reader = new FileReader();
-      reader.onload = async (e) => {
-        try {
-          const content = e.target?.result as string;
-          // Use PapaParse for robust CSV parsing
-          const parsed = Papa.parse(content, { header: true, skipEmptyLines: true });
-          if (parsed.errors.length) {
-            console.error('❌ PapaParse errors:', parsed.errors);
-            setError('Error parsing CSV file. Please check your file format.');
-            return;
-          }
-          // Lowercase all column names
-          const columns = (parsed.meta.fields || []).map(col => col.toLowerCase());
-          // Lowercase all keys in preview rows
-          const previewData = parsed.data.slice(0, 10).map((row: any) => {
-            const newRow: Record<string, any> = {};
-            for (const key in row) {
-              newRow[key.toLowerCase()] = row[key];
-            }
-            return newRow;
+      reader.onload = (e) => {
+        const text = e.target?.result as string;
+        const parsed = Papa.parse(text, { header: true, skipEmptyLines: true });
+        if (parsed.errors.length === 0) {
+          const cols = (parsed.meta.fields || []).map((c) => c.toLowerCase());
+          const rows = parsed.data.slice(0, 10).map((r: any) => {
+            const out: Record<string, any> = {};
+            for (const k of Object.keys(r)) out[k.toLowerCase()] = r[k];
+            return out;
           });
-          setDataPreview({
-            columns,
-            data: previewData
-          });
-        } catch (error) {
-          console.error('❌ CSV parsing error:', error);
-          setError('Error previewing file. Please try uploading.');
+          setPreview({ columns: cols, data: rows });
         }
       };
-
-      reader.readAsText(file);
+      reader.readAsText(f);
     }
-  }, [handleUpload]);
+  }, []);
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
     accept: {
+      'text/csv': ['.csv'],
       'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': ['.xlsx'],
-      'text/csv': ['.csv']
     },
     maxFiles: 1,
-    multiple: false,
-    maxSize: 10 * 1024 * 1024, // 10MB
-    onDragEnter: (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-    },
-    onDragOver: (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-    },
-    onDragLeave: (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-    }
   });
 
-  const handleGenerateDashboard = async () => {
+  async function generate() {
     if (!file) return;
-
     setIsProcessing(true);
-    setError(null);  // Clear any previous errors
-    setBusyCountdown(null);
-    setBusyRetry(false);
-    nextProgress(0); // Uploading Data
-    // Read the file as base64 (for progress simulation only)
-    const reader = new FileReader();
-    reader.onload = async (e) => {
-      let retryAttempted = false;
-      const doRequest = async () => {
-        try {
-          nextProgress(1); // Getting AI Insights
-          const formData = new FormData();
-          formData.append('file', file);
-          const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/generate-dashboard`, {
-            method: 'POST',
-            body: formData,
-          });
-
-          let data = null;
-          try {
-            data = await response.json();
-          } catch (e) {}
-
-          // Check for busy status in both 503 and 500 responses
-          const busyStatus = data?.detail?.status || data?.status;
-          if ((response.status === 503 || response.status === 500) && busyStatus === 'busy') {
-            setError(data?.detail?.message || data?.message || 'All our AI agents are busy at the moment. Please wait 30 seconds and we will try again automatically.');
-            // Optionally trigger your retry logic here
-            return;
-          }
-
-          if (!response.ok) {
-            throw new Error(data?.detail?.message || data?.message || 'Failed to generate dashboard');
-          }
-
-          nextProgress(2); // Creating Report
-          // POST visualizations to session-dashboard endpoint
-          const sessionRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/session-dashboard`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(data.visualizations)
-          });
-          const sessionData = await sessionRes.json();
-          if (!sessionRes.ok || !sessionData.session_id) {
-            throw new Error('Failed to create dashboard session');
-          }
-          nextProgress(3); // Done!
-          setTimeout(() => {
-            setIsProcessing(false);
-            router.push(`/visualizations?session=${sessionData.session_id}`);
-          }, 500);
-        } catch (err: any) {
-          setError(err.message || 'Failed to generate report');
-          setIsProcessing(false);
-          setBusyCountdown(null);
-          setBusyRetry(false);
-        }
-      };
-      doRequest();
-    };
-    reader.readAsDataURL(file);
-  };
-
-  const handleViewVisualizations = () => {
-    if (visualizations.length > 0) {
-      const encodedData = encodeURIComponent(JSON.stringify(visualizations));
-      router.push(`/visualizations?data=${encodedData}`);
+    setError(null);
+    setStep(0);
+    try {
+      setStep(1);
+      const fd = new FormData();
+      fd.append('file', file);
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/generate-report`, {
+        method: 'POST',
+        body: fd,
+      });
+      let body: any = null;
+      try { body = await res.json(); } catch {}
+      if (res.status === 503 && body?.detail?.status === 'busy') {
+        setError(body?.detail?.message ?? 'Service busy. Please retry in 30 seconds.');
+        setIsProcessing(false);
+        return;
+      }
+      if (!res.ok) {
+        const detail = body?.detail;
+        throw new Error(typeof detail === 'string' ? detail : 'Failed to generate report.');
+      }
+      setStep(2);
+      router.push(`/report/${body.session_id}`);
+    } catch (e: any) {
+      setError(e.message || 'Generation failed.');
+      setIsProcessing(false);
     }
-  };
-
-  // Progress bar component
-  const ProgressBar = ({ step }: { step: number }) => (
-    <div className="w-full max-w-xl mx-auto mb-8">
-      <div className="flex justify-between mb-2">
-        {PROGRESS_STEPS.map((s, i) => (
-          <div key={s.key} className={`text-xs font-semibold ${i <= step ? 'text-blue-700' : 'text-gray-400'}`}>{s.label}</div>
-        ))}
-      </div>
-      <div className="w-full bg-gray-200 rounded-full h-2">
-        <div className="bg-blue-600 h-2 rounded-full transition-all duration-500" style={{ width: `${(step / (PROGRESS_STEPS.length - 1)) * 100}%` }}></div>
-      </div>
-    </div>
-  );
+  }
 
   return (
-    <div className="container mx-auto px-4 py-8">
-      <div className="text-center mb-12">
-        <h1 className="text-4xl font-bold text-gray-900 mb-4">
-          Turn Excel into Insights
-        </h1>
-        <p className="text-xl text-gray-600">
-          Upload your Excel file and get beautiful, interactive visualizations with AI-generated insights in seconds.
-        </p>
+    <div className="container mx-auto px-4 py-10 max-w-4xl">
+      <h1 className="text-4xl font-bold text-center text-gray-900 mb-2">Turn data into insight</h1>
+      <p className="text-center text-lg text-gray-600 mb-10">
+        Drop a CSV or Excel file. Get a narrated report with charts in under 10 seconds.
+      </p>
+
+      <div
+        {...getRootProps()}
+        className={`border-2 border-dashed rounded-lg p-10 text-center transition-colors ${
+          isDragActive ? 'border-blue-500 bg-blue-50' : 'border-gray-300 hover:border-gray-400'
+        }`}
+      >
+        <input {...getInputProps()} />
+        <p className="text-gray-700 mb-1">Drag and drop, or click to select.</p>
+        <p className="text-sm text-gray-500">.csv or .xlsx, up to 10MB.</p>
       </div>
 
-      <div className="max-w-4xl mx-auto">
-        <div
-          {...getRootProps()}
-          className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors relative
-            ${isDragActive ? 'border-blue-500 bg-blue-50' : 'border-gray-300 hover:border-gray-400'}
-            ${error ? 'border-red-500 bg-red-50' : ''}`}
-        >
-          <input {...getInputProps()} />
-          {isDragActive ? (
-            <div className="absolute inset-0 bg-blue-50 bg-opacity-90 flex items-center justify-center rounded-lg">
-              <p className="text-blue-500 text-lg font-medium">Drop your file here...</p>
-            </div>
-          ) : (
-            <div>
-              <p className="text-gray-600 mb-2">Drag and drop your Excel file here, or click to select</p>
-              <p className="text-sm text-gray-500">Supports .xlsx and .csv files (max 10MB)</p>
-            </div>
-          )}
+      {error && (
+        <div className="mt-4 p-4 bg-red-50 text-red-700 rounded-lg">{error}</div>
+      )}
+
+      {file && !isProcessing && (
+        <div className="mt-6 p-4 bg-gray-50 rounded-lg flex justify-between items-center">
+          <div>
+            <p className="font-medium">{file.name}</p>
+            <p className="text-sm text-gray-500">{(file.size / 1024).toFixed(0)} KB</p>
+          </div>
+          <button
+            onClick={generate}
+            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+          >
+            Generate report
+          </button>
         </div>
+      )}
 
-        {error && (
-          <div className="mt-4 p-4 bg-red-50 text-red-600 rounded-lg">
-            {error}
+      {isProcessing && (
+        <div className="mt-6 p-6 bg-white rounded-lg shadow-sm border border-gray-200">
+          <div className="flex items-center justify-center mb-4">
+            <div className="animate-spin rounded-full h-8 w-8 border-4 border-blue-500 border-t-transparent" />
           </div>
-        )}
+          <p className="text-center font-medium text-gray-900">{STEPS[step]}</p>
+        </div>
+      )}
 
-        {file && (
-          <div className="mt-4 p-4 bg-gray-50 rounded-lg">
-            <p className="text-gray-700">Selected file: {file.name}</p>
-            <p className="text-sm text-gray-500">Size: {(file.size / 1024 / 1024).toFixed(2)} MB</p>
-            {!isProcessing && (
-              <div className="flex gap-4 mb-8">
-                <button
-                  onClick={handleGenerateDashboard}
-                  className="px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600"
-                >
-                  {isProcessing ? 'Generating...' : 'Generate Report'}
-                </button>
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* Loading Indicator */}
-        {isProcessing && (
-          <div className="mt-8 p-8 border-2 border-gray-200 rounded-lg bg-white">
-            <ProgressBar step={progress} />
-            <div className="flex flex-col items-center justify-center space-y-4">
-              <div className="animate-spin rounded-full h-10 w-10 border-4 border-blue-500 border-t-transparent"></div>
-              <div className="text-center">
-                <p className="text-lg font-medium text-gray-900">{progressLabel}</p>
-                <p className="text-sm text-gray-500 mt-1">Generating your report, please wait...</p>
-                {busyCountdown !== null && (
-                  <p className="text-red-600 font-semibold mt-2">All our AI agents are busy. Retrying in {busyCountdown} seconds...</p>
-                )}
-                {busyRetry && busyCountdown === null && error && (
-                  <p className="text-red-600 font-semibold mt-2">{error}</p>
-                )}
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Preview Table */}
-        {dataPreview && dataPreview.columns && dataPreview.data && (
-          <div className="mt-8">
-            <h3 className="text-lg font-semibold mb-4">Data Preview</h3>
-            <div className="overflow-x-auto border border-gray-200 rounded-lg shadow">
-              <table className="min-w-full divide-y divide-gray-200">
-                <thead className="bg-gray-50">
-                  <tr>
-                    {/* Row number header */}
-                    <th className="w-12 px-3 py-2 text-left text-xs font-medium text-gray-500 bg-gray-100 border-r border-gray-200"></th>
-                    {/* Column letters */}
-                    {dataPreview.columns.map((_, index) => (
-                      <th
-                        key={`col-${index}`}
-                        className="px-6 py-2 text-center text-xs font-medium text-gray-500 border-r border-gray-200 bg-gray-100"
-                      >
-                        {getColumnLetter(index)}
-                      </th>
-                    ))}
-                  </tr>
-                  <tr>
-                    {/* Row number header */}
-                    <th className="w-12 px-3 py-2 text-left text-xs font-medium text-gray-500 bg-gray-100 border-r border-gray-200"></th>
-                    {/* Column names */}
-                    {dataPreview.columns.map((column, index) => (
-                      <th
-                        key={index}
-                        className="px-6 py-2 text-left text-xs font-medium text-gray-500 border-r border-gray-200"
-                      >
-                        {column}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
-                  {dataPreview.data.map((row, rowIndex) => (
-                    <tr key={rowIndex} className="hover:bg-gray-50">
-                      {/* Row number */}
-                      <td className="w-12 px-3 py-2 text-xs text-gray-500 bg-gray-100 border-r border-gray-200 font-medium">
-                        {rowIndex + 1}
-                      </td>
-                      {/* Row data */}
-                      {dataPreview.columns.map((column, colIndex) => (
-                        <td
-                          key={`${rowIndex}-${colIndex}`}
-                          className="px-6 py-2 text-sm text-gray-500 border-r border-gray-200 whitespace-nowrap"
-                        >
-                          {row[column]?.toString() || ''}
-                        </td>
-                      ))}
-                    </tr>
+      {preview && (
+        <div className="mt-8 overflow-x-auto bg-white rounded-lg shadow-sm border border-gray-200">
+          <h3 className="px-4 py-3 font-semibold text-gray-900 border-b border-gray-200">Preview</h3>
+          <table className="min-w-full text-sm">
+            <thead className="bg-gray-50">
+              <tr>{preview.columns.map((c) => <th key={c} className="px-4 py-2 text-left">{c}</th>)}</tr>
+            </thead>
+            <tbody>
+              {preview.data.map((row, i) => (
+                <tr key={i} className="border-t border-gray-100">
+                  {preview.columns.map((c) => (
+                    <td key={c} className="px-4 py-2 text-gray-700">{row[c]?.toString() ?? ''}</td>
                   ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        )}
-      </div>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   );
-} 
+}
