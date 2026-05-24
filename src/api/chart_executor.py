@@ -386,6 +386,78 @@ def execute_pie_chart(df: pd.DataFrame, params: dict) -> ChartSpec | ToolError:
     )
 
 
+def _box_stats(values: pd.Series) -> dict:
+    q1, median, q3 = values.quantile([0.25, 0.5, 0.75])
+    iqr = q3 - q1
+    lo = max(values.min(), q1 - 1.5 * iqr)
+    hi = min(values.max(), q3 + 1.5 * iqr)
+    outliers = values[(values < lo) | (values > hi)].tolist()
+    return {
+        "min": float(lo), "q1": float(q1), "median": float(median),
+        "q3": float(q3), "max": float(hi),
+        "outliers": [float(v) for v in outliers],
+    }
+
+
+def execute_box_plot(df: pd.DataFrame, params: dict) -> ChartSpec | ToolError:
+    value_col = params["value_col"]
+    group_col = params.get("group_col")
+    title = params["title"]
+    intent = params["intent"]
+
+    if value_col not in df.columns:
+        return _err(f"value_col='{value_col}' is not a column.")
+    if not pd.api.types.is_numeric_dtype(df[value_col]):
+        return _err(f"value_col='{value_col}' is not numeric. Box plots need a numeric value column.")
+
+    values = pd.to_numeric(df[value_col], errors="coerce").dropna()
+    if len(values) < 5:
+        return _err(f"'{value_col}' has only {len(values)} non-null values; need at least 5 for a meaningful box plot.")
+
+    if group_col is None:
+        return ChartSpec(
+            kind="box",
+            title=title,
+            intent=intent,
+            series=[{"name": value_col, **_box_stats(values)}],
+            x_label=value_col,
+            y_label="",
+            x_display_type="category",
+            y_display_type="number",
+            source_columns=[value_col],
+            data_point_count=int(len(values)),
+        )
+
+    if group_col not in df.columns:
+        return _err(f"group_col='{group_col}' is not a column.")
+    if df[group_col].nunique() > MAX_CATEGORIES:
+        return _err(f"group_col='{group_col}' has {df[group_col].nunique()} unique values; max is {MAX_CATEGORIES}.")
+
+    work = df[[value_col, group_col]].dropna()
+    series_list: list[dict] = []
+    for gv, sub in work.groupby(group_col):
+        v = pd.to_numeric(sub[value_col], errors="coerce").dropna()
+        if len(v) < 5:
+            continue
+        series_list.append({"name": str(gv), **_box_stats(v)})
+
+    if not series_list:
+        return _err(f"No group in '{group_col}' has ≥5 non-null values for '{value_col}'.")
+
+    return ChartSpec(
+        kind="box",
+        title=title,
+        intent=intent,
+        series=series_list,
+        x_label=group_col,
+        y_label=value_col,
+        x_display_type="category",
+        y_display_type="number",
+        source_columns=[value_col, group_col],
+        data_point_count=int(len(work)),
+    )
+
+
 TOOL_EXECUTORS: dict[str, Callable[[pd.DataFrame, dict], ChartSpec | ToolError]] = {
     "frequency_bar_chart": execute_frequency_bar_chart,
     "aggregation_bar_chart": execute_aggregation_bar_chart,
@@ -393,4 +465,5 @@ TOOL_EXECUTORS: dict[str, Callable[[pd.DataFrame, dict], ChartSpec | ToolError]]
     "scatter_chart": execute_scatter_chart,
     "line_chart": execute_line_chart,
     "pie_chart": execute_pie_chart,
+    "box_plot": execute_box_plot,
 }
