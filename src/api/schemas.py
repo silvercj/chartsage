@@ -4,6 +4,7 @@ from pydantic import BaseModel, Field
 
 
 ChartKind = Literal["bar", "histogram", "scatter", "line", "pie", "box", "heatmap"]
+LayoutPosition = Literal["main", "sidebar"]
 ColumnRole = Literal["categorical", "numeric", "date", "identifier", "unusable"]
 XDisplayType = Literal["category", "number", "date", "text"]
 YDisplayType = Literal["count", "currency", "percentage", "number"]
@@ -77,7 +78,14 @@ class ToolError(BaseModel):
     reason: str
 
 
+class ChartLayoutEntry(BaseModel):
+    chart_id: str
+    position: LayoutPosition
+    order: int
+
+
 class ChartWithCaption(BaseModel):
+    chart_id: str
     spec: ChartSpec
     caption: str
 
@@ -93,4 +101,5 @@ class Report(BaseModel):
     summary: str
     data_quality: list[str]
     charts: list[ChartWithCaption]
+    layout: list[ChartLayoutEntry] = Field(default_factory=list)
     metadata: dict[str, Any] = Field(default_factory=dict)
