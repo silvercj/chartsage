@@ -85,14 +85,27 @@ class ReportGenerator:
     def _call_selection_retry(
         self, prior_content: list[Any], errors: list[dict],
     ) -> tuple[list[ChartSpec], list[dict]]:
+        # Anthropic requires a tool_result for EVERY tool_use in the prior assistant turn,
+        # not just the failed ones. Build the full set: errors get their reason; successes
+        # get a brief OK so the message is well-formed.
+        error_by_id = {e["id"]: e["reason"] for e in errors}
         tool_results = []
-        for err in errors:
-            tool_results.append({
-                "type": "tool_result",
-                "tool_use_id": err["id"],
-                "content": err["reason"],
-                "is_error": True,
-            })
+        for block in prior_content:
+            if getattr(block, "type", None) != "tool_use":
+                continue
+            if block.id in error_by_id:
+                tool_results.append({
+                    "type": "tool_result",
+                    "tool_use_id": block.id,
+                    "content": error_by_id[block.id],
+                    "is_error": True,
+                })
+            else:
+                tool_results.append({
+                    "type": "tool_result",
+                    "tool_use_id": block.id,
+                    "content": "Chart accepted.",
+                })
 
         messages = [
             {"role": "user", "content": self.profile.to_text()},

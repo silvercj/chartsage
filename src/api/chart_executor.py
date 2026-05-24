@@ -172,6 +172,9 @@ def execute_scatter_chart(df: pd.DataFrame, params: dict) -> ChartSpec | ToolErr
         if not pd.api.types.is_numeric_dtype(df[col]):
             return _err(f"{label}='{col}' is not numeric. Scatter charts need two numeric columns.")
 
+    if x_col == y_col:
+        return _err(f"x_col and y_col are both '{x_col}'; a scatter needs two different numeric columns.")
+
     cols = [x_col, y_col]
     if color_by is not None:
         if color_by not in df.columns:
@@ -180,7 +183,8 @@ def execute_scatter_chart(df: pd.DataFrame, params: dict) -> ChartSpec | ToolErr
             return _err(f"color_by='{color_by}' is numeric or high-cardinality; pass a categorical column with ≤{MAX_CATEGORIES} groups.")
         if df[color_by].nunique() > MAX_CATEGORIES:
             return _err(f"color_by='{color_by}' has {df[color_by].nunique()} unique values; max is {MAX_CATEGORIES}.")
-        cols.append(color_by)
+        if color_by not in cols:
+            cols.append(color_by)
 
     work = df[cols].dropna()
     if len(work) == 0:
