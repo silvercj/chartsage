@@ -324,10 +324,73 @@ def execute_line_chart(df: pd.DataFrame, params: dict) -> ChartSpec | ToolError:
     )
 
 
+_PIE_AGGS = {"sum", "mean", "count"}
+
+
+def execute_pie_chart(df: pd.DataFrame, params: dict) -> ChartSpec | ToolError:
+    category_col = params["category_col"]
+    value_col = params.get("value_col")
+    agg = params["agg"]
+    title = params["title"]
+    intent = params["intent"]
+
+    if agg not in _PIE_AGGS:
+        return _err(f"agg='{agg}' is not allowed for pie_chart. Allowed: {sorted(_PIE_AGGS)}.")
+
+    if category_col not in df.columns:
+        return _err(f"category_col='{category_col}' is not a column.")
+
+    if agg != "count":
+        if value_col is None:
+            return _err("value_col is required when agg is not 'count'.")
+        if value_col not in df.columns:
+            return _err(f"value_col='{value_col}' is not a column.")
+        if not pd.api.types.is_numeric_dtype(df[value_col]):
+            return _err(f"value_col='{value_col}' is not numeric.")
+
+    cols = [category_col] + ([value_col] if agg != "count" else [])
+    work = df[cols].dropna(subset=[category_col])
+    if agg != "count":
+        work = work.dropna(subset=[value_col])
+
+    if len(work) == 0:
+        return _err(f"No usable rows for pie chart on '{category_col}'.")
+
+    if agg == "count":
+        s = work[category_col].value_counts()
+    else:
+        s = work.groupby(category_col)[value_col].agg(agg)
+
+    s = s.sort_values(ascending=False)
+    if len(s) > MAX_PIE_SLICES:
+        top = s.head(MAX_PIE_SLICES)
+        other_val = float(s.iloc[MAX_PIE_SLICES:].sum())
+        x = [str(k) for k in top.index.tolist()] + ["Other"]
+        y = [float(v) for v in top.values.tolist()] + [other_val]
+    else:
+        x = [str(k) for k in s.index.tolist()]
+        y = [float(v) for v in s.values.tolist()]
+
+    return ChartSpec(
+        kind="pie",
+        title=title,
+        intent=intent,
+        x=x,
+        y=y,
+        x_label=category_col,
+        y_label=f"{agg.capitalize()}" + (f" of {value_col}" if agg != "count" else ""),
+        x_display_type="category",
+        y_display_type="count" if agg == "count" else "number",
+        source_columns=cols,
+        data_point_count=int(len(work)),
+    )
+
+
 TOOL_EXECUTORS: dict[str, Callable[[pd.DataFrame, dict], ChartSpec | ToolError]] = {
     "frequency_bar_chart": execute_frequency_bar_chart,
     "aggregation_bar_chart": execute_aggregation_bar_chart,
     "histogram_chart": execute_histogram_chart,
     "scatter_chart": execute_scatter_chart,
     "line_chart": execute_line_chart,
+    "pie_chart": execute_pie_chart,
 }
