@@ -118,7 +118,47 @@ def execute_aggregation_bar_chart(df: pd.DataFrame, params: dict) -> ChartSpec |
     )
 
 
+def execute_histogram_chart(df: pd.DataFrame, params: dict) -> ChartSpec | ToolError:
+    from data_processing_utils import compute_histogram_bins_and_freqs
+
+    column = params["column"]
+    title = params["title"]
+    intent = params["intent"]
+
+    if column not in df.columns:
+        return _err(f"'{column}' is not a column. Available numeric columns: {_available_columns_by_role(df)['numeric']}")
+
+    if not pd.api.types.is_numeric_dtype(df[column]):
+        return _err(f"'{column}' is not numeric. Histograms require numeric columns.")
+
+    series = pd.to_numeric(df[column], errors="coerce").dropna()
+    if len(series) == 0:
+        return _err(f"'{column}' has no non-null numeric values.")
+
+    if series.nunique() < 2:
+        return _err(f"'{column}' is constant (or has no variance); can't build a histogram.")
+
+    labels, freqs = compute_histogram_bins_and_freqs(series)
+    if not labels:
+        return _err(f"'{column}' did not produce usable histogram bins.")
+
+    return ChartSpec(
+        kind="histogram",
+        title=title,
+        intent=intent,
+        x=labels,
+        y=[int(v) for v in freqs],
+        x_label=column,
+        y_label="Frequency",
+        x_display_type="text",
+        y_display_type="count",
+        source_columns=[column],
+        data_point_count=int(len(series)),
+    )
+
+
 TOOL_EXECUTORS: dict[str, Callable[[pd.DataFrame, dict], ChartSpec | ToolError]] = {
     "frequency_bar_chart": execute_frequency_bar_chart,
     "aggregation_bar_chart": execute_aggregation_bar_chart,
+    "histogram_chart": execute_histogram_chart,
 }
