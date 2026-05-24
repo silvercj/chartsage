@@ -157,8 +157,78 @@ def execute_histogram_chart(df: pd.DataFrame, params: dict) -> ChartSpec | ToolE
     )
 
 
+def execute_scatter_chart(df: pd.DataFrame, params: dict) -> ChartSpec | ToolError:
+    x_col = params["x_col"]
+    y_col = params["y_col"]
+    color_by = params.get("color_by")
+    title = params["title"]
+    intent = params["intent"]
+
+    avail = _available_columns_by_role(df)
+
+    for col, label in [(x_col, "x_col"), (y_col, "y_col")]:
+        if col not in df.columns:
+            return _err(f"{label}='{col}' is not a column. Available numeric columns: {avail['numeric']}")
+        if not pd.api.types.is_numeric_dtype(df[col]):
+            return _err(f"{label}='{col}' is not numeric. Scatter charts need two numeric columns.")
+
+    cols = [x_col, y_col]
+    if color_by is not None:
+        if color_by not in df.columns:
+            return _err(f"color_by='{color_by}' is not a column.")
+        if pd.api.types.is_numeric_dtype(df[color_by]):
+            return _err(f"color_by='{color_by}' is numeric or high-cardinality; pass a categorical column with ≤{MAX_CATEGORIES} groups.")
+        if df[color_by].nunique() > MAX_CATEGORIES:
+            return _err(f"color_by='{color_by}' has {df[color_by].nunique()} unique values; max is {MAX_CATEGORIES}.")
+        cols.append(color_by)
+
+    work = df[cols].dropna()
+    if len(work) == 0:
+        return _err(f"No rows where both '{x_col}' and '{y_col}' are non-null.")
+
+    if len(work) > MAX_SCATTER_POINTS:
+        work = work.sample(n=MAX_SCATTER_POINTS, random_state=42)
+
+    if color_by is None:
+        return ChartSpec(
+            kind="scatter",
+            title=title,
+            intent=intent,
+            x=[float(v) for v in work[x_col].tolist()],
+            y=[float(v) for v in work[y_col].tolist()],
+            x_label=x_col,
+            y_label=y_col,
+            x_display_type="number",
+            y_display_type="number",
+            source_columns=[x_col, y_col],
+            data_point_count=int(len(work)),
+        )
+
+    series_list: list[dict] = []
+    for group_value, group_df in work.groupby(color_by):
+        series_list.append({
+            "name": str(group_value),
+            "x": [float(v) for v in group_df[x_col].tolist()],
+            "y": [float(v) for v in group_df[y_col].tolist()],
+        })
+
+    return ChartSpec(
+        kind="scatter",
+        title=title,
+        intent=intent,
+        series=series_list,
+        x_label=x_col,
+        y_label=y_col,
+        x_display_type="number",
+        y_display_type="number",
+        source_columns=[x_col, y_col, color_by],
+        data_point_count=int(len(work)),
+    )
+
+
 TOOL_EXECUTORS: dict[str, Callable[[pd.DataFrame, dict], ChartSpec | ToolError]] = {
     "frequency_bar_chart": execute_frequency_bar_chart,
     "aggregation_bar_chart": execute_aggregation_bar_chart,
     "histogram_chart": execute_histogram_chart,
+    "scatter_chart": execute_scatter_chart,
 }
