@@ -4,13 +4,28 @@ interface Props {
 
 export default function DataQualityCallout({ notes }: Props) {
   return (
-    <aside className="max-w-3xl mx-auto bg-yellow-50 border border-yellow-200 rounded-lg p-4 mt-6">
-      <h3 className="font-semibold text-yellow-900 mb-2">Data quality notes</h3>
-      <ul className="list-disc pl-5 space-y-1 text-yellow-900 text-sm">
-        {notes.map((n, i) => (
-          <li key={i}>{n}</li>
-        ))}
-      </ul>
+    <aside className="max-w-3xl bg-amber-50/60 border border-amber-200/70 rounded-xl p-5 mt-2">
+      <div className="flex items-start gap-3">
+        <svg
+          className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          viewBox="0 0 24 24"
+        >
+          <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01M5.07 19h13.86c1.54 0 2.5-1.67 1.73-3L13.73 4a2 2 0 00-3.46 0L3.34 16c-.77 1.33.19 3 1.73 3z" />
+        </svg>
+        <div className="flex-1">
+          <h3 className="text-sm font-semibold text-amber-900 mb-1.5 tracking-tight">
+            Data quality
+          </h3>
+          <ul className="space-y-1.5 text-sm text-amber-900/80 leading-relaxed">
+            {notes.map((n, i) => (
+              <li key={i}>{n}</li>
+            ))}
+          </ul>
+        </div>
+      </div>
     </aside>
   );
 }

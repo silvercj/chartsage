@@ -15,6 +15,14 @@ from schemas import ChartSpec, ToolError
 MAX_CATEGORIES = 30
 MAX_PIE_SLICES = 8
 MAX_SCATTER_POINTS = 5000
+MIN_SCATTER_X_CARDINALITY = 12  # below this, scatter degenerates to vertical stripes
+
+_CURRENCY_KEYWORDS = (
+    "revenue", "sales", "price", "cost", "amount", "profit",
+    "fee", "expense", "income", "payment", "salary", "wage",
+    "gross", "net", "dollar", "usd", "earnings", "spend",
+)
+_PERCENTAGE_KEYWORDS = ("rate", "ratio", "percent", "pct", "share", "margin")
 
 
 def _err(reason: str) -> ToolError:
@@ -26,6 +34,22 @@ def _available_columns_by_role(df: pd.DataFrame) -> dict[str, list[str]]:
     numeric = [c for c in df.columns if pd.api.types.is_numeric_dtype(df[c])]
     categorical = [c for c in df.columns if df[c].dtype == "object" and df[c].nunique(dropna=True) <= 50]
     return {"numeric": numeric, "categorical": categorical, "all": list(df.columns)}
+
+
+def _infer_display_type(col_name: str, agg: str = None) -> str:
+    """Pick y_display_type from a value column name + aggregation.
+
+    Counts always display as 'count'. Otherwise we sniff for currency
+    or percentage keywords in the column name; default is 'number'.
+    """
+    if agg == "count":
+        return "count"
+    lower = col_name.lower()
+    if any(kw in lower for kw in _CURRENCY_KEYWORDS):
+        return "currency"
+    if any(kw in lower for kw in _PERCENTAGE_KEYWORDS):
+        return "percentage"
+    return "number"
 
 
 def execute_frequency_bar_chart(df: pd.DataFrame, params: dict) -> ChartSpec | ToolError:
@@ -112,7 +136,7 @@ def execute_aggregation_bar_chart(df: pd.DataFrame, params: dict) -> ChartSpec |
         x_label=group_col,
         y_label=f"{agg.capitalize()} of {value_col}",
         x_display_type="category",
-        y_display_type="number",
+        y_display_type=_infer_display_type(value_col, agg),
         source_columns=[value_col, group_col],
         data_point_count=int(len(work)),
     )
@@ -175,6 +199,16 @@ def execute_scatter_chart(df: pd.DataFrame, params: dict) -> ChartSpec | ToolErr
     if x_col == y_col:
         return _err(f"x_col and y_col are both '{x_col}'; a scatter needs two different numeric columns.")
 
+    # Reject scatter when x is a low-cardinality numeric (e.g., discount ∈ {0, 0.1, 0.2, ...}).
+    # On such data the scatter degenerates to vertical stripes; box_plot or aggregation_bar_chart shows the same insight clearly.
+    x_card = int(df[x_col].dropna().nunique())
+    if x_card < MIN_SCATTER_X_CARDINALITY:
+        return _err(
+            f"x_col='{x_col}' has only {x_card} unique values; scatter degenerates to vertical stripes. "
+            f"Use box_plot (value_col='{y_col}', group_col='{x_col}') or aggregation_bar_chart "
+            f"(value_col='{y_col}', group_col='{x_col}', agg='mean') instead."
+        )
+
     cols = [x_col, y_col]
     if color_by is not None:
         if color_by not in df.columns:
@@ -193,6 +227,8 @@ def execute_scatter_chart(df: pd.DataFrame, params: dict) -> ChartSpec | ToolErr
     if len(work) > MAX_SCATTER_POINTS:
         work = work.sample(n=MAX_SCATTER_POINTS, random_state=42)
 
+    y_display = _infer_display_type(y_col)
+
     if color_by is None:
         return ChartSpec(
             kind="scatter",
@@ -203,7 +239,7 @@ def execute_scatter_chart(df: pd.DataFrame, params: dict) -> ChartSpec | ToolErr
             x_label=x_col,
             y_label=y_col,
             x_display_type="number",
-            y_display_type="number",
+            y_display_type=y_display,
             source_columns=[x_col, y_col],
             data_point_count=int(len(work)),
         )
@@ -224,7 +260,7 @@ def execute_scatter_chart(df: pd.DataFrame, params: dict) -> ChartSpec | ToolErr
         x_label=x_col,
         y_label=y_col,
         x_display_type="number",
-        y_display_type="number",
+        y_display_type=y_display,
         source_columns=[x_col, y_col, color_by],
         data_point_count=int(len(work)),
     )
@@ -290,7 +326,7 @@ def execute_line_chart(df: pd.DataFrame, params: dict) -> ChartSpec | ToolError:
             x_label=f"{granularity.capitalize()} ({date_col})",
             y_label=f"{agg.capitalize()}" + (f" of {value_col}" if agg != "count" else ""),
             x_display_type="date",
-            y_display_type="count" if agg == "count" else "number",
+            y_display_type=_infer_display_type(value_col, agg) if value_col else "count",
             source_columns=[date_col] + ([value_col] if agg != "count" else []),
             data_point_count=int(len(work)),
         )
@@ -322,7 +358,7 @@ def execute_line_chart(df: pd.DataFrame, params: dict) -> ChartSpec | ToolError:
         x_label=f"{granularity.capitalize()} ({date_col})",
         y_label=f"{agg.capitalize()}" + (f" of {value_col}" if agg != "count" else ""),
         x_display_type="date",
-        y_display_type="count" if agg == "count" else "number",
+        y_display_type=_infer_display_type(value_col, agg) if value_col else "count",
         source_columns=[date_col, group_by] + ([value_col] if agg != "count" else []),
         data_point_count=int(len(work)),
     )
@@ -384,7 +420,7 @@ def execute_pie_chart(df: pd.DataFrame, params: dict) -> ChartSpec | ToolError:
         x_label=category_col,
         y_label=f"{agg.capitalize()}" + (f" of {value_col}" if agg != "count" else ""),
         x_display_type="category",
-        y_display_type="count" if agg == "count" else "number",
+        y_display_type=_infer_display_type(value_col, agg) if value_col else "count",
         source_columns=cols,
         data_point_count=int(len(work)),
     )
@@ -427,7 +463,7 @@ def execute_box_plot(df: pd.DataFrame, params: dict) -> ChartSpec | ToolError:
             x_label=value_col,
             y_label="",
             x_display_type="category",
-            y_display_type="number",
+            y_display_type=_infer_display_type(value_col),
             source_columns=[value_col],
             data_point_count=int(len(values)),
         )
@@ -456,7 +492,7 @@ def execute_box_plot(df: pd.DataFrame, params: dict) -> ChartSpec | ToolError:
         x_label=group_col,
         y_label=value_col,
         x_display_type="category",
-        y_display_type="number",
+        y_display_type=_infer_display_type(value_col),
         source_columns=[value_col, group_col],
         data_point_count=int(len(work)),
     )
@@ -544,7 +580,7 @@ def execute_heatmap_chart(df: pd.DataFrame, params: dict) -> ChartSpec | ToolErr
         x_label=col_col,
         y_label=row_col,
         x_display_type="category",
-        y_display_type="number",
+        y_display_type=_infer_display_type(value_col, agg) if value_col else "count",
         source_columns=cols_needed,
         data_point_count=int(len(work)),
     )

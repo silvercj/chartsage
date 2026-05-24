@@ -28,14 +28,27 @@ def test_with_color_by(activities):
 
 
 def test_drops_nan_pairs():
+    # 15 rows, 13 unique x values (above MIN_SCATTER_X_CARDINALITY) with two NaN rows.
     df = pd.DataFrame({
-        "x": [1.0, 2.0, None, 4.0, 5.0],
-        "y": [10.0, None, 30.0, 40.0, 50.0],
+        "x": [1.0, 2.0, None, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0,
+              10.0, 11.0, 12.0, 13.0, 14.0, 15.0],
+        "y": [10.0, None, 30.0, 40.0, 50.0, 60.0, 70.0, 80.0, 90.0,
+              100.0, 110.0, 120.0, 130.0, 140.0, 150.0],
     })
     result = execute_scatter_chart(df, _params(x_col="x", y_col="y"))
     assert isinstance(result, ChartSpec)
-    # Only rows 0 (1,10), 3 (4,40), 4 (5,50) have both
-    assert len(result.x) == 3
+    assert len(result.x) == 13   # 15 rows minus 2 NaN pairs
+
+
+def test_rejects_low_cardinality_x():
+    """Discount-like data with few unique values should be redirected to box/agg."""
+    df = pd.DataFrame({
+        "discount": [0.0, 0.1, 0.2, 0.0, 0.1, 0.2, 0.0, 0.1, 0.2, 0.0],
+        "profit": [10.0, -5.0, -20.0, 12.0, -3.0, -15.0, 8.0, -7.0, -25.0, 15.0],
+    })
+    result = execute_scatter_chart(df, _params(x_col="discount", y_col="profit"))
+    assert isinstance(result, ToolError)
+    assert "box_plot" in result.reason or "aggregation" in result.reason
 
 
 def test_samples_when_over_max():

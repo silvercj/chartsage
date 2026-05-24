@@ -11,11 +11,22 @@ const BoxPlot = dynamic(() => import('./charts/BoxPlot'), { ssr: false });
 const Heatmap = dynamic(() => import('./charts/Heatmap'), { ssr: false });
 
 interface Props {
+  index: number;
   spec: any;
   caption: string;
 }
 
-export default function ChartCard({ spec, caption }: Props) {
+const KIND_LABEL: Record<string, string> = {
+  bar: 'Bar',
+  histogram: 'Histogram',
+  scatter: 'Scatter',
+  line: 'Trend',
+  pie: 'Composition',
+  box: 'Distribution',
+  heatmap: 'Heatmap',
+};
+
+export default function ChartCard({ index, spec, caption }: Props) {
   const renderer = (() => {
     switch (spec.kind) {
       case 'bar': return <BarChart spec={spec} />;
@@ -29,11 +40,29 @@ export default function ChartCard({ spec, caption }: Props) {
     }
   })();
 
+  const kindLabel = KIND_LABEL[spec.kind] ?? spec.kind;
+
   return (
-    <section className="bg-white rounded-2xl shadow-md border border-gray-200 p-6 flex flex-col">
-      <h2 className="text-lg font-bold text-gray-900 mb-2">{spec.title}</h2>
+    <section className="bg-white rounded-2xl ring-1 ring-stone-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.04)] hover:shadow-[0_4px_12px_rgba(0,0,0,0.06)] transition-shadow p-6 flex flex-col">
+      <div className="flex items-start justify-between mb-3">
+        <div className="flex items-baseline gap-3">
+          <span className="text-xs font-mono text-stone-400 tabular-nums">
+            {String(index).padStart(2, '0')}
+          </span>
+          <h2 className="text-base font-semibold text-stone-900 leading-snug tracking-tight">
+            {spec.title}
+          </h2>
+        </div>
+        <span className="text-[10px] uppercase tracking-widest text-stone-400 mt-1">
+          {kindLabel}
+        </span>
+      </div>
       <div className="flex-1 min-h-[300px]">{renderer}</div>
-      <p className="text-sm text-gray-600 mt-3 italic">{caption}</p>
+      {caption && (
+        <p className="text-sm text-stone-600 mt-4 pt-4 border-t border-stone-100 leading-relaxed">
+          {caption}
+        </p>
+      )}
     </section>
   );
 }

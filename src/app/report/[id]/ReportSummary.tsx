@@ -5,14 +5,23 @@ interface Props {
 
 export default function ReportSummary({ summary, generatedAt }: Props) {
   const paragraphs = summary.split(/\n\s*\n/).filter((p) => p.trim());
-  const date = new Date(generatedAt).toLocaleString();
+  const date = new Date(generatedAt).toLocaleDateString(undefined, {
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+  });
+
   return (
-    <header className="mb-8">
-      <div className="text-center mb-6">
-        <h1 className="text-3xl md:text-4xl font-bold text-gray-900 mb-2">Data Report</h1>
-        <p className="text-sm text-gray-400">Generated: {date}</p>
+    <header className="mb-10">
+      <div className="flex items-baseline justify-between mb-6 pb-6 border-b border-stone-200">
+        <h1 className="text-3xl md:text-4xl font-semibold tracking-tight text-stone-900">
+          Insights
+        </h1>
+        <span className="text-xs uppercase tracking-widest text-stone-400">
+          {date}
+        </span>
       </div>
-      <div className="max-w-3xl mx-auto space-y-4 text-gray-700 leading-relaxed">
+      <div className="max-w-3xl space-y-4 text-stone-700 leading-relaxed text-[15px]">
         {paragraphs.map((p, i) => (
           <p key={i}>{p}</p>
         ))}
