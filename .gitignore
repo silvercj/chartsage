@@ -48,6 +48,8 @@ eggs/
 .eggs/
 lib/
 lib64/
+# Allow Next.js app lib directory
+!src/app/lib/
 parts/
 sdist/
 var/
