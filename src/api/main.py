@@ -13,7 +13,8 @@ from anthropic import APIStatusError
 from dotenv import load_dotenv
 from fastapi import Depends, FastAPI, File, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, StreamingResponse
+import io as _io
 
 from claude_client import ClaudeClient, RetryableBusy
 from llm_config import MODEL_SELECTION, MODEL_NARRATIVE
@@ -264,9 +265,35 @@ async def generate_more(
     return JSONResponse(content=report_dict, status_code=200)
 
 
+@app.get("/report/{session_id}/export.pdf")
+async def export_pdf(session_id: str, r=Depends(get_redis)):
+    if not r.get(f"report:{session_id}"):
+        raise HTTPException(status_code=404, detail="Report not found or expired.")
+
+    from pdf_export import render_report_pdf
+    try:
+        pdf_bytes = await render_report_pdf(session_id)
+    except Exception as e:
+        logging.exception("[PDF] export failed")
+        raise HTTPException(status_code=500, detail=f"PDF export failed: {e}")
+
+    short = session_id[:8]
+    return StreamingResponse(
+        _io.BytesIO(pdf_bytes),
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="chartsage-{short}.pdf"'},
+    )
+
+
 @app.get("/health")
 async def health():
     return {"status": "ok"}
+
+
+@app.on_event("shutdown")
+async def _shutdown_event():
+    from pdf_export import shutdown as pdf_shutdown
+    await pdf_shutdown()
 
 
 if __name__ == "__main__":

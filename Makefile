@@ -1,4 +1,4 @@
-.PHONY: dev test test-e2e smoke clean
+.PHONY: dev test test-e2e test-pdf smoke clean
 
 # Backend dev server (run from project root)
 dev:
@@ -20,6 +20,9 @@ smoke:
 			| tee /tmp/chartsage_smoke.json \
 		&& echo "OK" \
 		&& pkill -f "uvicorn main:app --port 8001"
+
+test-pdf:
+	RUN_PDF_TESTS=true pytest tests/unit/test_pdf_export.py -v
 
 clean:
 	rm -rf src/api/__pycache__ src/api/logs/*.log
