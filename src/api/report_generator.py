@@ -195,6 +195,9 @@ class ReportGenerator:
 
     def build_report(self) -> Report:
         from datetime import datetime
+        from uuid import uuid4
+        from schemas import ChartLayoutEntry
+
         charts = self.generate_charts()
         narrative = self.generate_narrative(charts)
 
@@ -202,12 +205,25 @@ class ReportGenerator:
         if len(captions) < len(charts):
             captions = captions + [c.intent for c in charts[len(captions):]]
 
+        # Assign stable chart_ids
+        charts_with_caption = [
+            ChartWithCaption(chart_id=uuid4().hex, spec=spec, caption=cap)
+            for spec, cap in zip(charts, captions)
+        ]
+
+        # Default layout: first 5 -> main, next 5 -> sidebar
+        layout: list[ChartLayoutEntry] = []
+        for i, cwc in enumerate(charts_with_caption[:5]):
+            layout.append(ChartLayoutEntry(chart_id=cwc.chart_id, position="main", order=i))
+        for i, cwc in enumerate(charts_with_caption[5:]):
+            layout.append(ChartLayoutEntry(chart_id=cwc.chart_id, position="sidebar", order=i))
+
         return Report(
             generated_at=datetime.utcnow().isoformat(),
             summary=narrative.summary or self._narrative_template_fallback(charts).summary,
             data_quality=narrative.data_quality,
-            charts=[ChartWithCaption(spec=spec, caption=cap)
-                    for spec, cap in zip(charts, captions)],
+            charts=charts_with_caption,
+            layout=layout,
             metadata={
                 "model_selection": self.model_selection,
                 "model_narrative": self.model_narrative,
