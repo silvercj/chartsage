@@ -66,6 +66,59 @@ def execute_frequency_bar_chart(df: pd.DataFrame, params: dict) -> ChartSpec | T
     )
 
 
+_AGGREGATION_BAR_AGGS = {"sum", "mean", "median", "min", "max"}
+
+
+def execute_aggregation_bar_chart(df: pd.DataFrame, params: dict) -> ChartSpec | ToolError:
+    value_col = params["value_col"]
+    group_col = params["group_col"]
+    agg = params["agg"]
+    title = params["title"]
+    intent = params["intent"]
+
+    if agg == "count":
+        return _err("aggregation_bar_chart does not support agg='count'. Use frequency_bar_chart for counts by category.")
+
+    if agg not in _AGGREGATION_BAR_AGGS:
+        return _err(f"agg='{agg}' is not allowed. Allowed: {sorted(_AGGREGATION_BAR_AGGS)}.")
+
+    avail = _available_columns_by_role(df)
+    if value_col not in df.columns:
+        return _err(f"'{value_col}' is not a column. Available numeric columns: {avail['numeric']}")
+
+    if group_col not in df.columns:
+        return _err(f"'{group_col}' is not a column. Available categorical columns: {avail['categorical']}")
+
+    if not pd.api.types.is_numeric_dtype(df[value_col]):
+        return _err(f"'{value_col}' is not numeric. Available numeric columns: {avail['numeric']}")
+
+    groups = df[group_col].dropna().nunique()
+    if groups > MAX_CATEGORIES:
+        return _err(f"'{group_col}' has {groups} unique values, more than max ({MAX_CATEGORIES}).")
+
+    if groups == 0:
+        return _err(f"'{group_col}' has no non-null values.")
+
+    work = df[[group_col, value_col]].dropna()
+    grouped = work.groupby(group_col)[value_col].agg(agg)
+    grouped = grouped.sort_values(ascending=False)
+
+    return ChartSpec(
+        kind="bar",
+        title=title,
+        intent=intent,
+        x=[str(k) for k in grouped.index.tolist()],
+        y=[float(v) for v in grouped.values.tolist()],
+        x_label=group_col,
+        y_label=f"{agg.capitalize()} of {value_col}",
+        x_display_type="category",
+        y_display_type="number",
+        source_columns=[value_col, group_col],
+        data_point_count=int(len(work)),
+    )
+
+
 TOOL_EXECUTORS: dict[str, Callable[[pd.DataFrame, dict], ChartSpec | ToolError]] = {
     "frequency_bar_chart": execute_frequency_bar_chart,
+    "aggregation_bar_chart": execute_aggregation_bar_chart,
 }
