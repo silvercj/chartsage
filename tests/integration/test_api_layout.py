@@ -93,3 +93,50 @@ def test_patch_layout_persists_to_redis(client_with_report):
     updated = resp2.json()
     moved = next(e for e in updated["layout"] if e["chart_id"] == chart_5["chart_id"])
     assert moved["position"] == "main"
+
+
+def test_generate_more_appends_charts_to_sidebar(client_with_report, sales, monkeypatch):
+    client, session_id, report = client_with_report
+
+    # Build a second FakeClaude that returns 5 NEW charts + a narrative
+    new_chart_calls = []
+    for i in range(5):
+        new_chart_calls.append(tool_use(
+            "histogram_chart",
+            {"column": "revenue", "title": f"More chart {i}", "intent": f"new intent {i}"},
+            id_=f"tu_more_{i}",
+        ))
+    new_fake = FakeClaude([
+        {"tool_calls": new_chart_calls},
+        {"tool_calls": [tool_use(
+            "submit_narrative",
+            {"summary": "Updated.", "captions": [f"new cap {i}" for i in range(5)], "data_quality": []},
+        )]},
+    ])
+
+    # Swap the claude client to use the new fake
+    from main import app, get_claude_client
+    app.dependency_overrides[get_claude_client] = lambda: MagicMock(messages_create=new_fake)
+
+    initial_chart_count = len(report["charts"])
+    initial_sidebar_count = sum(1 for e in report["layout"] if e["position"] == "sidebar")
+
+    resp = client.post(f"/report/{session_id}/generate-more")
+    assert resp.status_code == 200
+
+    updated = resp.json()
+    assert len(updated["charts"]) == initial_chart_count + 5
+    assert len(updated["layout"]) == len(updated["charts"])
+
+    new_sidebar_count = sum(1 for e in updated["layout"] if e["position"] == "sidebar")
+    assert new_sidebar_count == initial_sidebar_count + 5
+
+    # New chart_ids are unique
+    all_ids = [c["chart_id"] for c in updated["charts"]]
+    assert len(all_ids) == len(set(all_ids))
+
+
+def test_generate_more_unknown_session(client_with_report):
+    client, _, _ = client_with_report
+    resp = client.post("/report/no-such-session/generate-more")
+    assert resp.status_code == 404

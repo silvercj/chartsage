@@ -161,6 +161,9 @@ async def generate_report(
 
     session_id = uuid.uuid4().hex
     r.set(f"report:{session_id}", report.model_dump_json(), ex=SESSION_TTL_SECONDS)
+    # Persist the source data so /generate-more can re-execute tool calls
+    df_csv = df.to_csv(index=False)
+    r.set(f"report:{session_id}:df", df_csv, ex=SESSION_TTL_SECONDS)
 
     logging.info(
         "=== RUN SUMMARY ===\nrun_id: %s\nfile: %s\nrows: %d  cols: %d\n"
@@ -204,6 +207,61 @@ async def patch_report_layout(
     report_dict["layout"] = [entry.model_dump() for entry in new_layout]
     r.set(f"report:{session_id}", json.dumps(report_dict), ex=SESSION_TTL_SECONDS)
     return None
+
+
+@app.post("/report/{session_id}/generate-more")
+async def generate_more(
+    session_id: str,
+    claude: ClaudeClient = Depends(get_claude_client),
+    r=Depends(get_redis),
+):
+    raw = r.get(f"report:{session_id}")
+    if not raw:
+        raise HTTPException(status_code=404, detail="Report not found or expired.")
+
+    report_dict = json.loads(raw)
+    existing_report = Report.model_validate(report_dict)
+
+    df_blob = r.get(f"report:{session_id}:df")
+    if not df_blob:
+        raise HTTPException(
+            status_code=404,
+            detail="Source data for this report has expired. Generate a new report.",
+        )
+
+    import io as _io
+    df = pd.read_csv(_io.StringIO(df_blob))
+    df.columns = [str(c).lower() for c in df.columns]
+
+    profile = profile_dataframe(df)
+    gen = ReportGenerator(
+        profile=profile, df=df, claude=claude,
+        model_selection=MODEL_SELECTION, model_narrative=MODEL_NARRATIVE,
+    )
+
+    try:
+        new_charts, new_layout = gen.generate_more(existing_report.charts)
+    except RetryableBusy:
+        raise HTTPException(
+            status_code=503,
+            detail={"status": "busy", "message": "Claude is busy. Please retry in 30 seconds."},
+        )
+
+    if not new_charts:
+        return JSONResponse(content=report_dict, status_code=200)
+
+    # Append charts and layout entries with correct sidebar orders
+    sidebar_max = max(
+        (e["order"] for e in report_dict["layout"] if e["position"] == "sidebar"),
+        default=-1,
+    )
+    for i, (chart, layout_entry) in enumerate(zip(new_charts, new_layout)):
+        layout_entry.order = sidebar_max + 1 + i
+        report_dict["charts"].append(chart.model_dump())
+        report_dict["layout"].append(layout_entry.model_dump())
+
+    r.set(f"report:{session_id}", json.dumps(report_dict), ex=SESSION_TTL_SECONDS)
+    return JSONResponse(content=report_dict, status_code=200)
 
 
 @app.get("/health")

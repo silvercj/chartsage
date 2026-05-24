@@ -193,6 +193,61 @@ class ReportGenerator:
             data_quality=list(self.profile.anomalies),
         )
 
+    def generate_more(self, existing: list[ChartWithCaption]) -> tuple[list[ChartWithCaption], list["ChartLayoutEntry"]]:
+        """Run a focused pass-1 to produce 5 additional charts different from `existing`.
+
+        Returns (new charts with fresh chart_ids, new layout entries to append).
+        Existing charts and layout are not modified.
+        """
+        from uuid import uuid4
+        from schemas import ChartLayoutEntry
+
+        # Build a focused user message that warns Claude off the existing chart angles
+        existing_summary = "\n".join(
+            f"- [{c.spec.kind}] {c.spec.title} — {c.spec.intent}"
+            for c in existing
+        )
+        focused_message = (
+            f"{self.profile.to_text()}\n\n"
+            f"You have already produced these charts:\n{existing_summary}\n\n"
+            f"Pick 5 different angles that are NOT repeats of the above. "
+            f"Vary kinds; aim for chart types or column combinations not yet covered."
+        )
+
+        response = self.claude.messages_create(
+            model=self.model_selection,
+            max_tokens=4096,
+            system=SELECTION_SYSTEM,
+            tools=CHART_TOOLS,
+            messages=[{"role": "user", "content": focused_message}],
+            cache_static=True,
+        )
+        specs, errors = self._execute_tool_calls(response.content)
+
+        if errors:
+            specs2, _ = self._call_selection_retry(response.content, errors)
+            specs.extend(specs2)
+
+        # Cap at 5 new charts
+        specs = specs[:5]
+
+        # Narrative captions for the new charts only
+        narrative = self.generate_narrative(specs) if specs else None
+        captions = narrative.captions if narrative else [s.intent for s in specs]
+        if len(captions) < len(specs):
+            captions = captions + [s.intent for s in specs[len(captions):]]
+
+        new_charts = [
+            ChartWithCaption(chart_id=uuid4().hex, spec=spec, caption=cap)
+            for spec, cap in zip(specs, captions)
+        ]
+
+        # New layout entries always start in sidebar
+        return new_charts, [
+            ChartLayoutEntry(chart_id=c.chart_id, position="sidebar", order=0)  # order set by caller
+            for c in new_charts
+        ]
+
     def build_report(self) -> Report:
         from datetime import datetime
         from uuid import uuid4
