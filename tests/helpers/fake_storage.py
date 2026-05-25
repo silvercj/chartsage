@@ -1,8 +1,9 @@
-"""In-memory storage matching the storage.py interface."""
+"""In-memory storage matching the storage.py interface.
 
-
-class StorageError(Exception):
-    pass
+Raises storage.StorageError (the real class) so that main.py's
+`except StorageError` catches failures from both real and fake storage.
+"""
+from storage import StorageError  # noqa: F401 — re-exported for test imports
 
 
 class FakeStorage:
