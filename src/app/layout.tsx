@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import { Inter } from 'next/font/google'
+import PostHogInit from './PostHogInit'
 import './globals.css'
 
 const inter = Inter({ subsets: ['latin'] })
@@ -17,6 +18,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={inter.className}>
+        <PostHogInit />
         <main className="min-h-screen bg-gray-50">
           {children}
         </main>
