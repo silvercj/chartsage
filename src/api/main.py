@@ -296,6 +296,29 @@ async def get_report(
     return JSONResponse(content=row["report_json"])
 
 
+@app.patch("/report/{session_id}/layout", status_code=204)
+async def patch_report_layout(
+    session_id: str,
+    new_layout: list[ChartLayoutEntry],
+    db: SupabaseDB = Depends(get_db),
+):
+    row = db.get_report(session_id)
+    if not row:
+        raise HTTPException(status_code=404, detail="Report not found or expired.")
+
+    known_ids = {c["chart_id"] for c in row["report_json"].get("charts", [])}
+    submitted_ids = {entry.chart_id for entry in new_layout}
+    unknown = submitted_ids - known_ids
+    if unknown:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unknown chart_id(s) in layout: {sorted(unknown)}",
+        )
+
+    db.update_layout(session_id, [entry.model_dump() for entry in new_layout])
+    return None
+
+
 @app.get("/health")
 async def health():
     return {"status": "ok"}
