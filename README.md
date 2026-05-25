@@ -80,3 +80,53 @@ See [docs/superpowers/specs/2026-05-23-chartsage-rebuild-design.md](docs/superpo
 ## License
 
 MIT.
+
+## Deploying
+
+Production runs on Vercel (frontend) + Google Cloud Run (backend) + Supabase (Postgres + Storage + auth) + PostHog (analytics).
+
+### One-time provisioning
+
+1. **Supabase**
+   - Create project at supabase.com (US-East recommended).
+   - SQL editor → run the schema from [the SP1 design](docs/superpowers/specs/2026-05-24-sp1-foundation-design.md#data-model).
+   - Storage → create a private bucket named `csv-inputs`.
+   - Settings → copy `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`.
+
+2. **PostHog**
+   - Create a free account + project at posthog.com.
+   - Copy the project API key (`phc_...`).
+
+3. **Google Cloud**
+   ```bash
+   gcloud config set project YOUR_PROJECT_ID
+   gcloud services enable run.googleapis.com cloudbuild.googleapis.com secretmanager.googleapis.com
+   gcloud iam service-accounts create chartsage-runner
+   ```
+   Push secrets:
+   ```bash
+   echo -n "$ANTHROPIC_API_KEY" | gcloud secrets create anthropic-key --data-file=-
+   echo -n "$SUPABASE_SERVICE_ROLE_KEY" | gcloud secrets create supabase-srk --data-file=-
+   echo -n "$POSTHOG_API_KEY" | gcloud secrets create posthog-key --data-file=-
+   ```
+
+4. **Vercel**
+   - Import this repo at vercel.com.
+   - Add env vars: `NEXT_PUBLIC_API_URL`, `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `NEXT_PUBLIC_POSTHOG_KEY`, `NEXT_PUBLIC_POSTHOG_HOST`.
+
+### Deploy
+
+Backend:
+```bash
+gcloud builds submit --config cloudbuild.yaml \
+  --substitutions=_SUPABASE_URL=https://YOUR.supabase.co,_FRONTEND_BASE_URL=https://chartsage.vercel.app
+```
+
+Frontend:
+```bash
+git push origin main   # Vercel auto-deploys
+```
+
+### Smoke test
+
+After the first deploy, visit your Vercel URL. Drop a CSV. Verify the report renders, check the Supabase `reports` table has a row, and check the PostHog dashboard for `report_generation_succeeded` events.
