@@ -49,9 +49,12 @@ class FakeClaude:
         resp = MagicMock()
         resp.content = content_blocks
         resp.model = "claude-haiku-4-5-20251001"
+        usage_overrides = scripted.get("usage", {})
         resp.usage = MagicMock(
-            input_tokens=100, output_tokens=50,
-            cache_read_input_tokens=0, cache_creation_input_tokens=0,
+            input_tokens=usage_overrides.get("input_tokens", 100),
+            output_tokens=usage_overrides.get("output_tokens", 50),
+            cache_read_input_tokens=usage_overrides.get("cache_read_input_tokens", 0),
+            cache_creation_input_tokens=usage_overrides.get("cache_creation_input_tokens", 0),
         )
         return resp
 

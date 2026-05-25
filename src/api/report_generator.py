@@ -54,6 +54,20 @@ class ReportGenerator:
         self.claude = claude
         self.model_selection = model_selection
         self.model_narrative = model_narrative
+        self._token_totals = {
+            "input_tokens_total": 0,
+            "output_tokens_total": 0,
+            "cache_read_input_tokens_total": 0,
+        }
+
+    def _call_claude(self, **kwargs):
+        response = self.claude.messages_create(**kwargs)
+        usage = getattr(response, "usage", None)
+        if usage is not None:
+            self._token_totals["input_tokens_total"] += getattr(usage, "input_tokens", 0) or 0
+            self._token_totals["output_tokens_total"] += getattr(usage, "output_tokens", 0) or 0
+            self._token_totals["cache_read_input_tokens_total"] += getattr(usage, "cache_read_input_tokens", 0) or 0
+        return response
 
     def generate_charts(self) -> list[ChartSpec]:
         """Pass #1: tool-use selection + 1 retry round + fallback."""
@@ -71,7 +85,7 @@ class ReportGenerator:
         return specs[:MAX_CHARTS]
 
     def _call_selection_initial(self) -> tuple[list[ChartSpec], list[dict], list[Any]]:
-        response = self.claude.messages_create(
+        response = self._call_claude(
             model=self.model_selection,
             max_tokens=4096,
             system=SELECTION_SYSTEM,
@@ -113,7 +127,7 @@ class ReportGenerator:
             {"role": "user", "content": tool_results},
         ]
 
-        response = self.claude.messages_create(
+        response = self._call_claude(
             model=self.model_selection,
             max_tokens=4096,
             system=SELECTION_SYSTEM,
@@ -146,7 +160,7 @@ class ReportGenerator:
     def generate_narrative(self, charts: list[ChartSpec]) -> ReportNarrative:
         """Pass #2: forced submit_narrative tool call."""
         user_message = self._format_charts_for_narrative(charts)
-        response = self.claude.messages_create(
+        response = self._call_claude(
             model=self.model_narrative,
             max_tokens=2048,
             system=NARRATIVE_SYSTEM,
@@ -214,7 +228,7 @@ class ReportGenerator:
             f"Vary kinds; aim for chart types or column combinations not yet covered."
         )
 
-        response = self.claude.messages_create(
+        response = self._call_claude(
             model=self.model_selection,
             max_tokens=4096,
             system=SELECTION_SYSTEM,
@@ -284,5 +298,6 @@ class ReportGenerator:
                 "model_narrative": self.model_narrative,
                 "row_count": self.profile.row_count,
                 "column_count": len(self.profile.columns),
+                **self._token_totals,
             },
         )
