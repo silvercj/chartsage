@@ -1,5 +1,6 @@
 'use client';
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { apiFetch } from '../../lib/api';
 
 export interface ChartLayoutEntry {
   chart_id: string;
@@ -36,14 +37,11 @@ export function useReportLayout(initial: Report, sessionId: string) {
     if (patchTimerRef.current) clearTimeout(patchTimerRef.current);
     patchTimerRef.current = setTimeout(async () => {
       try {
-        const res = await fetch(
-          `${process.env.NEXT_PUBLIC_API_URL}/report/${sessionId}/layout`,
-          {
-            method: 'PATCH',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(nextLayout),
-          },
-        );
+        const res = await apiFetch(`/report/${sessionId}/layout`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(nextLayout),
+        });
         if (!res.ok) {
           // 5xx → backend is unhealthy. Stop trying for this session.
           if (res.status >= 500) {
