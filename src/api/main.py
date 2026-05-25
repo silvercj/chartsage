@@ -410,6 +410,57 @@ async def generate_more(
     return JSONResponse(content=report_dict, status_code=200)
 
 
+@app.get("/report/{session_id}/export.pdf")
+async def export_pdf(
+    session_id: str,
+    anon_id: UUID = Depends(get_anon_id),
+    db: SupabaseDB = Depends(get_db),
+    posthog: PostHogServer = Depends(get_posthog),
+):
+    started = time.perf_counter()
+    if not db.get_report(session_id):
+        raise HTTPException(status_code=404, detail="Report not found.")
+
+    import pdf_export
+    cold_start = pdf_export._browser is None
+    posthog.capture(str(anon_id), "pdf_export_started", {
+        "reportId": session_id, "coldStart": cold_start,
+    })
+
+    try:
+        pdf_bytes = await pdf_export.render_report_pdf(session_id)
+    except Exception as e:
+        logging.exception("PDF export failed")
+        posthog.capture(str(anon_id), "pdf_export_failed", {
+            "reportId": session_id,
+            "reason": "internal",
+            "errorClass": type(e).__name__,
+        })
+        raise HTTPException(status_code=500, detail=f"PDF export failed: {e}")
+
+    posthog.capture(str(anon_id), "pdf_export_succeeded", {
+        "reportId": session_id,
+        "byteSize": len(pdf_bytes),
+        "elapsedMs": int((time.perf_counter() - started) * 1000),
+    })
+
+    short = session_id[:8]
+    return StreamingResponse(
+        io.BytesIO(pdf_bytes),
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="chartsage-{short}.pdf"'},
+    )
+
+
+@app.on_event("shutdown")
+async def _shutdown_event():
+    try:
+        from pdf_export import shutdown as pdf_shutdown
+        await pdf_shutdown()
+    except Exception:
+        pass
+
+
 @app.get("/health")
 async def health():
     return {"status": "ok"}
