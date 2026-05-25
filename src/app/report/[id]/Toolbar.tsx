@@ -1,5 +1,7 @@
 'use client';
 import { useState } from 'react';
+import { apiFetch } from '../../lib/api';
+import { posthog } from '../../lib/posthog';
 import type { Report } from './useReportLayout';
 
 interface Props {
@@ -15,11 +17,9 @@ export default function Toolbar({ sessionId, onReportUpdated }: Props) {
   async function handleGenerateMore() {
     setGenerating(true);
     setError(null);
+    posthog.capture?.('generate_more_clicked', { reportId: sessionId });
     try {
-      const res = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/report/${sessionId}/generate-more`,
-        { method: 'POST' },
-      );
+      const res = await apiFetch(`/report/${sessionId}/generate-more`, { method: 'POST' });
       if (res.status === 503) {
         setError('Claude is busy. Try again in 30 seconds.');
         return;
@@ -37,17 +37,31 @@ export default function Toolbar({ sessionId, onReportUpdated }: Props) {
   function handleExportPdf() {
     setExporting(true);
     setError(null);
-    const url = `${process.env.NEXT_PUBLIC_API_URL}/report/${sessionId}/export.pdf`;
-    window.open(url, '_blank');
-    // We can't reliably detect download completion, so reset the spinner after a short delay
-    setTimeout(() => setExporting(false), 1500);
+    posthog.capture?.('export_pdf_clicked', { reportId: sessionId });
+    // X-Anon-Id can't be sent via window.open; the export endpoint requires it.
+    // For now we redirect to the URL — the browser sends the chartsage_anon cookie
+    // automatically, but our backend reads the header. So we issue an authenticated
+    // fetch + create a blob URL.
+    apiFetch(`/report/${sessionId}/export.pdf`)
+      .then(async (r) => {
+        if (!r.ok) throw new Error(`Export failed (${r.status})`);
+        const blob = await r.blob();
+        const blobUrl = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = blobUrl;
+        a.download = `chartsage-${sessionId.slice(0, 8)}.pdf`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(blobUrl);
+      })
+      .catch((e) => setError(e.message || 'Export failed.'))
+      .finally(() => setExporting(false));
   }
 
   return (
     <div className="sticky top-0 z-10 -mx-4 sm:-mx-6 lg:-mx-8 px-4 sm:px-6 lg:px-8 py-3 mb-6 bg-stone-50/90 backdrop-blur border-b border-stone-200 flex items-center justify-end gap-3">
-      {error && (
-        <span className="text-sm text-red-600 mr-auto">{error}</span>
-      )}
+      {error && <span className="text-sm text-red-600 mr-auto">{error}</span>}
       <button
         type="button"
         onClick={handleGenerateMore}
