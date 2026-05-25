@@ -38,3 +38,32 @@ MODEL_NARRATIVE = resolve(_pick(
     os.getenv("CLAUDE_MODEL"),
     default="haiku-4-5",
 ))
+
+
+# Per 1M tokens, in USD
+MODEL_PRICING: dict[str, dict[str, float]] = {
+    "claude-haiku-4-5-20251001": {"input": 1.0, "output": 5.0, "cache_read": 0.1},
+    "claude-sonnet-4-6":         {"input": 3.0, "output": 15.0, "cache_read": 0.3},
+    "claude-opus-4-7":           {"input": 15.0, "output": 75.0, "cache_read": 1.5},
+}
+
+
+def estimate_cost_usd(
+    model: str,
+    input_tokens: int,
+    output_tokens: int,
+    cache_read_tokens: int = 0,
+) -> float:
+    """Estimate USD cost of a Claude API call from token counts.
+
+    cache_read_tokens are billed at a fraction of the input rate.
+    Returns USD to 6 decimal places.
+    """
+    rates = MODEL_PRICING.get(model, MODEL_PRICING["claude-haiku-4-5-20251001"])
+    uncached_input = max(0, input_tokens - cache_read_tokens)
+    cost = (
+        uncached_input * rates["input"] / 1_000_000
+        + cache_read_tokens * rates["cache_read"] / 1_000_000
+        + output_tokens * rates["output"] / 1_000_000
+    )
+    return round(cost, 6)
