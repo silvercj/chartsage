@@ -319,6 +319,97 @@ async def patch_report_layout(
     return None
 
 
+@app.post("/report/{session_id}/generate-more")
+async def generate_more(
+    session_id: str,
+    anon_id: UUID = Depends(get_anon_id),
+    claude: ClaudeClient = Depends(get_claude_client),
+    db: SupabaseDB = Depends(get_db),
+    storage: SupabaseStorage = Depends(get_storage),
+    posthog: PostHogServer = Depends(get_posthog),
+):
+    started = time.perf_counter()
+    row = db.get_report(session_id)
+    if not row:
+        raise HTTPException(status_code=404, detail="Report not found.")
+
+    existing_report = Report.model_validate(row["report_json"])
+    csv_key = row.get("csv_storage_key")
+    if not csv_key:
+        raise HTTPException(status_code=404, detail={
+            "code": "SOURCE_DATA_UNAVAILABLE",
+            "message": "Source data for this report is no longer available.",
+        })
+
+    try:
+        csv_bytes = storage.download_csv(session_id)
+    except StorageError:
+        raise HTTPException(status_code=404, detail={
+            "code": "SOURCE_DATA_UNAVAILABLE",
+            "message": "Source data for this report is no longer available.",
+        })
+
+    df = pd.read_csv(io.StringIO(csv_bytes.decode("utf-8")))
+    df.columns = [str(c).lower() for c in df.columns]
+
+    posthog.capture(str(anon_id), "generate_more_started", {
+        "reportId": session_id,
+        "existingChartCount": len(existing_report.charts),
+    })
+
+    profile = profile_dataframe(df)
+    gen = ReportGenerator(
+        profile=profile, df=df, claude=claude,
+        model_selection=MODEL_SELECTION, model_narrative=MODEL_NARRATIVE,
+    )
+
+    try:
+        new_charts, new_layout = gen.generate_more(existing_report.charts)
+    except RetryableBusy:
+        posthog.capture(str(anon_id), "generate_more_failed", {
+            "reportId": session_id, "reason": "busy", "httpStatus": 503,
+            "elapsedMs": int((time.perf_counter() - started) * 1000),
+        })
+        raise HTTPException(status_code=503, detail={
+            "code": "BUSY",
+            "message": "Claude is busy. Try again in 30s.",
+        })
+    except Exception as e:
+        posthog.capture(str(anon_id), "generate_more_failed", {
+            "reportId": session_id, "reason": "internal",
+            "errorClass": type(e).__name__,
+            "elapsedMs": int((time.perf_counter() - started) * 1000),
+        })
+        raise
+
+    if not new_charts:
+        return JSONResponse(content=row["report_json"], status_code=200)
+
+    report_dict = row["report_json"]
+    sidebar_max = max(
+        (e["order"] for e in report_dict["layout"] if e["position"] == "sidebar"),
+        default=-1,
+    )
+    for i, (chart, layout_entry) in enumerate(zip(new_charts, new_layout)):
+        layout_entry.order = sidebar_max + 1 + i
+        report_dict["charts"].append(chart.model_dump())
+        report_dict["layout"].append(layout_entry.model_dump())
+
+    db.update_report_json(session_id, report_dict)
+
+    elapsed_ms = int((time.perf_counter() - started) * 1000)
+    posthog.capture(str(anon_id), "generate_more_succeeded", {
+        "reportId": session_id,
+        "newChartCount": len(new_charts),
+        "inputTokens": 0,    # tokens from sub-Claude call aren't surfaced through gen yet
+        "outputTokens": 0,
+        "estCostUsd": 0.005, # rough — 1 selection pass on Haiku
+        "elapsedMs": elapsed_ms,
+    })
+
+    return JSONResponse(content=report_dict, status_code=200)
+
+
 @app.get("/health")
 async def health():
     return {"status": "ok"}

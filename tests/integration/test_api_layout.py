@@ -94,3 +94,42 @@ def test_patch_layout_persists(client_with_report):
     persisted = db.get_report(session_id)["report_json"]["layout"]
     moved = next(e for e in persisted if e["chart_id"] == chart["chart_id"])
     assert moved["position"] == "main"
+
+
+def test_generate_more_appends_charts(client_with_report, sales):
+    tc, session_id, report, anon, db, _, ph = client_with_report
+
+    new_calls = [
+        tool_use("histogram_chart",
+                 {"column": "revenue", "title": f"More {i}", "intent": f"new {i}"},
+                 id_=f"more_{i}")
+        for i in range(5)
+    ]
+    new_fake = FakeClaude([
+        {"tool_calls": new_calls},
+        {"tool_calls": [tool_use("submit_narrative",
+                                 {"summary": "Updated.", "captions": [f"nc{i}" for i in range(5)], "data_quality": []})]},
+    ])
+
+    from main import app, get_claude_client
+    app.dependency_overrides[get_claude_client] = lambda: MagicMock(messages_create=new_fake)
+
+    initial_count = len(report["charts"])
+    initial_sidebar = sum(1 for e in report["layout"] if e["position"] == "sidebar")
+
+    resp = tc.post(f"/report/{session_id}/generate-more",
+                   headers={"X-Anon-Id": anon})
+    assert resp.status_code == 200
+    updated = resp.json()
+    assert len(updated["charts"]) == initial_count + 5
+
+    new_sidebar = sum(1 for e in updated["layout"] if e["position"] == "sidebar")
+    assert new_sidebar == initial_sidebar + 5
+    # PostHog: success event fired
+    assert len(ph.find("generate_more_succeeded")) == 1
+
+
+def test_generate_more_unknown_session(client_with_report):
+    tc, _, _, anon, *_ = client_with_report
+    resp = tc.post("/report/nope/generate-more", headers={"X-Anon-Id": anon})
+    assert resp.status_code == 404
