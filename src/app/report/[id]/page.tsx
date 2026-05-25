@@ -17,6 +17,7 @@ import {
   rectSortingStrategy,
 } from '@dnd-kit/sortable';
 import { useReportLayout, type Report } from './useReportLayout';
+import { apiFetch } from '../../lib/api';
 
 const ChartCard = dynamic(() => import('./ChartCard'), { ssr: false });
 const ReportSummary = dynamic(() => import('./ReportSummary'));
@@ -52,7 +53,7 @@ export default function ReportPage({ params }: { params: { id: string } }) {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    fetch(`${process.env.NEXT_PUBLIC_API_URL}/report/${params.id}`)
+    apiFetch(`/report/${params.id}`)
       .then(async (r) => {
         if (r.status === 404) throw new Error('This report has expired. Generate a new one.');
         if (!r.ok) throw new Error('Failed to load report');
