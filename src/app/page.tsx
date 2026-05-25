@@ -4,6 +4,7 @@ import { useState, useCallback } from 'react';
 import { useDropzone } from 'react-dropzone';
 import { useRouter } from 'next/navigation';
 import Papa from 'papaparse';
+import { apiFetch } from './lib/api';
 
 interface DataPreview {
   columns: string[];
@@ -72,20 +73,22 @@ export default function Home() {
       setStep(1);
       const fd = new FormData();
       fd.append('file', file);
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/generate-report`, {
-        method: 'POST',
-        body: fd,
-      });
+      const res = await apiFetch('/generate-report', { method: 'POST', body: fd });
       let body: any = null;
       try { body = await res.json(); } catch {}
-      if (res.status === 503 && body?.detail?.status === 'busy') {
+
+      if (res.status === 403 && body?.detail?.code === 'ANON_LIMIT_REACHED') {
+        router.push('/anon-limit');
+        return;
+      }
+      if (res.status === 503 && body?.detail?.code === 'BUSY') {
         setError(body?.detail?.message ?? 'Service busy. Please retry in 30 seconds.');
         setIsProcessing(false);
         return;
       }
       if (!res.ok) {
         const detail = body?.detail;
-        throw new Error(typeof detail === 'string' ? detail : 'Failed to generate report.');
+        throw new Error(typeof detail === 'string' ? detail : detail?.message ?? 'Failed to generate report.');
       }
       setStep(2);
       router.push(`/report/${body.session_id}`);
