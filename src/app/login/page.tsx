@@ -62,6 +62,7 @@ export default function LoginPage() {
             <input
               type="email"
               required
+              aria-label="Email address"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               placeholder="you@example.com"
