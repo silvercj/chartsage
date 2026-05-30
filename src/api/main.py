@@ -326,6 +326,39 @@ async def patch_report_layout(
     return None
 
 
+@app.post("/claim-anon-reports")
+async def claim_anon_reports(
+    identity: Identity = Depends(get_identity),
+    x_anon_id: str | None = Header(None),
+    db: SupabaseDB = Depends(get_db),
+    posthog: PostHogServer = Depends(get_posthog),
+):
+    if not identity.is_authenticated:
+        raise HTTPException(status_code=401, detail={
+            "code": "AUTH_REQUIRED", "message": "Sign in required."})
+    if not x_anon_id:
+        return {"claimed": 0}
+    try:
+        anon_uuid = UUID(x_anon_id)
+    except (ValueError, AttributeError):
+        return {"claimed": 0}
+    claimed = db.claim_anon_reports(anon_uuid, identity.user_id)
+    if claimed:
+        posthog.capture(identity.distinct_id, "anon_reports_claimed", {"count": claimed})
+    return {"claimed": claimed}
+
+
+@app.get("/my-reports")
+async def my_reports(
+    identity: Identity = Depends(get_identity),
+    db: SupabaseDB = Depends(get_db),
+):
+    if not identity.is_authenticated:
+        raise HTTPException(status_code=401, detail={
+            "code": "AUTH_REQUIRED", "message": "Sign in required."})
+    return db.list_user_reports(identity.user_id)
+
+
 @app.post("/report/{session_id}/generate-more")
 async def generate_more(
     session_id: str,
