@@ -76,3 +76,37 @@ class SupabaseDB:
                .is_("user_id", "null")
                .execute())
         return res.count or 0
+
+    def claim_anon_reports(self, anon_id: UUID, user_id: UUID) -> int:
+        """Reassign an anon's unclaimed reports to a user. Idempotent."""
+        res = (self.client.table("reports")
+               .update({"user_id": str(user_id), "anon_id": None, "updated_at": "now()"})
+               .eq("anon_id", str(anon_id))
+               .is_("user_id", "null")
+               .execute())
+        return len(res.data or [])
+
+    def list_user_reports(self, user_id: UUID) -> list[dict]:
+        """Compact summaries for the My Reports page, newest first."""
+        res = (self.client.table("reports")
+               .select("id, title, report_json, created_at")
+               .eq("user_id", str(user_id))
+               .order("created_at", desc=True)
+               .execute())
+        return [_summarize_report_row(r) for r in (res.data or [])]
+
+
+def _summarize_report_row(row: dict) -> dict:
+    charts = (row.get("report_json") or {}).get("charts", [])
+    kinds: list[str] = []
+    for c in charts:
+        kind = (c.get("spec") or {}).get("kind")
+        if kind and kind not in kinds:
+            kinds.append(kind)
+    return {
+        "id": row["id"],
+        "title": row.get("title") or "Untitled report",
+        "chartCount": len(charts),
+        "kinds": kinds,
+        "createdAt": row.get("created_at"),
+    }

@@ -7,6 +7,7 @@ from uuid import UUID
 class FakeDB:
     def __init__(self):
         self._rows: dict[str, dict] = {}   # report_id -> row dict
+        self._seq = 0
 
     def save_report(
         self,
@@ -17,6 +18,7 @@ class FakeDB:
         csv_storage_key: Optional[str],
         title: str,
     ) -> None:
+        self._seq += 1
         self._rows[report_id] = {
             "id": report_id,
             "anon_id": str(anon_id) if anon_id else None,
@@ -24,6 +26,7 @@ class FakeDB:
             "report_json": deepcopy(report_json),
             "csv_storage_key": csv_storage_key,
             "title": title,
+            "_seq": self._seq,
         }
 
     def get_report(self, report_id: str) -> Optional[dict]:
@@ -47,3 +50,32 @@ class FakeDB:
             1 for r in self._rows.values()
             if r["anon_id"] == str(anon_id) and r["user_id"] is None
         )
+
+    def claim_anon_reports(self, anon_id: UUID, user_id: UUID) -> int:
+        n = 0
+        for r in self._rows.values():
+            if r["anon_id"] == str(anon_id) and r["user_id"] is None:
+                r["user_id"] = str(user_id)
+                r["anon_id"] = None
+                n += 1
+        return n
+
+    def list_user_reports(self, user_id: UUID) -> list[dict]:
+        rows = [r for r in self._rows.values() if r["user_id"] == str(user_id)]
+        rows.sort(key=lambda r: r.get("_seq", 0), reverse=True)
+        out = []
+        for r in rows:
+            charts = (r["report_json"] or {}).get("charts", [])
+            kinds: list[str] = []
+            for c in charts:
+                kind = (c.get("spec") or {}).get("kind")
+                if kind and kind not in kinds:
+                    kinds.append(kind)
+            out.append({
+                "id": r["id"],
+                "title": r["title"] or "Untitled report",
+                "chartCount": len(charts),
+                "kinds": kinds,
+                "createdAt": r.get("_seq"),
+            })
+        return out
