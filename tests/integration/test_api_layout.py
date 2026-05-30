@@ -111,8 +111,11 @@ def test_generate_more_appends_charts(client_with_report, sales):
                                  {"summary": "Updated.", "captions": [f"nc{i}" for i in range(5)], "data_quality": []})]},
     ])
 
-    from main import app, get_claude_client
+    from main import app, get_claude_client, get_identity
+    from deps import Identity
+    from uuid import uuid4 as _uuid4
     app.dependency_overrides[get_claude_client] = lambda: MagicMock(messages_create=new_fake)
+    app.dependency_overrides[get_identity] = lambda: Identity(user_id=_uuid4())
 
     initial_count = len(report["charts"])
     initial_sidebar = sum(1 for e in report["layout"] if e["position"] == "sidebar")
@@ -131,5 +134,9 @@ def test_generate_more_appends_charts(client_with_report, sales):
 
 def test_generate_more_unknown_session(client_with_report):
     tc, _, _, anon, *_ = client_with_report
+    from main import app, get_identity
+    from deps import Identity
+    from uuid import uuid4 as _uuid4
+    app.dependency_overrides[get_identity] = lambda: Identity(user_id=_uuid4())
     resp = tc.post("/report/nope/generate-more", headers={"X-Anon-Id": anon})
     assert resp.status_code == 404

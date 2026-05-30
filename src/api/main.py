@@ -12,13 +12,13 @@ from uuid import UUID
 import pandas as pd
 from anthropic import APIStatusError
 from dotenv import load_dotenv
-from fastapi import Depends, FastAPI, File, HTTPException, UploadFile
+from fastapi import Depends, FastAPI, File, Header, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, StreamingResponse
 
 from claude_client import ClaudeClient, RetryableBusy
 from db import SupabaseDB
-from deps import get_anon_id
+from deps import Identity, get_identity
 from llm_config import MODEL_NARRATIVE, MODEL_SELECTION, estimate_cost_usd
 from posthog_server import PostHogServer
 from profile import profile_dataframe
@@ -147,7 +147,7 @@ def _title_from_summary(summary: str) -> str:
 @app.post("/generate-report")
 async def generate_report(
     file: UploadFile = File(...),
-    anon_id: UUID = Depends(get_anon_id),
+    identity: Identity = Depends(get_identity),
     claude: ClaudeClient = Depends(get_claude_client),
     db: SupabaseDB = Depends(get_db),
     storage: SupabaseStorage = Depends(get_storage),
@@ -156,19 +156,19 @@ async def generate_report(
     run_id, _ = setup_run_logging()
     started = time.perf_counter()
 
-    # Anon limit check (early — before any expensive work).
-    # Allowlisted anon IDs (owner/QA) bypass the cap entirely.
-    bypass = str(anon_id) in UNLIMITED_ANON_IDS
-    existing_count = db.count_anon_reports(anon_id)
-    if not bypass and existing_count >= ANON_REPORT_LIMIT:
-        posthog.capture(str(anon_id), "anon_limit_blocked", {})
-        raise HTTPException(
-            status_code=403,
-            detail={
-                "code": "ANON_LIMIT_REACHED",
-                "message": "You've used your free report. Sign in to do more.",
-            },
-        )
+    # Identity-aware gating: authenticated users are unlimited; anonymous
+    # visitors keep the 1-free-report cap (with an owner/QA allowlist bypass).
+    if not identity.is_authenticated:
+        anon_id = identity.anon_id
+        bypass = str(anon_id) in UNLIMITED_ANON_IDS
+        existing_count = db.count_anon_reports(anon_id)
+        if not bypass and existing_count >= ANON_REPORT_LIMIT:
+            posthog.capture(identity.distinct_id, "anon_limit_blocked", {})
+            raise HTTPException(
+                status_code=403,
+                detail={"code": "ANON_LIMIT_REACHED",
+                        "message": "You've used your free report. Sign in to do more."},
+            )
 
     # Validation
     if not file.filename or not any(file.filename.lower().endswith(ext) for ext in ALLOWED_EXTENSIONS):
@@ -192,7 +192,7 @@ async def generate_report(
     if df.shape[0] < 1:
         raise HTTPException(status_code=422, detail="File has no data rows.")
 
-    posthog.capture(str(anon_id), "report_generation_started", {
+    posthog.capture(identity.distinct_id, "report_generation_started", {
         "rowCount": int(df.shape[0]),
         "columnCount": int(df.shape[1]),
         "filename": file.filename,
@@ -207,14 +207,14 @@ async def generate_report(
         )
         report = gen.build_report()
     except RetryableBusy:
-        posthog.capture(str(anon_id), "claude_overloaded", {"stage": "selection"})
+        posthog.capture(identity.distinct_id, "claude_overloaded", {"stage": "selection"})
         raise HTTPException(status_code=503, detail={
             "code": "BUSY",
             "message": "Claude is busy. Please retry in 30 seconds.",
         })
     except APIStatusError as e:
         logging.exception("Claude API error")
-        posthog.capture(str(anon_id), "report_generation_failed", {
+        posthog.capture(identity.distinct_id, "report_generation_failed", {
             "reason": "claude_api_status_error",
             "errorClass": type(e).__name__,
             "httpStatus": getattr(getattr(e, "response", None), "status_code", 0),
@@ -223,7 +223,7 @@ async def generate_report(
         raise HTTPException(status_code=502, detail=f"Upstream model error: {e}")
     except Exception as e:
         logging.exception("Report generation failed")
-        posthog.capture(str(anon_id), "report_generation_failed", {
+        posthog.capture(identity.distinct_id, "report_generation_failed", {
             "reason": "internal",
             "errorClass": type(e).__name__,
             "httpStatus": 500,
@@ -247,8 +247,8 @@ async def generate_report(
     try:
         db.save_report(
             report_id=report_id,
-            anon_id=anon_id,
-            user_id=None,
+            anon_id=identity.anon_id,
+            user_id=identity.user_id,
             report_json=report.model_dump(),
             csv_storage_key=csv_key,
             title=_title_from_summary(report.summary),
@@ -270,7 +270,7 @@ async def generate_report(
     out_tok = report.metadata.get("output_tokens_total", 0) if isinstance(report.metadata, dict) else 0
     cache_tok = report.metadata.get("cache_read_input_tokens_total", 0) if isinstance(report.metadata, dict) else 0
 
-    posthog.capture(str(anon_id), "report_generation_succeeded", {
+    posthog.capture(identity.distinct_id, "report_generation_succeeded", {
         "reportId": report_id,
         "rowCount": int(df.shape[0]),
         "columnCount": int(df.shape[1]),
@@ -329,12 +329,18 @@ async def patch_report_layout(
 @app.post("/report/{session_id}/generate-more")
 async def generate_more(
     session_id: str,
-    anon_id: UUID = Depends(get_anon_id),
+    identity: Identity = Depends(get_identity),
     claude: ClaudeClient = Depends(get_claude_client),
     db: SupabaseDB = Depends(get_db),
     storage: SupabaseStorage = Depends(get_storage),
     posthog: PostHogServer = Depends(get_posthog),
 ):
+    if not identity.is_authenticated:
+        raise HTTPException(
+            status_code=402,
+            detail={"code": "UPGRADE_REQUIRED",
+                    "message": "Create a free account to generate more charts."},
+        )
     started = time.perf_counter()
     row = db.get_report(session_id)
     if not row:
@@ -359,7 +365,7 @@ async def generate_more(
     df = pd.read_csv(io.StringIO(csv_bytes.decode("utf-8")))
     df.columns = [str(c).lower() for c in df.columns]
 
-    posthog.capture(str(anon_id), "generate_more_started", {
+    posthog.capture(identity.distinct_id, "generate_more_started", {
         "reportId": session_id,
         "existingChartCount": len(existing_report.charts),
     })
@@ -373,7 +379,7 @@ async def generate_more(
     try:
         new_charts, new_layout = gen.generate_more(existing_report.charts)
     except RetryableBusy:
-        posthog.capture(str(anon_id), "generate_more_failed", {
+        posthog.capture(identity.distinct_id, "generate_more_failed", {
             "reportId": session_id, "reason": "busy", "httpStatus": 503,
             "elapsedMs": int((time.perf_counter() - started) * 1000),
         })
@@ -382,7 +388,7 @@ async def generate_more(
             "message": "Claude is busy. Try again in 30s.",
         })
     except Exception as e:
-        posthog.capture(str(anon_id), "generate_more_failed", {
+        posthog.capture(identity.distinct_id, "generate_more_failed", {
             "reportId": session_id, "reason": "internal",
             "errorClass": type(e).__name__,
             "elapsedMs": int((time.perf_counter() - started) * 1000),
@@ -405,7 +411,7 @@ async def generate_more(
     db.update_report_json(session_id, report_dict)
 
     elapsed_ms = int((time.perf_counter() - started) * 1000)
-    posthog.capture(str(anon_id), "generate_more_succeeded", {
+    posthog.capture(identity.distinct_id, "generate_more_succeeded", {
         "reportId": session_id,
         "newChartCount": len(new_charts),
         "inputTokens": 0,    # tokens from sub-Claude call aren't surfaced through gen yet
@@ -420,7 +426,7 @@ async def generate_more(
 @app.get("/report/{session_id}/export.pdf")
 async def export_pdf(
     session_id: str,
-    anon_id: UUID = Depends(get_anon_id),
+    identity: Identity = Depends(get_identity),
     db: SupabaseDB = Depends(get_db),
     posthog: PostHogServer = Depends(get_posthog),
 ):
@@ -430,7 +436,7 @@ async def export_pdf(
 
     import pdf_export
     cold_start = pdf_export._browser is None
-    posthog.capture(str(anon_id), "pdf_export_started", {
+    posthog.capture(identity.distinct_id, "pdf_export_started", {
         "reportId": session_id, "coldStart": cold_start,
     })
 
@@ -438,14 +444,14 @@ async def export_pdf(
         pdf_bytes = await pdf_export.render_report_pdf(session_id)
     except Exception as e:
         logging.exception("PDF export failed")
-        posthog.capture(str(anon_id), "pdf_export_failed", {
+        posthog.capture(identity.distinct_id, "pdf_export_failed", {
             "reportId": session_id,
             "reason": "internal",
             "errorClass": type(e).__name__,
         })
         raise HTTPException(status_code=500, detail=f"PDF export failed: {e}")
 
-    posthog.capture(str(anon_id), "pdf_export_succeeded", {
+    posthog.capture(identity.distinct_id, "pdf_export_succeeded", {
         "reportId": session_id,
         "byteSize": len(pdf_bytes),
         "elapsedMs": int((time.perf_counter() - started) * 1000),
