@@ -1,9 +1,11 @@
 'use client';
 import { useEffect, useState } from 'react';
+import { usePathname } from 'next/navigation';
 import { getSupabaseBrowser } from '../lib/supabase';
 import { posthog } from '../lib/posthog';
 
 export default function AuthNav() {
+  const pathname = usePathname();
   const [email, setEmail] = useState<string | null>(null);
 
   useEffect(() => {
@@ -22,6 +24,10 @@ export default function AuthNav() {
     await getSupabaseBrowser().auth.signOut();
     window.location.href = '/';
   }
+
+  // Hide on report views: the fixed nav would overlap the report toolbar and,
+  // critically, would be captured in the Playwright-rendered PDF (/report/[id]/print).
+  if (pathname?.startsWith('/report/')) return null;
 
   return (
     <nav className="fixed top-3 right-4 z-50 flex items-center gap-3 text-sm">
