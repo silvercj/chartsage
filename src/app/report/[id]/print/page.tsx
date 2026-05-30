@@ -22,8 +22,6 @@ interface Report {
   metadata: Record<string, any>;
 }
 
-const CHARTS_PER_PAGE = 2;
-
 export default function PrintReportPage({ params }: { params: { id: string } }) {
   const [report, setReport] = useState<Report | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -57,12 +55,6 @@ export default function PrintReportPage({ params }: { params: { id: string } }) 
     .map((e) => report.charts.find((c) => c.chart_id === e.chart_id))
     .filter((c): c is ChartWithCaption => !!c);
 
-  // Group charts into pages of CHARTS_PER_PAGE
-  const pages: ChartWithCaption[][] = [];
-  for (let i = 0; i < mainCharts.length; i += CHARTS_PER_PAGE) {
-    pages.push(mainCharts.slice(i, i + CHARTS_PER_PAGE));
-  }
-
   return (
     <>
       <style jsx global>{`
@@ -74,6 +66,9 @@ export default function PrintReportPage({ params }: { params: { id: string } }) 
         }
         body { background: white; }
         .print-container { font-family: Inter, system-ui, sans-serif; }
+        /* keep each chart card whole on one page; let cards flow & pack naturally */
+        .avoid-break { break-inside: avoid; page-break-inside: avoid; }
+        .report-footer { break-before: avoid; page-break-before: avoid; }
       `}</style>
       <div className="print-container max-w-[700px] mx-auto p-8">
         {/* Cover page: title + summary + data quality */}
@@ -99,23 +94,21 @@ export default function PrintReportPage({ params }: { params: { id: string } }) 
 
         <div className="print-page-break" />
 
-        {/* Charts: CHARTS_PER_PAGE per page */}
-        {pages.map((pageCharts, pageIdx) => (
-          <div key={pageIdx} className={pageIdx < pages.length - 1 ? 'print-page-break' : ''}>
-            {pageCharts.map((c, i) => (
-              <div key={c.chart_id} className="mb-6">
-                <ChartCard
-                  chartId={c.chart_id}
-                  index={pageIdx * CHARTS_PER_PAGE + i + 1}
-                  spec={c.spec}
-                  caption={c.caption}
-                />
-              </div>
-            ))}
+        {/* Charts flow naturally; each card stays whole on a page (avoid-break),
+            so ~2 pack per page and the footer trails the last one without orphaning. */}
+        {mainCharts.map((c, i) => (
+          <div key={c.chart_id} className="avoid-break mb-6">
+            <ChartCard
+              chartId={c.chart_id}
+              index={i + 1}
+              spec={c.spec}
+              caption={c.caption}
+              printMode
+            />
           </div>
         ))}
 
-        <footer className="mt-12 pt-4 border-t border-stone-200 text-xs text-stone-400 text-center">
+        <footer className="report-footer mt-8 pt-4 border-t border-stone-200 text-xs text-stone-400 text-center">
           ChartSage · Report {params.id.slice(0, 8)}
         </footer>
       </div>

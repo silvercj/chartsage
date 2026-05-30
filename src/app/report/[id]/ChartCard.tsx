@@ -18,6 +18,7 @@ interface Props {
   caption: string;
   chartId: string;
   onHide?: (chartId: string) => void;
+  printMode?: boolean;   // hides interactive chrome (drag handle, kind badge) for PDF export
 }
 
 const KIND_LABEL: Record<string, string> = {
@@ -38,7 +39,7 @@ function ChartContent({ spec }: { spec: any }) {
   }
 }
 
-export default function ChartCard({ index, spec, caption, chartId, onHide }: Props) {
+export default function ChartCard({ index, spec, caption, chartId, onHide, printMode }: Props) {
   const sortable = useSortable({ id: chartId });
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = sortable;
 
@@ -58,19 +59,21 @@ export default function ChartCard({ index, spec, caption, chartId, onHide }: Pro
     >
       <div className="flex items-start justify-between mb-3 gap-2">
         <div className="flex items-baseline gap-3 min-w-0 flex-1">
-          <button
-            type="button"
-            className="text-stone-300 hover:text-stone-600 cursor-grab active:cursor-grabbing -ml-1 px-1 leading-none focus:outline-none focus:ring-2 focus:ring-stone-400 rounded"
-            aria-label="Drag to reorder"
-            {...attributes}
-            {...listeners}
-          >
-            <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-              <circle cx="6" cy="5" r="1.5" /><circle cx="10" cy="5" r="1.5" /><circle cx="14" cy="5" r="1.5" />
-              <circle cx="6" cy="10" r="1.5" /><circle cx="10" cy="10" r="1.5" /><circle cx="14" cy="10" r="1.5" />
-              <circle cx="6" cy="15" r="1.5" /><circle cx="10" cy="15" r="1.5" /><circle cx="14" cy="15" r="1.5" />
-            </svg>
-          </button>
+          {!printMode && (
+            <button
+              type="button"
+              className="text-stone-300 hover:text-stone-600 cursor-grab active:cursor-grabbing -ml-1 px-1 leading-none focus:outline-none focus:ring-2 focus:ring-stone-400 rounded"
+              aria-label="Drag to reorder"
+              {...attributes}
+              {...listeners}
+            >
+              <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                <circle cx="6" cy="5" r="1.5" /><circle cx="10" cy="5" r="1.5" /><circle cx="14" cy="5" r="1.5" />
+                <circle cx="6" cy="10" r="1.5" /><circle cx="10" cy="10" r="1.5" /><circle cx="14" cy="10" r="1.5" />
+                <circle cx="6" cy="15" r="1.5" /><circle cx="10" cy="15" r="1.5" /><circle cx="14" cy="15" r="1.5" />
+              </svg>
+            </button>
+          )}
           <span className="text-xs font-mono text-stone-400 tabular-nums shrink-0">
             {String(index).padStart(2, '0')}
           </span>
@@ -79,9 +82,11 @@ export default function ChartCard({ index, spec, caption, chartId, onHide }: Pro
           </h2>
         </div>
         <div className="flex items-center gap-2 shrink-0">
-          <span className="text-[10px] uppercase tracking-widest text-stone-400 mt-1">
-            {kindLabel}
-          </span>
+          {!printMode && (
+            <span className="text-[10px] uppercase tracking-widest text-stone-400 mt-1">
+              {kindLabel}
+            </span>
+          )}
           {onHide && (
             <button
               type="button"

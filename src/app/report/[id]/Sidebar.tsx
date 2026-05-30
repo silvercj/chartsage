@@ -54,8 +54,7 @@ export default function Sidebar({ charts, onPromote }: Props) {
             <SidebarCard
               key={c.chart_id}
               chartId={c.chart_id}
-              title={c.spec.title}
-              kind={c.spec.kind}
+              spec={c.spec}
               onPromote={onPromote}
             />
           ))}
