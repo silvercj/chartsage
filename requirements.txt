@@ -18,6 +18,7 @@ anthropic==0.50.0
 python-dotenv==1.0.1
 playwright==1.42.0
 supabase==2.30.1      # 2025 sb_secret/sb_publishable keys (pre-2.x rejects them)
+PyJWT[crypto]==2.13.0  # Supabase JWT (JWKS) verification; already present via supabase-auth
 posthog==3.5.0
 
 # Tests (dev; harmless in image)
