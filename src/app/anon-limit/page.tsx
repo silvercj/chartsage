@@ -16,16 +16,15 @@ export default function AnonLimitPage() {
         </h1>
         <p className="text-stone-600 leading-relaxed mb-6">
           Sign in to do more — generate additional charts, save your reports, and
-          come back to them later. Accounts are coming soon.
+          come back to them later. It only takes a few seconds.
         </p>
-        <button
-          type="button"
-          disabled
-          className="px-5 py-2.5 bg-stone-300 text-stone-600 text-sm font-medium rounded-lg cursor-not-allowed"
+        <a
+          href="/login?next=/"
           onClick={() => posthog.capture?.('signin_cta_clicked', { from: 'anonLimit' })}
+          className="inline-block px-5 py-2.5 bg-stone-900 text-white text-sm font-medium rounded-lg hover:bg-stone-800 transition-colors"
         >
-          Sign in · coming soon
-        </button>
+          Sign in
+        </a>
         <p className="mt-6 text-sm text-stone-400">
           <a href="/" className="hover:text-stone-700">← Back to home</a>
         </p>
