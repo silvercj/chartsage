@@ -1,6 +1,8 @@
 import type { Metadata } from 'next'
 import { Inter } from 'next/font/google'
 import PostHogInit from './PostHogInit'
+import SessionWatcher from './components/SessionWatcher'
+import AuthNav from './components/AuthNav'
 import './globals.css'
 
 const inter = Inter({ subsets: ['latin'] })
@@ -19,10 +21,12 @@ export default function RootLayout({
     <html lang="en">
       <body className={inter.className}>
         <PostHogInit />
+        <SessionWatcher />
+        <AuthNav />
         <main className="min-h-screen bg-gray-50">
           {children}
         </main>
       </body>
     </html>
   )
-} 
+}
