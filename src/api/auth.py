@@ -10,7 +10,6 @@ from uuid import UUID
 import jwt
 from jwt import PyJWKClient
 
-_SUPABASE_URL = os.environ.get("SUPABASE_URL", "").rstrip("/")
 _AUDIENCE = "authenticated"
 _ALGORITHMS = ["ES256", "RS256"]
 
@@ -20,14 +19,16 @@ _jwks_client: PyJWKClient | None = None
 def _get_jwks_client() -> PyJWKClient:
     global _jwks_client
     if _jwks_client is None:
-        if not _SUPABASE_URL:
+        url_base = os.environ.get("SUPABASE_URL", "").rstrip("/")
+        if not url_base:
             raise RuntimeError("SUPABASE_URL must be set for JWT verification")
-        url = f"{_SUPABASE_URL}/auth/v1/.well-known/jwks.json"
-        _jwks_client = PyJWKClient(url, cache_keys=True)
+        _jwks_client = PyJWKClient(
+            f"{url_base}/auth/v1/.well-known/jwks.json", cache_keys=True
+        )
     return _jwks_client
 
 
-def verify_token(token: str, *, _public_key=None) -> UUID | None:
+def verify_token(token: str, *, _public_key: bytes | None = None) -> UUID | None:
     """Return the user UUID (the `sub` claim) if the token is valid, else None.
 
     `_public_key` is a test injection point: pass a PEM public key to verify
@@ -36,16 +37,14 @@ def verify_token(token: str, *, _public_key=None) -> UUID | None:
     try:
         if _public_key is not None:
             key = _public_key
-            algorithms = ["RS256", "ES256"]
         else:
             key = _get_jwks_client().get_signing_key_from_jwt(token).key
-            algorithms = _ALGORITHMS
         claims = jwt.decode(
             token,
             key,
-            algorithms=algorithms,
+            algorithms=_ALGORITHMS,
             audience=_AUDIENCE,
-            options={"verify_exp": True},
+            options={"verify_exp": True, "require": ["exp", "sub", "aud"]},
         )
     except Exception:
         return None
