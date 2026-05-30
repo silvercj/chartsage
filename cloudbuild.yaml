@@ -21,7 +21,7 @@ steps:
       - --timeout=120s
       - --service-account=chartsage-runner@$PROJECT_ID.iam.gserviceaccount.com
       - --set-secrets=ANTHROPIC_API_KEY=anthropic-key:latest,SUPABASE_SERVICE_ROLE_KEY=supabase-srk:latest,POSTHOG_API_KEY=posthog-key:latest
-      - --set-env-vars=SUPABASE_URL=$_SUPABASE_URL,FRONTEND_BASE_URL=$_FRONTEND_BASE_URL,CLAUDE_MODEL=haiku-4-5
+      - --set-env-vars=SUPABASE_URL=$_SUPABASE_URL,FRONTEND_BASE_URL=$_FRONTEND_BASE_URL,CLAUDE_MODEL=haiku-4-5,ANON_REPORT_LIMIT=$_ANON_REPORT_LIMIT,UNLIMITED_ANON_IDS=$_UNLIMITED_ANON_IDS
 
 # _TAG defaults to 'latest'; CI/manual runs can pass --substitutions=_TAG=<git-sha>.
 # (Built-in $SHORT_SHA is only populated for trigger-based builds, not `gcloud builds submit`.)
@@ -29,6 +29,8 @@ substitutions:
   _TAG: 'latest'
   _SUPABASE_URL: 'https://YOUR_PROJECT.supabase.co'
   _FRONTEND_BASE_URL: 'https://chartsage.vercel.app'
+  _ANON_REPORT_LIMIT: '1'           # free reports per anonymous visitor
+  _UNLIMITED_ANON_IDS: ''           # comma-separated anon IDs that bypass the cap (owner/QA); empty in git
 
 images:
   - 'gcr.io/$PROJECT_ID/chartsage-backend:${_TAG}'

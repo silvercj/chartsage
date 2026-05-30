@@ -32,7 +32,12 @@ load_dotenv()
 
 MAX_UPLOAD_BYTES = 10 * 1024 * 1024
 ALLOWED_EXTENSIONS = (".csv", ".xlsx")
-ANON_REPORT_LIMIT = 1
+# Free reports per anonymous visitor (env-overridable).
+ANON_REPORT_LIMIT = int(os.environ.get("ANON_REPORT_LIMIT", "1"))
+# Anon IDs that bypass the limit entirely (comma-separated) — for owner/QA testing.
+UNLIMITED_ANON_IDS = {
+    x.strip() for x in os.environ.get("UNLIMITED_ANON_IDS", "").split(",") if x.strip()
+}
 
 
 # ---- Logging ---------------------------------------------------------------
@@ -151,9 +156,11 @@ async def generate_report(
     run_id, _ = setup_run_logging()
     started = time.perf_counter()
 
-    # Anon limit check (early — before any expensive work)
+    # Anon limit check (early — before any expensive work).
+    # Allowlisted anon IDs (owner/QA) bypass the cap entirely.
+    bypass = str(anon_id) in UNLIMITED_ANON_IDS
     existing_count = db.count_anon_reports(anon_id)
-    if existing_count >= ANON_REPORT_LIMIT:
+    if not bypass and existing_count >= ANON_REPORT_LIMIT:
         posthog.capture(str(anon_id), "anon_limit_blocked", {})
         raise HTTPException(
             status_code=403,
