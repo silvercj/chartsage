@@ -1,15 +1,15 @@
 steps:
   - name: gcr.io/cloud-builders/docker
-    args: ['build', '-t', 'gcr.io/$PROJECT_ID/chartsage-backend:$SHORT_SHA', '.']
+    args: ['build', '-t', 'gcr.io/$PROJECT_ID/chartsage-backend:${_TAG}', '.']
   - name: gcr.io/cloud-builders/docker
-    args: ['push', 'gcr.io/$PROJECT_ID/chartsage-backend:$SHORT_SHA']
+    args: ['push', 'gcr.io/$PROJECT_ID/chartsage-backend:${_TAG}']
   - name: gcr.io/google.com/cloudsdktool/cloud-sdk
     entrypoint: gcloud
     args:
       - run
       - deploy
       - chartsage-backend
-      - --image=gcr.io/$PROJECT_ID/chartsage-backend:$SHORT_SHA
+      - --image=gcr.io/$PROJECT_ID/chartsage-backend:${_TAG}
       - --region=us-central1
       - --platform=managed
       - --allow-unauthenticated
@@ -23,9 +23,12 @@ steps:
       - --set-secrets=ANTHROPIC_API_KEY=anthropic-key:latest,SUPABASE_SERVICE_ROLE_KEY=supabase-srk:latest,POSTHOG_API_KEY=posthog-key:latest
       - --set-env-vars=SUPABASE_URL=$_SUPABASE_URL,FRONTEND_BASE_URL=$_FRONTEND_BASE_URL,CLAUDE_MODEL=haiku-4-5
 
+# _TAG defaults to 'latest'; CI/manual runs can pass --substitutions=_TAG=<git-sha>.
+# (Built-in $SHORT_SHA is only populated for trigger-based builds, not `gcloud builds submit`.)
 substitutions:
+  _TAG: 'latest'
   _SUPABASE_URL: 'https://YOUR_PROJECT.supabase.co'
   _FRONTEND_BASE_URL: 'https://chartsage.vercel.app'
 
 images:
-  - 'gcr.io/$PROJECT_ID/chartsage-backend:$SHORT_SHA'
+  - 'gcr.io/$PROJECT_ID/chartsage-backend:${_TAG}'
