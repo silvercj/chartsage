@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { apiFetch } from '../../lib/api';
 import { posthog } from '../../lib/posthog';
 import type { Report } from './useReportLayout';
+import UpsellModal from '../../components/UpsellModal';
 
 interface Props {
   sessionId: string;
@@ -13,6 +14,7 @@ export default function Toolbar({ sessionId, onReportUpdated }: Props) {
   const [generating, setGenerating] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showUpsell, setShowUpsell] = useState(false);
 
   async function handleGenerateMore() {
     setGenerating(true);
@@ -22,6 +24,11 @@ export default function Toolbar({ sessionId, onReportUpdated }: Props) {
       const res = await apiFetch(`/report/${sessionId}/generate-more`, { method: 'POST' });
       if (res.status === 503) {
         setError('Claude is busy. Try again in 30 seconds.');
+        return;
+      }
+      if (res.status === 402) {
+        posthog.capture?.('generate_more_upsell_shown', { reportId: sessionId });
+        setShowUpsell(true);
         return;
       }
       if (!res.ok) throw new Error(`Failed (${res.status})`);
@@ -60,24 +67,27 @@ export default function Toolbar({ sessionId, onReportUpdated }: Props) {
   }
 
   return (
-    <div className="sticky top-0 z-10 -mx-4 sm:-mx-6 lg:-mx-8 px-4 sm:px-6 lg:px-8 py-3 mb-6 bg-stone-50/90 backdrop-blur border-b border-stone-200 flex items-center justify-end gap-3">
-      {error && <span className="text-sm text-red-600 mr-auto">{error}</span>}
-      <button
-        type="button"
-        onClick={handleGenerateMore}
-        disabled={generating}
-        className="px-4 py-2 text-sm font-medium text-stone-700 bg-white ring-1 ring-stone-200 rounded-lg hover:bg-stone-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-      >
-        {generating ? 'Generating…' : 'Generate 5 more'}
-      </button>
-      <button
-        type="button"
-        onClick={handleExportPdf}
-        disabled={exporting}
-        className="px-4 py-2 text-sm font-medium text-white bg-stone-900 rounded-lg hover:bg-stone-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-      >
-        {exporting ? 'Preparing PDF…' : 'Export PDF'}
-      </button>
-    </div>
+    <>
+      <div className="sticky top-0 z-10 -mx-4 sm:-mx-6 lg:-mx-8 px-4 sm:px-6 lg:px-8 py-3 mb-6 bg-stone-50/90 backdrop-blur border-b border-stone-200 flex items-center justify-end gap-3">
+        {error && <span className="text-sm text-red-600 mr-auto">{error}</span>}
+        <button
+          type="button"
+          onClick={handleGenerateMore}
+          disabled={generating}
+          className="px-4 py-2 text-sm font-medium text-stone-700 bg-white ring-1 ring-stone-200 rounded-lg hover:bg-stone-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+        >
+          {generating ? 'Generating…' : 'Generate 5 more'}
+        </button>
+        <button
+          type="button"
+          onClick={handleExportPdf}
+          disabled={exporting}
+          className="px-4 py-2 text-sm font-medium text-white bg-stone-900 rounded-lg hover:bg-stone-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+        >
+          {exporting ? 'Preparing PDF…' : 'Export PDF'}
+        </button>
+      </div>
+      <UpsellModal open={showUpsell} onClose={() => setShowUpsell(false)} />
+    </>
   );
 }
