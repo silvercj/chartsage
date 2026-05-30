@@ -1,5 +1,6 @@
 'use client';
 import { getAnonId } from './anon';
+import { getAccessToken } from './supabase';
 
 export interface ApiError extends Error {
   status: number;
@@ -8,9 +9,12 @@ export interface ApiError extends Error {
 }
 
 export async function apiFetch(path: string, init: RequestInit = {}): Promise<Response> {
-  const anonId = getAnonId();
   const headers = new Headers(init.headers || {});
+  const anonId = getAnonId();
   if (anonId) headers.set('X-Anon-Id', anonId);
+
+  const token = await getAccessToken();
+  if (token) headers.set('Authorization', `Bearer ${token}`);
 
   const url = `${process.env.NEXT_PUBLIC_API_URL}${path}`;
   return fetch(url, { ...init, headers });
