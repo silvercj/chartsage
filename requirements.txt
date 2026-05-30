@@ -1,19 +1,25 @@
+# Web framework
 fastapi==0.109.2
 uvicorn==0.27.1
 python-multipart==0.0.9
+httpx==0.27.0
+
+# Data
 pandas==2.2.0
 numpy==1.26.4
 openpyxl==3.1.2
-python-jose[cryptography]==3.3.0
-passlib[bcrypt]==1.7.4
+xlrd==2.0.1            # Excel support
+pydantic==2.13.4      # >=2.7 required by supabase 2.30.1
+
+# AI
+anthropic==0.50.0
+
+# Infra / integrations
 python-dotenv==1.0.1
-anthropic>=0.7.0
-python-magic==0.4.27
-pydantic==2.6.1
-xlrd==2.0.1  # For Excel support
+playwright==1.42.0
+supabase==2.30.1      # 2025 sb_secret/sb_publishable keys (pre-2.x rejects them)
+posthog==3.5.0
+
+# Tests (dev; harmless in image)
 pytest==8.0.0
 pytest-asyncio==0.23.5
-httpx==0.27.0
-playwright==1.42.0
-supabase==2.30.1
-posthog==3.5.0
