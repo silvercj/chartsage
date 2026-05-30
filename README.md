@@ -130,3 +130,32 @@ git push origin main   # Vercel auto-deploys
 ### Smoke test
 
 After the first deploy, visit your Vercel URL. Drop a CSV. Verify the report renders, check the Supabase `reports` table has a row, and check the PostHog dashboard for `report_generation_succeeded` events.
+
+## Accounts (SP2)
+
+Logged-in users (Google or magic link) get unlimited reports and "Generate more"; anonymous visitors keep one free report and see an upsell modal on "Generate 5 more". On sign-in, the visitor's anonymous report is migrated into their account, and a **My Reports** page lists saved reports.
+
+**How auth works:** the browser uses `@supabase/ssr` to hold the session; `apiFetch` attaches `Authorization: Bearer <supabase JWT>` to every API call (plus the anon `X-Anon-Id` fallback). The FastAPI backend (`src/api/auth.py`) verifies the JWT locally against Supabase's public JWKS (asymmetric ES256/RS256, audience + expiry) — no per-request call to Supabase and no new secret. `deps.get_identity` resolves Bearer→authenticated, else X-Anon-Id→anonymous. Gating: authenticated → unlimited; anonymous → 1-report cap and `402 UPGRADE_REQUIRED` on generate-more.
+
+### One-time auth provisioning
+
+1. **Google OAuth client** (Google Cloud Console → APIs & Services):
+   - OAuth consent screen → configure (External; app name; support email).
+   - Credentials → Create credentials → OAuth client ID → Web application.
+   - Authorized redirect URI: `https://YOUR_PROJECT.supabase.co/auth/v1/callback`.
+   - Copy the Client ID + Client secret.
+2. **Supabase → Authentication → Providers → Google:** enable, paste the Client ID + secret. (Magic link / Email is on by default.)
+3. **Supabase → Authentication → URL Configuration:**
+   - Site URL: `https://chartsage-xi.vercel.app`
+   - Redirect URLs: `https://chartsage-xi.vercel.app/auth/callback` and `http://localhost:3000/auth/callback`.
+4. **Row-Level Security** (Supabase SQL editor) — defense-in-depth; the backend uses the service-role key which bypasses RLS, so existing flows are unaffected:
+   ```sql
+   ALTER TABLE reports ENABLE ROW LEVEL SECURITY;
+   CREATE POLICY reports_owner_select ON reports FOR SELECT USING (auth.uid() = user_id);
+   CREATE POLICY reports_owner_update ON reports FOR UPDATE USING (auth.uid() = user_id);
+   ```
+5. **Vercel env:** ensure `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY` (the `sb_publishable_...` key) are set for all environments.
+
+**JWKS note:** verification needs no new backend secret — Supabase exposes a public JWKS at `${SUPABASE_URL}/auth/v1/.well-known/jwks.json`. Confirm it returns a non-empty `keys` array (new projects sign with asymmetric ES256). If a project still signs with symmetric HS256, fall back to verifying with the Supabase JWT secret stored as a Cloud Run secret.
+
+No new Cloud Run secrets or env vars are required for SP2 (`SUPABASE_URL` is already set). Deploy the backend (`gcloud builds submit ...`) and frontend (`git push origin main`) together — they share the `402` generate-more contract.
