@@ -1,32 +1,14 @@
 'use client';
-import { useEffect, useState } from 'react';
 import { usePathname } from 'next/navigation';
-import { getSupabaseBrowser } from '../lib/supabase';
-import { posthog } from '../lib/posthog';
+import { useAuthEmail, signOut } from '../lib/useAuth';
 
 export default function AuthNav() {
   const pathname = usePathname();
-  const [email, setEmail] = useState<string | null>(null);
+  const email = useAuthEmail();
 
-  useEffect(() => {
-    const supabase = getSupabaseBrowser();
-    supabase.auth.getSession().then(({ data }) =>
-      setEmail(data.session?.user?.email ?? null),
-    );
-    const { data: sub } = supabase.auth.onAuthStateChange((_e, session) =>
-      setEmail(session?.user?.email ?? null),
-    );
-    return () => sub.subscription.unsubscribe();
-  }, []);
-
-  async function signOut() {
-    posthog.capture?.('signed_out', {});
-    await getSupabaseBrowser().auth.signOut();
-    window.location.href = '/';
-  }
-
-  // Hide on report views: the fixed nav would overlap the report toolbar and,
-  // critically, would be captured in the Playwright-rendered PDF (/report/[id]/print).
+  // Report views render their own account controls inside the report toolbar
+  // (and the /print route must stay clean for the PDF), so the floating nav
+  // is suppressed there.
   if (pathname?.startsWith('/report/')) return null;
 
   return (
