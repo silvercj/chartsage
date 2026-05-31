@@ -5,6 +5,9 @@ import { useDropzone } from 'react-dropzone';
 import { useRouter } from 'next/navigation';
 import Papa from 'papaparse';
 import { apiFetch } from './lib/api';
+import OutOfCreditsModal from './components/OutOfCreditsModal';
+import { useCredits } from './lib/useCredits';
+import { REPORT_COST } from './lib/credits';
 
 interface DataPreview {
   columns: string[];
@@ -19,6 +22,8 @@ export default function Home() {
   const [error, setError] = useState<string | null>(null);
   const [preview, setPreview] = useState<DataPreview | null>(null);
   const [step, setStep] = useState(0);
+  const [showOutOfCredits, setShowOutOfCredits] = useState(false);
+  const { balance, refetch } = useCredits();
   const router = useRouter();
 
   const onDrop = useCallback((accepted: File[]) => {
@@ -81,6 +86,11 @@ export default function Home() {
         router.push('/anon-limit');
         return;
       }
+      if (res.status === 402 && body?.detail?.code === 'OUT_OF_CREDITS') {
+        setShowOutOfCredits(true);
+        setIsProcessing(false);
+        return;
+      }
       if (res.status === 503 && body?.detail?.code === 'BUSY') {
         setError(body?.detail?.message ?? 'Service busy. Please retry in 30 seconds.');
         setIsProcessing(false);
@@ -91,6 +101,7 @@ export default function Home() {
         throw new Error(typeof detail === 'string' ? detail : detail?.message ?? 'Failed to generate report.');
       }
       setStep(2);
+      refetch();
       router.push(`/report/${body.session_id}`);
     } catch (e: any) {
       setError(e.message || 'Generation failed.');
@@ -150,7 +161,7 @@ export default function Home() {
               onClick={generate}
               className="px-5 py-2.5 bg-stone-900 text-white text-sm font-medium rounded-lg hover:bg-stone-800 transition-colors"
             >
-              Generate report →
+              {balance !== null ? `Generate report · ${REPORT_COST}` : 'Generate report →'}
             </button>
           </div>
         )}
@@ -201,6 +212,7 @@ export default function Home() {
           </div>
         )}
       </div>
+        <OutOfCreditsModal open={showOutOfCredits} onClose={() => setShowOutOfCredits(false)} />
     </div>
   );
 }
