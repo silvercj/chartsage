@@ -379,6 +379,48 @@ async def my_reports(
     return db.list_user_reports(identity.user_id)
 
 
+class UpgradeIntentIn(BaseModel):
+    email: str | None = None
+
+
+@app.get("/me")
+async def me(
+    identity: Identity = Depends(get_identity),
+    db: SupabaseDB = Depends(get_db),
+):
+    if not identity.is_authenticated:
+        raise HTTPException(status_code=401, detail={
+            "code": "AUTH_REQUIRED", "message": "Sign in required."})
+    balance = db.ensure_profile(identity.user_id, SIGNUP_GRANT)
+    return {"credits_balance": balance}
+
+
+@app.get("/credits/history")
+async def credits_history(
+    identity: Identity = Depends(get_identity),
+    db: SupabaseDB = Depends(get_db),
+):
+    if not identity.is_authenticated:
+        raise HTTPException(status_code=401, detail={
+            "code": "AUTH_REQUIRED", "message": "Sign in required."})
+    return db.list_transactions(identity.user_id)
+
+
+@app.post("/upgrade-intent")
+async def upgrade_intent(
+    body: UpgradeIntentIn,
+    identity: Identity = Depends(get_identity),
+    db: SupabaseDB = Depends(get_db),
+    posthog: PostHogServer = Depends(get_posthog),
+):
+    if not identity.is_authenticated:
+        raise HTTPException(status_code=401, detail={
+            "code": "AUTH_REQUIRED", "message": "Sign in required."})
+    db.record_upgrade_intent(identity.user_id, body.email)
+    posthog.capture(identity.distinct_id, "upgrade_intent_captured", {})
+    return {"ok": True}
+
+
 @app.post("/report/{session_id}/generate-more")
 async def generate_more(
     session_id: str,
