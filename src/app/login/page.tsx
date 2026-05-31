@@ -39,7 +39,8 @@ export default function LoginPage() {
     <div className="min-h-screen bg-stone-50 flex items-center justify-center px-4">
       <div className="w-full max-w-sm">
         <p className="text-xs uppercase tracking-widest text-stone-400 mb-2">ChartSage</p>
-        <h1 className="text-3xl font-semibold tracking-tight text-stone-900 mb-6">Sign in</h1>
+        <h1 className="text-3xl font-semibold tracking-tight text-stone-900 mb-1">Sign in or sign up</h1>
+        <p className="text-sm text-stone-500 mb-6">New here? Either option below creates your account — 300 free credits to start.</p>
 
         <button
           type="button"

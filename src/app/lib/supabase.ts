@@ -14,20 +14,31 @@ export function getSupabaseBrowser() {
   return _client;
 }
 
-/** Current access token, or null when signed out. Used by apiFetch.
- *  Proactively refreshes when the token is expired or within 60s of expiring,
- *  so the backend always receives a token it will accept (getSession alone can
- *  hand back a stale token if the background refresh timer hasn't fired). */
+/** Resolve `p`, but never block longer than `ms` (returns `fallback` on timeout).
+ *  Guards against the Supabase auth client occasionally stalling on its internal
+ *  lock right after an OAuth callback — a stall must degrade to "no token", not
+ *  hang the whole page. */
+function withTimeout<T>(p: Promise<T>, ms: number, fallback: T): Promise<T> {
+  return Promise.race([
+    p.catch(() => fallback),
+    new Promise<T>((resolve) => setTimeout(() => resolve(fallback), ms)),
+  ]);
+}
+
+/** Current access token, or null when signed out / unavailable. Used by apiFetch.
+ *  Proactively refreshes when the token is expired or near-expiry, and bounds
+ *  every auth call so a stuck client can never freeze callers. */
 export async function getAccessToken(): Promise<string | null> {
   try {
     const supabase = getSupabaseBrowser();
-    const { data } = await supabase.auth.getSession();
-    const session = data.session;
+    const sessionRes = await withTimeout(supabase.auth.getSession(), 3000, null);
+    const session = sessionRes?.data?.session ?? null;
     if (!session) return null;
     const expMs = (session.expires_at ?? 0) * 1000;
     if (expMs && expMs < Date.now() + 60_000) {
-      const { data: refreshed } = await supabase.auth.refreshSession();
-      return refreshed.session?.access_token ?? session.access_token ?? null;
+      const refreshed = await withTimeout(supabase.auth.refreshSession(), 4000, null);
+      const token = refreshed?.data?.session?.access_token;
+      if (token) return token;
     }
     return session.access_token ?? null;
   } catch {

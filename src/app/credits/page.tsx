@@ -2,7 +2,6 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { apiFetch } from '../lib/api';
-import { getSupabaseBrowser } from '../lib/supabase';
 import { useCredits } from '../lib/useCredits';
 import { REPORT_COST, GENERATE_MORE_COST } from '../lib/credits';
 import OutOfCreditsModal from '../components/OutOfCreditsModal';
@@ -24,8 +23,6 @@ export default function CreditsPage() {
 
   useEffect(() => {
     (async () => {
-      const { data } = await getSupabaseBrowser().auth.getSession();
-      if (!data.session) { router.replace('/login?next=/credits'); return; }
       try {
         const res = await apiFetch('/credits/history');
         if (res.status === 401) { router.replace('/login?next=/credits'); return; }

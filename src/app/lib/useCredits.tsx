@@ -14,12 +14,12 @@ export function CreditsProvider({ children }: { children: React.ReactNode }) {
   const [balance, setBalance] = useState<number | null>(null);
 
   const refetch = useCallback(async () => {
-    const { data } = await getSupabaseBrowser().auth.getSession();
-    if (!data.session) { setBalance(null); return; }
     try {
-      const res = await apiFetch('/me');
-      if (res.ok) setBalance((await res.json()).credits_balance ?? null);
-    } catch { /* leave stale */ }
+      const res = await apiFetch('/me');   // apiFetch resolves the (bounded) token; 401 when signed out
+      setBalance(res.ok ? ((await res.json()).credits_balance ?? null) : null);
+    } catch {
+      setBalance(null);
+    }
   }, []);
 
   useEffect(() => {

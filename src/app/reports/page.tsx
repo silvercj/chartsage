@@ -2,7 +2,6 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { apiFetch } from '../lib/api';
-import { getSupabaseBrowser } from '../lib/supabase';
 
 interface ReportRow {
   id: string;
@@ -19,21 +18,20 @@ export default function MyReportsPage() {
 
   useEffect(() => {
     (async () => {
-      const { data } = await getSupabaseBrowser().auth.getSession();
-      if (!data.session) {
-        router.replace('/login?next=/reports');
-        return;
-      }
-      const res = await apiFetch('/my-reports');
-      if (res.status === 401) {
-        router.replace('/login?next=/reports');
-        return;
-      }
-      if (!res.ok) {
+      try {
+        const res = await apiFetch('/my-reports');
+        if (res.status === 401) {
+          router.replace('/login?next=/reports');
+          return;
+        }
+        if (!res.ok) {
+          setError('Could not load your reports.');
+          return;
+        }
+        setReports(await res.json());
+      } catch {
         setError('Could not load your reports.');
-        return;
       }
-      setReports(await res.json());
     })();
   }, [router]);
 
