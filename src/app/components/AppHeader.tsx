@@ -1,11 +1,13 @@
 'use client';
 import { usePathname } from 'next/navigation';
-import { useAuthEmail, signOut } from '../lib/useAuth';
+import { signOut } from '../lib/useAuth';
+import { useCredits } from '../lib/useCredits';
 import CreditsBadge from './CreditsBadge';
 
 export default function AppHeader() {
   const pathname = usePathname();
-  const email = useAuthEmail();
+  const { session } = useCredits();
+  const email = session?.user?.email ?? null;
 
   // Never render on the PDF print route — it must stay chrome-free.
   if (pathname?.startsWith('/report/') && pathname.endsWith('/print')) return null;

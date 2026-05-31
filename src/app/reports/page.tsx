@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { apiFetch } from '../lib/api';
+import { useCredits } from '../lib/useCredits';
 
 interface ReportRow {
   id: string;
@@ -13,10 +14,13 @@ interface ReportRow {
 
 export default function MyReportsPage() {
   const router = useRouter();
+  const { session, authLoading } = useCredits();
   const [reports, setReports] = useState<ReportRow[] | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    if (authLoading) return;                 // wait until auth state is known
+    if (!session) { router.replace('/login?next=/reports'); return; }
     (async () => {
       try {
         const res = await apiFetch('/my-reports');
@@ -33,7 +37,7 @@ export default function MyReportsPage() {
         setError('Could not load your reports.');
       }
     })();
-  }, [router]);
+  }, [authLoading, session, router]);
 
   if (error) {
     return (

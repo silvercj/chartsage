@@ -17,11 +17,13 @@ const LABELS: Record<string, string> = {
 
 export default function CreditsPage() {
   const router = useRouter();
-  const { balance } = useCredits();
+  const { balance, session, authLoading } = useCredits();
   const [txns, setTxns] = useState<Txn[] | null>(null);
   const [showNotify, setShowNotify] = useState(false);
 
   useEffect(() => {
+    if (authLoading) return;                 // wait until auth state is known
+    if (!session) { router.replace('/login?next=/credits'); return; }
     (async () => {
       try {
         const res = await apiFetch('/credits/history');
@@ -31,7 +33,7 @@ export default function CreditsPage() {
         setTxns([]);   // never hang on "Loading…"
       }
     })();
-  }, [router]);
+  }, [authLoading, session, router]);
 
   return (
     <div className="min-h-screen bg-stone-50">
