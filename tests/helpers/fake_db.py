@@ -3,11 +3,16 @@ from copy import deepcopy
 from typing import Optional
 from uuid import UUID
 
+from credits import InsufficientCredits
+
 
 class FakeDB:
     def __init__(self):
         self._rows: dict[str, dict] = {}   # report_id -> row dict
         self._seq = 0
+        self._profiles: dict[str, int] = {}   # user_id -> balance
+        self._txns: list[dict] = []           # ledger
+        self._intent: dict[str, str | None] = {}
 
     def save_report(
         self,
@@ -79,3 +84,35 @@ class FakeDB:
                 "createdAt": r.get("_seq"),
             })
         return out
+
+    # --- credits (SP3) ---
+    def ensure_profile(self, user_id, grant_amount: int) -> int:
+        uid = str(user_id)
+        self._profiles.setdefault(uid, 0)
+        if not any(t["user_id"] == uid and t["reason"] == "signup_grant" for t in self._txns):
+            self.grant_credits(uid, grant_amount, "signup_grant", None)
+        return self._profiles[uid]
+
+    def get_balance(self, user_id) -> int:
+        return self._profiles.get(str(user_id), 0)
+
+    def grant_credits(self, user_id, amount: int, reason: str, ref=None) -> int:
+        uid = str(user_id)
+        self._profiles[uid] = self._profiles.get(uid, 0) + amount
+        self._txns.append({"user_id": uid, "delta": amount, "reason": reason, "ref": ref})
+        return self._profiles[uid]
+
+    def spend_credits(self, user_id, amount: int, reason: str, ref=None) -> int:
+        uid = str(user_id)
+        if self._profiles.get(uid, 0) < amount:
+            raise InsufficientCredits()
+        self._profiles[uid] -= amount
+        self._txns.append({"user_id": uid, "delta": -amount, "reason": reason, "ref": ref})
+        return self._profiles[uid]
+
+    def list_transactions(self, user_id, limit: int = 50) -> list[dict]:
+        rows = [t for t in self._txns if t["user_id"] == str(user_id)]
+        return list(reversed(rows))[:limit]
+
+    def record_upgrade_intent(self, user_id, email) -> None:
+        self._intent[str(user_id)] = email

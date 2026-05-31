@@ -9,6 +9,8 @@ from uuid import UUID
 
 from supabase import create_client, Client
 
+from credits import InsufficientCredits
+
 
 _SUPABASE_URL = os.environ.get("SUPABASE_URL")
 _SERVICE_ROLE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
@@ -94,6 +96,46 @@ class SupabaseDB:
                .order("created_at", desc=True)
                .execute())
         return [_summarize_report_row(r) for r in (res.data or [])]
+
+    # --- credits (SP3) ---
+    def ensure_profile(self, user_id, grant_amount: int) -> int:
+        res = self.client.rpc("ensure_profile",
+                              {"p_user": str(user_id), "p_grant": grant_amount}).execute()
+        return int(res.data)
+
+    def get_balance(self, user_id) -> int:
+        res = (self.client.table("profiles").select("credits_balance")
+               .eq("user_id", str(user_id)).limit(1).execute())
+        return res.data[0]["credits_balance"] if res.data else 0
+
+    def grant_credits(self, user_id, amount: int, reason: str, ref=None) -> int:
+        res = self.client.rpc("grant_credits",
+                              {"p_user": str(user_id), "p_amount": amount,
+                               "p_reason": reason, "p_ref": ref}).execute()
+        return int(res.data)
+
+    def spend_credits(self, user_id, amount: int, reason: str, ref=None) -> int:
+        try:
+            res = self.client.rpc("spend_credits",
+                                  {"p_user": str(user_id), "p_amount": amount,
+                                   "p_reason": reason, "p_ref": ref}).execute()
+        except Exception as e:
+            if "INSUFFICIENT_CREDITS" in str(e):
+                raise InsufficientCredits()
+            raise
+        return int(res.data)
+
+    def list_transactions(self, user_id, limit: int = 50) -> list[dict]:
+        res = (self.client.table("credit_transactions")
+               .select("delta, reason, ref, created_at")
+               .eq("user_id", str(user_id))
+               .order("created_at", desc=True).limit(limit).execute())
+        return res.data or []
+
+    def record_upgrade_intent(self, user_id, email) -> None:
+        (self.client.table("upgrade_intent")
+         .upsert({"user_id": str(user_id), "email": email}, on_conflict="user_id")
+         .execute())
 
 
 def _summarize_report_row(row: dict) -> dict:
