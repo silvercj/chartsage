@@ -108,6 +108,11 @@ class SupabaseDB:
                .eq("user_id", str(user_id)).limit(1).execute())
         return res.data[0]["credits_balance"] if res.data else 0
 
+    def profile_exists(self, user_id) -> bool:
+        res = (self.client.table("profiles").select("user_id")
+               .eq("user_id", str(user_id)).limit(1).execute())
+        return bool(res.data)
+
     def grant_credits(self, user_id, amount: int, reason: str, ref=None) -> int:
         res = self.client.rpc("grant_credits",
                               {"p_user": str(user_id), "p_amount": amount,

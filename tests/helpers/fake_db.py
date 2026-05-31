@@ -96,6 +96,9 @@ class FakeDB:
     def get_balance(self, user_id) -> int:
         return self._profiles.get(str(user_id), 0)
 
+    def profile_exists(self, user_id) -> bool:
+        return str(user_id) in self._profiles
+
     def grant_credits(self, user_id, amount: int, reason: str, ref=None) -> int:
         uid = str(user_id)
         self._profiles[uid] = self._profiles.get(uid, 0) + amount

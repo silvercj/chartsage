@@ -144,6 +144,18 @@ def _title_from_summary(summary: str) -> str:
     return first_sentence[:200] if first_sentence else "Untitled report"
 
 
+def _ensure_profile_tracked(db: SupabaseDB, posthog: PostHogServer, identity: Identity) -> int:
+    """Ensure the user's profile + one-time starter grant, firing the PostHog
+    `credits_granted` event exactly once (on first creation). Race-tolerant: a
+    rare concurrent first-request could double-fire the event, which is harmless."""
+    is_new = not db.profile_exists(identity.user_id)
+    balance = db.ensure_profile(identity.user_id, SIGNUP_GRANT)
+    if is_new:
+        posthog.capture(identity.distinct_id, "credits_granted",
+                        {"amount": SIGNUP_GRANT, "balance": balance})
+    return balance
+
+
 # ---- Endpoints -------------------------------------------------------------
 
 @app.post("/generate-report")
@@ -173,7 +185,7 @@ async def generate_report(
             )
     else:
         try:
-            balance = db.ensure_profile(identity.user_id, SIGNUP_GRANT)
+            balance = _ensure_profile_tracked(db, posthog, identity)
         except Exception:
             logging.exception("ensure_profile failed")
             raise HTTPException(status_code=503, detail={
@@ -393,12 +405,13 @@ class UpgradeIntentIn(BaseModel):
 async def me(
     identity: Identity = Depends(get_identity),
     db: SupabaseDB = Depends(get_db),
+    posthog: PostHogServer = Depends(get_posthog),
 ):
     if not identity.is_authenticated:
         raise HTTPException(status_code=401, detail={
             "code": "AUTH_REQUIRED", "message": "Sign in required."})
     try:
-        balance = db.ensure_profile(identity.user_id, SIGNUP_GRANT)
+        balance = _ensure_profile_tracked(db, posthog, identity)
     except Exception:
         logging.exception("ensure_profile failed")
         raise HTTPException(status_code=503, detail={
@@ -449,7 +462,7 @@ async def generate_more(
                     "message": "Create a free account to generate more charts."},
         )
     try:
-        balance = db.ensure_profile(identity.user_id, SIGNUP_GRANT)
+        balance = _ensure_profile_tracked(db, posthog, identity)
     except Exception:
         logging.exception("ensure_profile failed")
         raise HTTPException(status_code=503, detail={

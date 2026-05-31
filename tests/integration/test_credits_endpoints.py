@@ -25,12 +25,13 @@ def ctx():
 
 
 def test_me_grants_starter_once(ctx):
-    tc, db, _, holder = ctx
+    tc, db, ph, holder = ctx
     user = str(uuid4()); holder.current = auth_identity(user)
     assert tc.get("/me").json()["credits_balance"] == 300
     assert tc.get("/me").json()["credits_balance"] == 300     # no double grant
     grants = [t for t in db._txns if t["reason"] == "signup_grant"]
     assert len(grants) == 1
+    assert len(ph.find("credits_granted")) == 1               # fired once, on first /me
 
 
 def test_me_requires_auth(ctx):
