@@ -86,6 +86,28 @@ def test_generate_more_spends_40(ctx, sales):
     assert db.get_balance(user) == 160                       # 200 - 40
 
 
+def test_generate_more_uses_stored_csv_key_not_url_id(ctx, sales):
+    """Regression: reports.id is a Postgres uuid (returned in dashed form) but the
+    CSV is stored under the original uuid4().hex report_id. generate-more must
+    download via the stored csv_storage_key, not rebuild {url_id}.csv — otherwise
+    opening a report from My Reports (dashed id) 404s with SOURCE_DATA_UNAVAILABLE."""
+    tc, db, holder = ctx
+    user = str(uuid4()); holder.current = auth_identity(user)
+    sid = _post(tc, sales).json()["session_id"]              # hex id; CSV under {sid}.csv
+    # Simulate Postgres uuid normalization: the row id becomes the dashed form while
+    # the CSV stays under its original (hex) key recorded in csv_storage_key.
+    dashed = "06cfac63-d0d5-4378-b9f9-02e76ffa178d"
+    row = db._rows.pop(sid); row["id"] = dashed; db._rows[dashed] = row
+    new = FakeClaude([
+        {"tool_calls": [tool_use("histogram_chart", {"column": "revenue", "title": "M", "intent": "n"}, id_="m0")]},
+        {"tool_calls": [tool_use("submit_narrative", {"summary": "U.", "captions": ["c"], "data_quality": []})]},
+    ])
+    from main import app, get_claude_client
+    app.dependency_overrides[get_claude_client] = lambda: MagicMock(messages_create=new)
+    resp = tc.post(f"/report/{dashed}/generate-more")
+    assert resp.status_code == 200                            # old code: 404 SOURCE_DATA_UNAVAILABLE
+
+
 def test_generate_more_out_of_credits(ctx, sales):
     tc, db, holder = ctx
     user = str(uuid4()); holder.current = auth_identity(user)

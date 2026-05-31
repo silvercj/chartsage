@@ -38,12 +38,18 @@ class SupabaseStorage:
             raise StorageError(f"upload failed: {e}") from e
         return key
 
-    def download_csv(self, report_id: str) -> bytes:
-        key = f"{report_id}.csv"
+    def download_by_key(self, key: str) -> bytes:
+        """Download the exact stored object key. Prefer this over download_csv when
+        a csv_storage_key is recorded: report ids are uuid4().hex at upload time but
+        Postgres normalizes the reports.id column to dashed form, so rebuilding
+        {report_id}.csv from a dashed url id would miss the hex-keyed object."""
         try:
             return self.client.storage.from_(BUCKET).download(key)
         except Exception as e:
             raise StorageError(f"download failed: {e}") from e
+
+    def download_csv(self, report_id: str) -> bytes:
+        return self.download_by_key(f"{report_id}.csv")
 
     def delete_csv(self, report_id: str) -> None:
         key = f"{report_id}.csv"

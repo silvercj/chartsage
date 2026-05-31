@@ -490,7 +490,7 @@ async def generate_more(
         })
 
     try:
-        csv_bytes = storage.download_csv(session_id)
+        csv_bytes = storage.download_by_key(csv_key)
     except StorageError:
         raise HTTPException(status_code=404, detail={
             "code": "SOURCE_DATA_UNAVAILABLE",

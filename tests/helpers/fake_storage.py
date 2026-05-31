@@ -19,11 +19,13 @@ class FakeStorage:
         self._objects[key] = csv_bytes
         return key
 
-    def download_csv(self, report_id: str) -> bytes:
-        key = f"{report_id}.csv"
+    def download_by_key(self, key: str) -> bytes:
         if key not in self._objects:
             raise StorageError(f"missing object: {key}")
         return self._objects[key]
+
+    def download_csv(self, report_id: str) -> bytes:
+        return self.download_by_key(f"{report_id}.csv")
 
     def delete_csv(self, report_id: str) -> None:
         self._objects.pop(f"{report_id}.csv", None)
