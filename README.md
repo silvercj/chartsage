@@ -159,3 +159,15 @@ Logged-in users (Google or magic link) get unlimited reports and "Generate more"
 **JWKS note:** verification needs no new backend secret — Supabase exposes a public JWKS at `${SUPABASE_URL}/auth/v1/.well-known/jwks.json`. Confirm it returns a non-empty `keys` array (new projects sign with asymmetric ES256). If a project still signs with symmetric HS256, fall back to verifying with the Supabase JWT secret stored as a Cloud Run secret.
 
 No new Cloud Run secrets or env vars are required for SP2 (`SUPABASE_URL` is already set). Deploy the backend (`gcloud builds submit ...`) and frontend (`git push origin main`) together — they share the `402` generate-more contract.
+
+## Credits (SP3)
+
+Logged-in users run on a credit economy instead of "unlimited": a one-time **300-credit** starter grant on first login, **100 credits per report**, **40 per "Generate 5 more"** — debited only on success (a failed generation never charges). When the balance is short, generating returns `402 OUT_OF_CREDITS` and the UI shows an "out of credits — notify me" modal that records upgrade intent (the demand signal for SP4 paid top-ups). Anonymous visitors are unchanged (1 free report, then a create-account upsell).
+
+**Architecture:** an append-only `credit_transactions` ledger (source of truth) plus a cached `profiles.credits_balance`, mutated only through atomic Postgres functions (`spend_credits` / `grant_credits` / `ensure_profile`). The backend exposes these as DB methods alongside the report methods and gates `generate-report` / `generate-more`; a logged-in app header shows the live balance and links to a `/credits` page (balance, costs, history). RLS is owner-only on the credit tables; the backend uses the service-role key.
+
+### One-time provisioning
+
+Run the migration in **Supabase → SQL editor**: paste the entire contents of [`docs/migrations/sp3-credits.sql`](docs/migrations/sp3-credits.sql) — it creates `profiles`, `credit_transactions`, `upgrade_intent`, the three credit functions, and RLS. It is safely re-runnable (`if not exists` / `create or replace`). Run it **before** deploying the SP3 backend (authenticated credit checks call these functions; without them, those calls fail safe with `503 CREDITS_UNAVAILABLE`).
+
+**Costs are env-tunable** (Cloud Run env vars, defaults shown): `REPORT_COST=100`, `GENERATE_MORE_COST=40`, `SIGNUP_GRANT=300`. No new secrets. Deploy backend (`gcloud builds submit ...`) + frontend (`git push origin main`).
