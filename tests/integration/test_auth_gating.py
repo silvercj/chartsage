@@ -53,17 +53,22 @@ def ctx(sales):
     app.dependency_overrides.clear()
 
 
-def test_authenticated_user_unlimited_reports(ctx, sales):
+def test_authenticated_reports_consume_credits(ctx, sales):
     tc, db, _, holder = ctx
     user = str(uuid4())
     holder.current = auth_identity(user)
+    # 300 starter / 100 = exactly 3 reports succeed...
     for _ in range(3):
         resp = tc.post("/generate-report",
                        files={"file": ("s.csv", _csv_bytes(sales), "text/csv")})
         assert resp.status_code == 200
-    rows = list(db._rows.values())
-    assert len(rows) == 3
-    assert all(r["user_id"] == user and r["anon_id"] is None for r in rows)
+    assert db.get_balance(user) == 0
+    # ...the 4th is out of credits.
+    resp = tc.post("/generate-report",
+                   files={"file": ("s.csv", _csv_bytes(sales), "text/csv")})
+    assert resp.status_code == 402
+    assert resp.json()["detail"]["code"] == "OUT_OF_CREDITS"
+    assert len(db._rows) == 3
 
 
 def test_anonymous_generate_more_returns_402(ctx, sales):
@@ -95,3 +100,5 @@ def test_authenticated_generate_more_allowed(ctx, sales):
     resp2 = tc.post(f"/report/{sid}/generate-more")
     assert resp2.status_code == 200
     assert len(resp2.json()["charts"]) == 11
+    user_id = holder.current.user_id
+    assert db.get_balance(str(user_id)) == 160

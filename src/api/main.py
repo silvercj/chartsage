@@ -17,8 +17,10 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, StreamingResponse
 
 from claude_client import ClaudeClient, RetryableBusy
+from credits import GENERATE_MORE_COST, REPORT_COST, SIGNUP_GRANT, InsufficientCredits
 from db import SupabaseDB
 from deps import Identity, get_identity
+from pydantic import BaseModel
 from llm_config import MODEL_NARRATIVE, MODEL_SELECTION, estimate_cost_usd
 from posthog_server import PostHogServer
 from profile import profile_dataframe
@@ -156,8 +158,8 @@ async def generate_report(
     run_id, _ = setup_run_logging()
     started = time.perf_counter()
 
-    # Identity-aware gating: authenticated users are unlimited; anonymous
-    # visitors keep the 1-free-report cap (with an owner/QA allowlist bypass).
+    # Identity-aware gating: anonymous visitors keep the 1-free-report cap
+    # (with an owner/QA allowlist bypass); authenticated users are credit-gated.
     if not identity.is_authenticated:
         anon_id = identity.anon_id
         bypass = str(anon_id) in UNLIMITED_ANON_IDS
@@ -169,6 +171,16 @@ async def generate_report(
                 detail={"code": "ANON_LIMIT_REACHED",
                         "message": "You've used your free report. Sign in to do more."},
             )
+    else:
+        balance = db.ensure_profile(identity.user_id, SIGNUP_GRANT)
+        if balance < REPORT_COST:
+            posthog.capture(identity.distinct_id, "out_of_credits",
+                            {"action": "report", "balance": balance})
+            raise HTTPException(status_code=402, detail={
+                "code": "OUT_OF_CREDITS",
+                "message": "You're out of credits.",
+                "balance": balance, "cost": REPORT_COST,
+            })
 
     # Validation
     if not file.filename or not any(file.filename.lower().endswith(ext) for ext in ALLOWED_EXTENSIONS):
@@ -264,6 +276,14 @@ async def generate_report(
             "code": "STORAGE_UNAVAILABLE",
             "message": f"Could not save report: {e}",
         })
+
+    if identity.is_authenticated:
+        try:
+            new_balance = db.spend_credits(identity.user_id, REPORT_COST, "report", report_id)
+            posthog.capture(identity.distinct_id, "credits_spent",
+                            {"amount": REPORT_COST, "balance": new_balance, "reason": "report"})
+        except InsufficientCredits:
+            logging.warning("Credit spend lost a race on report %s; serving free.", report_id)
 
     elapsed_ms = int((time.perf_counter() - started) * 1000)
     in_tok = report.metadata.get("input_tokens_total", 0) if isinstance(report.metadata, dict) else 0
@@ -374,6 +394,15 @@ async def generate_more(
             detail={"code": "UPGRADE_REQUIRED",
                     "message": "Create a free account to generate more charts."},
         )
+    balance = db.ensure_profile(identity.user_id, SIGNUP_GRANT)
+    if balance < GENERATE_MORE_COST:
+        posthog.capture(identity.distinct_id, "out_of_credits",
+                        {"action": "generate_more", "balance": balance})
+        raise HTTPException(status_code=402, detail={
+            "code": "OUT_OF_CREDITS",
+            "message": "You're out of credits.",
+            "balance": balance, "cost": GENERATE_MORE_COST,
+        })
     started = time.perf_counter()
     row = db.get_report(session_id)
     if not row:
@@ -442,6 +471,12 @@ async def generate_more(
         report_dict["layout"].append(layout_entry.model_dump())
 
     db.update_report_json(session_id, report_dict)
+    try:
+        new_balance = db.spend_credits(identity.user_id, GENERATE_MORE_COST, "generate_more", session_id)
+        posthog.capture(identity.distinct_id, "credits_spent",
+                        {"amount": GENERATE_MORE_COST, "balance": new_balance, "reason": "generate_more"})
+    except InsufficientCredits:
+        logging.warning("Credit spend lost a race on generate-more %s; serving free.", session_id)
 
     elapsed_ms = int((time.perf_counter() - started) * 1000)
     posthog.capture(identity.distinct_id, "generate_more_succeeded", {
