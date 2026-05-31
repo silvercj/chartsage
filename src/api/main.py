@@ -172,7 +172,13 @@ async def generate_report(
                         "message": "You've used your free report. Sign in to do more."},
             )
     else:
-        balance = db.ensure_profile(identity.user_id, SIGNUP_GRANT)
+        try:
+            balance = db.ensure_profile(identity.user_id, SIGNUP_GRANT)
+        except Exception:
+            logging.exception("ensure_profile failed")
+            raise HTTPException(status_code=503, detail={
+                "code": "CREDITS_UNAVAILABLE",
+                "message": "Couldn't check your credits right now. Please retry."})
         if balance < REPORT_COST:
             posthog.capture(identity.distinct_id, "out_of_credits",
                             {"action": "report", "balance": balance})
@@ -391,7 +397,13 @@ async def me(
     if not identity.is_authenticated:
         raise HTTPException(status_code=401, detail={
             "code": "AUTH_REQUIRED", "message": "Sign in required."})
-    balance = db.ensure_profile(identity.user_id, SIGNUP_GRANT)
+    try:
+        balance = db.ensure_profile(identity.user_id, SIGNUP_GRANT)
+    except Exception:
+        logging.exception("ensure_profile failed")
+        raise HTTPException(status_code=503, detail={
+            "code": "CREDITS_UNAVAILABLE",
+            "message": "Couldn't check your credits right now. Please retry."})
     return {"credits_balance": balance}
 
 
@@ -436,7 +448,13 @@ async def generate_more(
             detail={"code": "UPGRADE_REQUIRED",
                     "message": "Create a free account to generate more charts."},
         )
-    balance = db.ensure_profile(identity.user_id, SIGNUP_GRANT)
+    try:
+        balance = db.ensure_profile(identity.user_id, SIGNUP_GRANT)
+    except Exception:
+        logging.exception("ensure_profile failed")
+        raise HTTPException(status_code=503, detail={
+            "code": "CREDITS_UNAVAILABLE",
+            "message": "Couldn't check your credits right now. Please retry."})
     if balance < GENERATE_MORE_COST:
         posthog.capture(identity.distinct_id, "out_of_credits",
                         {"action": "generate_more", "balance": balance})

@@ -94,3 +94,17 @@ def test_generate_more_out_of_credits(ctx, sales):
     resp = tc.post(f"/report/{sid}/generate-more")
     assert resp.status_code == 402
     assert resp.json()["detail"]["code"] == "OUT_OF_CREDITS"
+
+
+def test_failed_generation_does_not_debit(ctx, sales):
+    tc, db, holder = ctx
+    user = str(uuid4()); holder.current = auth_identity(user)
+    # Claude blows up during generation -> 5xx, and the user must NOT be charged.
+    from main import app, get_claude_client
+    boom = MagicMock()
+    boom.messages_create.side_effect = RuntimeError("claude exploded")
+    app.dependency_overrides[get_claude_client] = lambda: boom
+    resp = tc.post("/generate-report", files={"file": ("s.csv", _csv_bytes(sales), "text/csv")})
+    assert resp.status_code >= 500
+    assert db.get_balance(user) == 300        # pre-check granted 300; no spend on failure
+    assert len(db._rows) == 0
