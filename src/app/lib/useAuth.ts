@@ -19,9 +19,15 @@ export function useAuthEmail(): string | null {
   return email;
 }
 
-/** Sign out and return to the home page. */
+/** Sign out and return to the home page.
+ *  Uses scope:'local' (clears the local session without a server revoke that can
+ *  hang on a stale session) and redirects regardless, so the button always works. */
 export async function signOut(): Promise<void> {
   posthog.capture?.('signed_out', {});
-  await getSupabaseBrowser().auth.signOut();
+  try {
+    await getSupabaseBrowser().auth.signOut({ scope: 'local' });
+  } catch {
+    /* ignore — redirect anyway */
+  }
   window.location.href = '/';
 }

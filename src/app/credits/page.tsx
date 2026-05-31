@@ -26,10 +26,13 @@ export default function CreditsPage() {
     (async () => {
       const { data } = await getSupabaseBrowser().auth.getSession();
       if (!data.session) { router.replace('/login?next=/credits'); return; }
-      const res = await apiFetch('/credits/history');
-      if (res.status === 401) { router.replace('/login?next=/credits'); return; }
-      if (res.ok) setTxns(await res.json());
-      else setTxns([]);
+      try {
+        const res = await apiFetch('/credits/history');
+        if (res.status === 401) { router.replace('/login?next=/credits'); return; }
+        setTxns(res.ok ? await res.json() : []);
+      } catch {
+        setTxns([]);   // never hang on "Loading…"
+      }
     })();
   }, [router]);
 
