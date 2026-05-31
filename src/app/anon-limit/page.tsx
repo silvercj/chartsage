@@ -19,7 +19,7 @@ export default function AnonLimitPage() {
           come back to them later. It only takes a few seconds.
         </p>
         <a
-          href="/login?next=/"
+          href="/login"
           onClick={() => posthog.capture?.('signin_cta_clicked', { from: 'anonLimit' })}
           className="inline-block px-5 py-2.5 bg-stone-900 text-white text-sm font-medium rounded-lg hover:bg-stone-800 transition-colors"
         >

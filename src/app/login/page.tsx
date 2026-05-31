@@ -5,8 +5,8 @@ import { posthog } from '../lib/posthog';
 
 function callbackUrl(): string {
   const params = new URLSearchParams(window.location.search);
-  const next = params.get('next') || '/';
-  const safe = next.startsWith('/') && !next.startsWith('//') ? next : '/';
+  const next = params.get('next') || '/reports';
+  const safe = next.startsWith('/') && !next.startsWith('//') ? next : '/reports';
   return `${window.location.origin}/auth/callback?next=${encodeURIComponent(safe)}`;
 }
 

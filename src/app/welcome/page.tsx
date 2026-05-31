@@ -7,7 +7,7 @@ const FLAG = 'chartsage_onboarded';
 
 function safeNext(raw: string | null): string {
   if (raw && raw.startsWith('/') && !raw.startsWith('//')) return raw;
-  return '/';
+  return '/reports';
 }
 
 const UNLOCKS = [
