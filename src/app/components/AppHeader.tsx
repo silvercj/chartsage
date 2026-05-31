@@ -15,7 +15,16 @@ export default function AppHeader() {
   return (
     <header className="border-b border-stone-200 bg-white/80 backdrop-blur">
       <nav className="max-w-7xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between gap-4">
-        <a href="/" className="font-semibold tracking-tight text-stone-900">ChartSage</a>
+        <a href="/" className="flex items-center gap-2 font-semibold tracking-tight text-stone-900">
+          <span className="inline-flex w-7 h-7 items-center justify-center rounded-lg bg-stone-900">
+            <svg viewBox="0 0 32 32" className="w-4 h-4" aria-hidden="true">
+              <rect x="6.5" y="17" width="4.5" height="8.5" rx="1.4" fill="#5EEAD4" />
+              <rect x="13.75" y="11.5" width="4.5" height="14" rx="1.4" fill="#2DD4BF" />
+              <rect x="21" y="7" width="4.5" height="18.5" rx="1.4" fill="#0D9488" />
+            </svg>
+          </span>
+          ChartSage
+        </a>
         <div className="flex items-center gap-3 text-sm">
           {email ? (
             <>

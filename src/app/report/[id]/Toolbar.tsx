@@ -80,7 +80,14 @@ export default function Toolbar({ sessionId, onReportUpdated }: Props) {
           disabled={generating}
           className="px-4 py-2 text-sm font-medium text-stone-700 bg-white ring-1 ring-stone-200 rounded-lg hover:bg-stone-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
         >
-          {generating ? 'Generating…' : `Generate 5 more · ${GENERATE_MORE_COST}`}
+          {generating ? (
+            <span className="inline-flex items-center gap-2">
+              <span className="h-3.5 w-3.5 rounded-full border-2 border-stone-300 border-t-stone-600 animate-spin" />
+              Generating…
+            </span>
+          ) : (
+            `Generate 5 more · ${GENERATE_MORE_COST}`
+          )}
         </button>
         <button
           type="button"

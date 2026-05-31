@@ -15,6 +15,10 @@ export default function Heatmap({ spec }: { spec: any }) {
   const vMin = values.length ? Math.min(...values) : 0;
   const vMax = values.length ? Math.max(...values) : 1;
   const symmetric = vMin < 0 && vMax > 0;
+  // Dense matrices (e.g. a 14×14 correlation grid) are unreadable with a number
+  // crammed in every cell — show colour + hover value instead, keep labels only
+  // when the grid is small enough for them to fit.
+  const dense = data.length > 49;
 
   return (
     <ReactECharts
@@ -38,7 +42,7 @@ export default function Heatmap({ spec }: { spec: any }) {
           nameTextStyle: { color: AXIS_COLOR, fontSize: 11 },
           axisLine: { show: false },
           axisTick: { show: false },
-          axisLabel: { color: TEXT_COLOR, rotate: 30, fontSize: 11 },
+          axisLabel: { color: TEXT_COLOR, rotate: 45, fontSize: 10, interval: 0 },
           splitArea: { show: false },
         },
         yAxis: {
@@ -50,7 +54,7 @@ export default function Heatmap({ spec }: { spec: any }) {
           nameTextStyle: { color: AXIS_COLOR, fontSize: 11 },
           axisLine: { show: false },
           axisTick: { show: false },
-          axisLabel: { color: TEXT_COLOR, fontSize: 11 },
+          axisLabel: { color: TEXT_COLOR, fontSize: 10, interval: 0 },
         },
         visualMap: {
           min: symmetric ? -Math.max(Math.abs(vMin), Math.abs(vMax)) : vMin,
@@ -72,7 +76,7 @@ export default function Heatmap({ spec }: { spec: any }) {
           type: 'heatmap',
           data,
           label: {
-            show: true,
+            show: !dense,
             formatter: (p: any) => fmtV(p.data[2]),
             fontSize: 10,
             color: TEXT_COLOR,
