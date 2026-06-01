@@ -5,6 +5,7 @@ You will be given a structured profile of the data — column roles, basic stats
 Call chart tools in parallel — one tool call per chart you want to render. Each tool has a strict schema; only call tools with the parameters in their schema.
 
 Rules:
+- Always call key_metrics ONCE, first, with the 3–5 headline numbers a reader most wants (a total, an average, a key rate, a notable count). These render as a stat band above the charts.
 - Pick 10 charts total. Aim for breadth: you want a varied report, not 10 versions of the same insight.
 - Never use a column with role="identifier" as a metric (it's an ID, not a value).
 - Never use a column with role="unusable".

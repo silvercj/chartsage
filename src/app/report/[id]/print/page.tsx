@@ -3,7 +3,10 @@
 import { useEffect, useState } from 'react';
 import dynamic from 'next/dynamic';
 
+import type { KeyMetric } from '../useReportLayout';
+
 const ChartCard = dynamic(() => import('../ChartCard'), { ssr: false });
+const KpiTiles = dynamic(() => import('../KpiTiles'));
 const ReportSummary = dynamic(() => import('../ReportSummary'));
 const DataQualityCallout = dynamic(() => import('../DataQualityCallout'));
 
@@ -20,6 +23,7 @@ interface Report {
   charts: ChartWithCaption[];
   layout: ChartLayoutEntry[];
   metadata: Record<string, any>;
+  key_metrics?: KeyMetric[];
 }
 
 export default function PrintReportPage({ params }: { params: { id: string } }) {
@@ -71,6 +75,8 @@ export default function PrintReportPage({ params }: { params: { id: string } }) 
         .report-footer { break-before: avoid; page-break-before: avoid; }
       `}</style>
       <div className="theme-light bg-white text-ink print-container max-w-[700px] mx-auto p-8">
+        <KpiTiles metrics={report.key_metrics} />
+
         {/* Cover page: title + summary + data quality */}
         <header className="mb-8">
           <p className="font-mono text-xs uppercase tracking-widest text-ink-3 mb-2">ChartSage Report</p>

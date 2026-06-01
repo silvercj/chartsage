@@ -20,6 +20,7 @@ import { useReportLayout, type Report } from './useReportLayout';
 import { apiFetch } from '../../lib/api';
 
 const ChartCard = dynamic(() => import('./ChartCard'), { ssr: false });
+const KpiTiles = dynamic(() => import('./KpiTiles'));
 const ReportSummary = dynamic(() => import('./ReportSummary'));
 const DataQualityCallout = dynamic(() => import('./DataQualityCallout'));
 const Sidebar = dynamic(() => import('./Sidebar'), { ssr: false });
@@ -109,6 +110,8 @@ function ReportView({ sessionId, initialReport }: { sessionId: string; initialRe
   return (
     <div className="theme-light bg-canvas text-ink min-h-screen">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <KpiTiles metrics={report.key_metrics} />
+
         <Toolbar sessionId={sessionId} onReportUpdated={replaceReport} />
 
         <ReportSummary summary={report.summary} generatedAt={report.generated_at} />
