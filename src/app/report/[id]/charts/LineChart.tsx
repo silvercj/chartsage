@@ -1,10 +1,7 @@
 'use client';
 import ReactECharts from 'echarts-for-react';
 import { getFormatter } from '../../../lib/format';
-
-const COLORS = ['#0D9488', '#7C3AED', '#F59E0B', '#EF4444', '#0EA5E9', '#10B981'];
-const TEXT_COLOR = '#44403C';
-const AXIS_COLOR = '#A8A29E';
+import { chartBase, catAxis, valAxis, CHART_PALETTE, CHART_INK, CHART_INK_MUTED, tealAreaGradient } from './chartTheme';
 
 function rollingAvg(values: number[], window: number): (number | null)[] {
   if (values.length < window || window <= 1) return values.map(() => null);
@@ -33,21 +30,26 @@ export default function LineChart({ spec }: { spec: any }) {
         name: s.name,
         type: 'line',
         data: s.y,
-        smooth: 0.3,
+        smooth: true,
         symbol: 'circle',
-        symbolSize: 4,
-        lineStyle: { width: 2 },
-        itemStyle: { color: COLORS[i % COLORS.length] },
+        symbolSize: 6,
+        showSymbol: false,
+        lineStyle: { width: 2.5 },
+        itemStyle: { color: CHART_PALETTE[i % CHART_PALETTE.length] },
+        emphasis: { showSymbol: true },
       }))
     : [{
         name: spec.y_label || 'value',
         type: 'line',
         data: spec.y,
-        smooth: 0.3,
+        smooth: true,
         symbol: 'circle',
-        symbolSize: 4,
-        lineStyle: { width: 2 },
-        itemStyle: { color: COLORS[0] },
+        symbolSize: 6,
+        showSymbol: false,
+        lineStyle: { width: 2.5, color: CHART_PALETTE[0] },
+        itemStyle: { color: CHART_PALETTE[0] },
+        emphasis: { showSymbol: true },
+        areaStyle: { color: tealAreaGradient() },
       }];
 
   if (showSmoothed) {
@@ -56,10 +58,10 @@ export default function LineChart({ spec }: { spec: any }) {
       name: '3-mo avg',
       type: 'line',
       data: smoothed,
-      smooth: 0.5,
+      smooth: true,
       symbol: 'none',
-      lineStyle: { width: 2, color: '#1C1917', type: 'dashed', opacity: 0.55 },
-      itemStyle: { color: '#1C1917' },
+      lineStyle: { width: 2, color: CHART_INK, type: 'dashed', opacity: 0.5 },
+      itemStyle: { color: CHART_INK },
     } as any);
   }
 
@@ -68,12 +70,11 @@ export default function LineChart({ spec }: { spec: any }) {
   return (
     <ReactECharts
       option={{
-        textStyle: { color: TEXT_COLOR, fontFamily: 'inherit' },
+        ...chartBase(),
+        grid: { left: 8, right: 18, top: 24, bottom: showLegend ? 40 : 8, containLabel: true },
         tooltip: {
+          ...chartBase().tooltip,
           trigger: 'axis',
-          borderColor: '#E7E5E4',
-          backgroundColor: '#ffffff',
-          textStyle: { color: TEXT_COLOR, fontSize: 12 },
           formatter: (p: any[]) =>
             p
               .filter((x) => x.value !== null && x.value !== undefined)
@@ -83,39 +84,31 @@ export default function LineChart({ spec }: { spec: any }) {
         legend: showLegend
           ? {
               bottom: 0,
-              textStyle: { color: TEXT_COLOR, fontSize: 11 },
-              itemWidth: 18,
-              itemHeight: 2,
+              textStyle: { fontFamily: chartBase().textStyle.fontFamily, fontSize: 11, color: CHART_INK },
+              icon: 'roundRect',
+              itemWidth: 10,
+              itemHeight: 10,
               itemGap: 20,
             }
           : undefined,
-        grid: { left: 70, right: 24, top: 24, bottom: showLegend ? 84 : 48 },
-        xAxis: {
-          type: 'category',
+        xAxis: catAxis({
           data: xData,
           name: spec.x_label,
           nameLocation: 'middle',
           nameGap: 34,
-          nameTextStyle: { color: AXIS_COLOR, fontSize: 11 },
-          axisLine: { lineStyle: { color: '#E7E5E4' } },
-          axisTick: { show: false },
+          nameTextStyle: { color: CHART_INK_MUTED, fontSize: 11 },
           axisLabel: {
-            color: AXIS_COLOR,
-            fontSize: 11,
             interval: xLen > 24 ? Math.floor(xLen / 12) : 'auto',
+            rotate: xLen > 8 ? 30 : 0,
           },
-        },
-        yAxis: {
-          type: 'value',
+        }),
+        yAxis: valAxis({
           name: spec.y_label,
           nameLocation: 'middle',
           nameGap: 56,
-          nameTextStyle: { color: AXIS_COLOR, fontSize: 11 },
-          axisLine: { show: false },
-          axisTick: { show: false },
-          splitLine: { lineStyle: { color: '#F5F5F4' } },
-          axisLabel: { color: AXIS_COLOR, formatter: fmtY, fontSize: 11 },
-        },
+          nameTextStyle: { color: CHART_INK_MUTED, fontSize: 11 },
+          axisLabel: { formatter: fmtY },
+        }),
         series: baseSeries,
       }}
       style={{ width: '100%', height: 320 }}
