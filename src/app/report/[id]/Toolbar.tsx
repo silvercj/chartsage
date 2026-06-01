@@ -28,7 +28,7 @@ export default function Toolbar({ sessionId, onReportUpdated }: Props) {
     try {
       const res = await apiFetch(`/report/${sessionId}/generate-more`, { method: 'POST' });
       if (res.status === 503) {
-        setError('Claude is busy. Try again in 30 seconds.');
+        setError('The AI is busy. Try again in 30 seconds.');
         return;
       }
       if (res.status === 402) {

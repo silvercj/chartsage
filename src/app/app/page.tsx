@@ -118,8 +118,8 @@ export default function Home() {
             Drop your data. Read the <em className="italic font-medium text-accent">story</em> inside it.
           </h1>
           <p className="text-ink-2 mt-4 max-w-prose leading-relaxed">
-            Drop a CSV or Excel file. We profile your data, ask Claude to pick the 5–7 charts that
-            tell the most useful story, and return a narrated report in under 10 seconds.
+            Drop a CSV or Excel file. We profile your data, use AI to pick the charts that
+            tell the most useful story, and return a narrated report in seconds.
           </p>
         </header>
 
