@@ -1,16 +1,8 @@
 'use client';
 
-import dynamic from 'next/dynamic';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-
-const BarChart = dynamic(() => import('./charts/BarChart'), { ssr: false });
-const HistogramChart = dynamic(() => import('./charts/HistogramChart'), { ssr: false });
-const ScatterChart = dynamic(() => import('./charts/ScatterChart'), { ssr: false });
-const LineChart = dynamic(() => import('./charts/LineChart'), { ssr: false });
-const PieChart = dynamic(() => import('./charts/PieChart'), { ssr: false });
-const BoxPlot = dynamic(() => import('./charts/BoxPlot'), { ssr: false });
-const Heatmap = dynamic(() => import('./charts/Heatmap'), { ssr: false });
+import ChartContent from './charts/ChartContent';
 
 interface Props {
   index: number;
@@ -25,19 +17,6 @@ const KIND_LABEL: Record<string, string> = {
   bar: 'Bar', histogram: 'Histogram', scatter: 'Scatter',
   line: 'Trend', pie: 'Composition', box: 'Distribution', heatmap: 'Heatmap',
 };
-
-function ChartContent({ spec }: { spec: any }) {
-  switch (spec.kind) {
-    case 'bar': return <BarChart spec={spec} />;
-    case 'histogram': return <HistogramChart spec={spec} />;
-    case 'scatter': return <ScatterChart spec={spec} />;
-    case 'line': return <LineChart spec={spec} />;
-    case 'pie': return <PieChart spec={spec} />;
-    case 'box': return <BoxPlot spec={spec} />;
-    case 'heatmap': return <Heatmap spec={spec} />;
-    default: return <p className="text-sm text-ember">Unsupported chart kind: {String(spec.kind)}</p>;
-  }
-}
 
 export default function ChartCard({ index, spec, caption, chartId, onHide, printMode }: Props) {
   const sortable = useSortable({ id: chartId });
