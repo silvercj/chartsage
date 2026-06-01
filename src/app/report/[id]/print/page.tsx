@@ -53,11 +53,16 @@ export default function PrintReportPage({ params }: { params: { id: string } }) 
   if (error) return <p style={{ padding: 40 }}>Error: {error}</p>;
   if (!report) return <p style={{ padding: 40 }}>Loading…</p>;
 
-  const mainCharts = report.layout
-    .filter((e) => e.position === 'main')
-    .sort((a, b) => a.order - b.order)
-    .map((e) => report.charts.find((c) => c.chart_id === e.chart_id))
-    .filter((c): c is ChartWithCaption => !!c);
+  const chartsFor = (position: 'main' | 'sidebar') =>
+    report.layout
+      .filter((e) => e.position === position)
+      .sort((a, b) => a.order - b.order)
+      .map((e) => report.charts.find((c) => c.chart_id === e.chart_id))
+      .filter((c): c is ChartWithCaption => !!c);
+
+  // Main column first, then sidebar — both in layout order. The PDF and image
+  // exports both render this route, so every chart must appear here.
+  const allCharts = [...chartsFor('main'), ...chartsFor('sidebar')];
 
   return (
     <>
@@ -103,8 +108,8 @@ export default function PrintReportPage({ params }: { params: { id: string } }) 
 
         {/* Charts flow naturally; each card stays whole on a page (avoid-break),
             so ~2 pack per page and the footer trails the last one without orphaning. */}
-        {mainCharts.map((c, i) => (
-          <div key={c.chart_id} className="avoid-break mb-6">
+        {allCharts.map((c, i) => (
+          <div key={c.chart_id} data-chart-export-id={c.chart_id} className="avoid-break mb-6">
             <ChartCard
               chartId={c.chart_id}
               index={i + 1}
