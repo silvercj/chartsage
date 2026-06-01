@@ -14,6 +14,7 @@ def test_all_tools_present():
         "box_plot",
         "heatmap_chart",
         "grouped_bar_chart",
+        "dual_axis_chart",
     }
 
 

@@ -71,6 +71,7 @@ class ChartSpec(BaseModel):
     x_display_type: XDisplayType = "category"
     y_display_type: YDisplayType = "number"
     stacked: bool = False
+    area: bool = False
     y_label_secondary: Optional[str] = None
     source_columns: list[str]
     data_point_count: int

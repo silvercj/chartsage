@@ -284,6 +284,7 @@ def execute_line_chart(df: pd.DataFrame, params: dict) -> ChartSpec | ToolError:
     agg = params["agg"]
     granularity = params["granularity"]
     group_by = params.get("group_by")
+    area = params.get("area", False)
     title = params["title"]
     intent = params["intent"]
 
@@ -328,6 +329,7 @@ def execute_line_chart(df: pd.DataFrame, params: dict) -> ChartSpec | ToolError:
             y_label=f"{agg.capitalize()}" + (f" of {value_col}" if agg != "count" else ""),
             x_display_type="date",
             y_display_type=_infer_display_type(value_col, agg) if value_col else "count",
+            area=area,
             source_columns=[date_col] + ([value_col] if agg != "count" else []),
             data_point_count=int(len(work)),
         )
@@ -360,6 +362,7 @@ def execute_line_chart(df: pd.DataFrame, params: dict) -> ChartSpec | ToolError:
         y_label=f"{agg.capitalize()}" + (f" of {value_col}" if agg != "count" else ""),
         x_display_type="date",
         y_display_type=_infer_display_type(value_col, agg) if value_col else "count",
+        area=area,
         source_columns=[date_col, group_by] + ([value_col] if agg != "count" else []),
         data_point_count=int(len(work)),
     )
@@ -662,6 +665,90 @@ def execute_grouped_bar_chart(df: pd.DataFrame, params: dict) -> ChartSpec | Too
     )
 
 
+_DUAL_AXIS_AGGS = {"sum", "mean", "median", "min", "max", "count"}
+
+
+def execute_dual_axis_chart(df: pd.DataFrame, params: dict) -> ChartSpec | ToolError:
+    x_col = params["x_col"]
+    bar_value_col = params["bar_value_col"]
+    line_value_col = params["line_value_col"]
+    bar_agg = params["bar_agg"]
+    line_agg = params["line_agg"]
+    title = params["title"]
+    intent = params["intent"]
+
+    if bar_agg not in _DUAL_AXIS_AGGS:
+        return _err(f"bar_agg='{bar_agg}' is not allowed. Allowed: {sorted(_DUAL_AXIS_AGGS)}.")
+    if line_agg not in _DUAL_AXIS_AGGS:
+        return _err(f"line_agg='{line_agg}' is not allowed. Allowed: {sorted(_DUAL_AXIS_AGGS)}.")
+
+    avail = _available_columns_by_role(df)
+    if x_col not in df.columns:
+        return _err(f"x_col='{x_col}' is not a column. Available categorical columns: {avail['categorical']}")
+    if bar_value_col not in df.columns:
+        return _err(f"bar_value_col='{bar_value_col}' is not a column. Available numeric columns: {avail['numeric']}")
+    if line_value_col not in df.columns:
+        return _err(f"line_value_col='{line_value_col}' is not a column. Available numeric columns: {avail['numeric']}")
+
+    # Value columns must be numeric unless their aggregation is a count.
+    if bar_agg != "count" and not pd.api.types.is_numeric_dtype(df[bar_value_col]):
+        return _err(f"bar_value_col='{bar_value_col}' is not numeric (required when bar_agg != 'count'). "
+                    f"Available numeric columns: {avail['numeric']}")
+    if line_agg != "count" and not pd.api.types.is_numeric_dtype(df[line_value_col]):
+        return _err(f"line_value_col='{line_value_col}' is not numeric (required when line_agg != 'count'). "
+                    f"Available numeric columns: {avail['numeric']}")
+
+    categories = int(df[x_col].dropna().nunique())
+    if categories == 0:
+        return _err(f"x_col='{x_col}' has no non-null values.")
+    if categories > MAX_CATEGORIES:
+        return _err(f"x_col='{x_col}' has {categories} unique values, more than max ({MAX_CATEGORIES}).")
+
+    cols = [x_col] + list({bar_value_col, line_value_col})
+    work = df[cols].dropna(subset=[x_col])
+    if len(work) == 0:
+        return _err(f"No rows where '{x_col}' is non-null.")
+
+    def _agg_col(value_col: str, agg: str) -> pd.Series:
+        if agg == "count":
+            return work.groupby(x_col)[value_col].count()
+        sub = work[[x_col, value_col]].dropna(subset=[value_col])
+        return sub.groupby(x_col)[value_col].agg(agg)
+
+    bar_series = _agg_col(bar_value_col, bar_agg)
+    line_series = _agg_col(line_value_col, line_agg)
+
+    # Shared x: union of categories present in either aggregation, bar order first.
+    x_index = list(bar_series.index)
+    for k in line_series.index:
+        if k not in bar_series.index:
+            x_index.append(k)
+
+    x = [str(k) for k in x_index]
+    bar_data = [None if pd.isna(bar_series.get(k)) else float(bar_series.get(k)) for k in x_index]
+    line_data = [None if pd.isna(line_series.get(k)) else float(line_series.get(k)) for k in x_index]
+
+    series_list = [
+        {"name": bar_value_col, "type": "bar", "yAxisIndex": 0, "data": bar_data},
+        {"name": line_value_col, "type": "line", "yAxisIndex": 1, "data": line_data},
+    ]
+
+    return ChartSpec(
+        kind="dual_axis",
+        title=title,
+        intent=intent,
+        x=x,
+        series=series_list,
+        x_label=x_col,
+        y_label=bar_value_col,
+        y_label_secondary=line_value_col,
+        x_display_type="category",
+        y_display_type=_infer_display_type(bar_value_col, bar_agg),
+        source_columns=cols,
+        data_point_count=int(len(work)),
+    )
+
+
 def execute_key_metrics(df: pd.DataFrame, params: dict) -> list[KeyMetric] | ToolError:
     out: list[KeyMetric] = []
     for m in (params.get("metrics") or [])[:5]:
@@ -703,4 +790,5 @@ TOOL_EXECUTORS: dict[str, Callable[[pd.DataFrame, dict], ChartSpec | ToolError]]
     "box_plot": execute_box_plot,
     "heatmap_chart": execute_heatmap_chart,
     "grouped_bar_chart": execute_grouped_bar_chart,
+    "dual_axis_chart": execute_dual_axis_chart,
 }

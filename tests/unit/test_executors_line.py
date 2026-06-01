@@ -59,3 +59,17 @@ def test_value_col_must_be_numeric_when_not_count(activities):
     result = execute_line_chart(activities, _params(value_col="activity_type", agg="mean"))
     assert isinstance(result, ToolError)
     assert "numeric" in result.reason.lower()
+
+
+def test_area_defaults_false(activities):
+    result = execute_line_chart(activities, _params(agg="count"))
+    assert isinstance(result, ChartSpec)
+    assert result.area is False
+
+
+def test_area_flag_sets_spec_area(activities):
+    params = _params(agg="count")
+    params["area"] = True
+    result = execute_line_chart(activities, params)
+    assert isinstance(result, ChartSpec)
+    assert result.area is True

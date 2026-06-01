@@ -96,6 +96,7 @@ CHART_TOOLS: list[dict] = [
             "agg": {"type": "string", "enum": ["count", "sum", "mean", "median", "min", "max"]},
             "granularity": {"type": "string", "enum": ["day", "week", "month", "quarter", "year"]},
             "group_by": {"type": "string", "description": "Optional categorical column for multiple lines."},
+            "area": {"type": "boolean", "description": "Fill under the line (area chart). Multi-series + area = stacked area."},
             **_TITLE_INTENT,
         },
         ["date_col", "value_col", "agg", "granularity", "title", "intent"],
@@ -148,6 +149,20 @@ CHART_TOOLS: list[dict] = [
             **_TITLE_INTENT,
         },
         ["category_col", "breakdown_col", "value_col", "agg", "mode", "title", "intent"],
+    ),
+    _t(
+        "dual_axis_chart",
+        "Combo chart: a bar metric and a line metric on two y-axes, sharing an x category/time. "
+        "Use when two metrics on different scales are worth seeing together (e.g. revenue + conversion rate).",
+        {
+            "x_col": {"type": "string"},
+            "bar_value_col": {"type": "string"},
+            "line_value_col": {"type": "string"},
+            "bar_agg": {"type": "string", "enum": ["sum", "mean", "median", "min", "max", "count"]},
+            "line_agg": {"type": "string", "enum": ["sum", "mean", "median", "min", "max", "count"]},
+            **_TITLE_INTENT,
+        },
+        ["x_col", "bar_value_col", "line_value_col", "bar_agg", "line_agg", "title", "intent"],
     ),
 ]
 
