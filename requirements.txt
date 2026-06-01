@@ -14,6 +14,9 @@ pydantic==2.13.4      # >=2.7 required by supabase 2.30.1
 # AI
 anthropic==0.50.0
 
+# Export formats
+python-pptx==0.6.23   # PPTX builder in report_export.py
+
 # Infra / integrations
 python-dotenv==1.0.1
 playwright==1.42.0
