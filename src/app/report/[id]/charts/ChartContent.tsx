@@ -10,6 +10,7 @@ const LineChart = dynamic(() => import('./LineChart'), { ssr: false });
 const PieChart = dynamic(() => import('./PieChart'), { ssr: false });
 const BoxPlot = dynamic(() => import('./BoxPlot'), { ssr: false });
 const Heatmap = dynamic(() => import('./Heatmap'), { ssr: false });
+const Treemap = dynamic(() => import('./Treemap'), { ssr: false });
 
 export default function ChartContent({ spec }: { spec: any }) {
   switch (spec.kind) {
@@ -22,6 +23,7 @@ export default function ChartContent({ spec }: { spec: any }) {
     case 'pie': return <PieChart spec={spec} />;
     case 'box': return <BoxPlot spec={spec} />;
     case 'heatmap': return <Heatmap spec={spec} />;
+    case 'treemap': return <Treemap spec={spec} />;
     default: return <p className="text-sm text-ember">Unsupported chart kind: {String(spec.kind)}</p>;
   }
 }

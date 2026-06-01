@@ -20,6 +20,7 @@ Rules:
     • a category split by a sub-category → grouped_bar_chart (mode='grouped' to compare side by side, mode='stacked' for composition)
     • two different-scale metrics over one x (category or time) → dual_axis_chart (e.g. revenue + conversion rate)
     • a cumulative or volume trend over time → line_chart with area:true (multi-series + area = stacked area)
+    • a category's composition with many slices or a 2-level hierarchy → treemap_chart (prefer over pie when >8 categories)
 - Bars are fine where they're genuinely the best view, but no more than ~3 of the 10 should be bar charts. If you're reaching for a 4th bar, pick the more revealing chart instead — a box_plot, scatter, or line usually says more.
 - Aim for a spread: a couple of distributions, a couple of comparisons or trends, a correlation, a composition — not 10 versions of the same idea.
 - Every chart needs an `intent` field: one sentence about what this chart shows and why it's interesting.
