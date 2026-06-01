@@ -28,7 +28,7 @@ steps:
 substitutions:
   _TAG: 'latest'
   _SUPABASE_URL: 'https://YOUR_PROJECT.supabase.co'
-  _FRONTEND_BASE_URL: 'https://chartsage.vercel.app'
+  _FRONTEND_BASE_URL: 'https://chartsage-xi.vercel.app'   # real prod alias; used by Playwright export render. Do NOT source .env (that's localhost).
   _ANON_REPORT_LIMIT: '1'           # free reports per anonymous visitor
   _UNLIMITED_ANON_IDS: ''           # comma-separated anon IDs that bypass the cap (owner/QA); empty in git
 
