@@ -12,6 +12,9 @@ export default function AppHeader() {
   // Never render on the PDF print route — it must stay chrome-free.
   if (pathname?.startsWith('/report/') && pathname.endsWith('/print')) return null;
 
+  // Marketing landing has its own nav; app header is for app routes only.
+  if (pathname === '/') return null;
+
   return (
     <header className="border-b border-line bg-canvas/80 backdrop-blur">
       <nav className="max-w-7xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between gap-4">
