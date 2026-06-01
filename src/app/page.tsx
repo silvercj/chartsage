@@ -110,14 +110,14 @@ export default function Home() {
   }
 
   return (
-    <div className="min-h-screen bg-stone-50">
-      <div className="max-w-3xl mx-auto px-4 sm:px-6 py-16">
+    <div className="min-h-screen bg-canvas">
+      <div className="max-w-3xl mx-auto px-6 py-16 reveal">
         <header className="mb-12">
-          <p className="text-xs uppercase tracking-widest text-stone-400 mb-3">ChartSage</p>
-          <h1 className="text-4xl md:text-5xl font-semibold tracking-tight text-stone-900 mb-3">
-            Turn data into insight.
+          <p className="eyebrow mb-3">CSV → INSIGHT IN ~30 SECONDS</p>
+          <h1 className="font-display text-4xl sm:text-5xl font-normal tracking-tight text-ink leading-[1.05] mb-4">
+            Drop your data. Read the <em className="italic font-medium text-accent">story</em> inside it.
           </h1>
-          <p className="text-stone-600 text-[15px] leading-relaxed max-w-2xl">
+          <p className="text-ink-2 mt-4 max-w-prose leading-relaxed">
             Drop a CSV or Excel file. We profile your data, ask Claude to pick the 5–7 charts that
             tell the most useful story, and return a narrated report in under 10 seconds.
           </p>
@@ -125,41 +125,41 @@ export default function Home() {
 
         <div
           {...getRootProps()}
-          className={`border-2 border-dashed rounded-2xl p-12 text-center transition-all cursor-pointer ${
-            isDragActive
-              ? 'border-teal-500 bg-teal-50/50'
-              : 'border-stone-300 hover:border-stone-400 hover:bg-white'
+          className={`card border-dashed rounded-2xl p-10 text-center cursor-pointer transition-colors ${
+            isDragActive ? 'border-accent' : 'border-line-2 hover:border-accent'
           }`}
         >
           <input {...getInputProps()} />
-          <svg
-            className="w-10 h-10 mx-auto mb-3 text-stone-400"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="1.5"
-            viewBox="0 0 24 24"
-          >
-            <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" />
-          </svg>
-          <p className="text-stone-700 font-medium mb-1">Drop a file, or click to choose.</p>
-          <p className="text-sm text-stone-500">.csv or .xlsx · up to 10 MB</p>
+          <span className="inline-flex w-12 h-12 mx-auto mb-3 items-center justify-center rounded-xl bg-surface-2 border border-line-2">
+            <svg
+              className="w-6 h-6 text-ink-2"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.5"
+              viewBox="0 0 24 24"
+            >
+              <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" />
+            </svg>
+          </span>
+          <p className="text-ink font-medium mb-1">Drop a file, or click to choose.</p>
+          <p className="font-mono text-xs text-ink-3">.csv or .xlsx · up to 10 MB</p>
         </div>
 
         {error && (
-          <div className="mt-4 p-4 bg-red-50 border border-red-100 text-red-700 text-sm rounded-xl">
+          <div className="mt-4 p-4 card border-ember/40 text-ember text-sm rounded-xl">
             {error}
           </div>
         )}
 
         {file && !isProcessing && (
-          <div className="mt-6 p-5 bg-white border border-stone-200 rounded-2xl flex justify-between items-center">
+          <div className="mt-6 card shadow-card p-5 rounded-2xl flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
             <div>
-              <p className="font-medium text-stone-900">{file.name}</p>
-              <p className="text-sm text-stone-500">{(file.size / 1024).toFixed(0)} KB</p>
+              <p className="font-medium text-ink">{file.name}</p>
+              <p className="font-mono text-xs text-ink-3">{(file.size / 1024).toFixed(0)} KB</p>
             </div>
             <button
               onClick={generate}
-              className="px-5 py-2.5 bg-stone-900 text-white text-sm font-medium rounded-lg hover:bg-stone-800 transition-colors"
+              className="btn btn-primary w-full sm:w-auto"
             >
               {balance !== null ? `Generate report · ${REPORT_COST}` : 'Generate report →'}
             </button>
@@ -167,17 +167,25 @@ export default function Home() {
         )}
 
         {isProcessing && (
-          <div className="mt-6 p-6 bg-white border border-stone-200 rounded-2xl">
+          <div className="mt-6 card shadow-card p-6 rounded-2xl">
             <div className="flex items-center gap-4">
-              <div className="animate-spin rounded-full h-6 w-6 border-2 border-stone-200 border-t-stone-900 flex-shrink-0" />
+              <div className="animate-spin rounded-full h-6 w-6 border-2 border-surface-2 border-t-accent flex-shrink-0" />
               <div className="flex-1">
-                <p className="font-medium text-stone-900 text-sm">{STEPS[step]}</p>
-                <div className="mt-2 flex gap-1.5">
-                  {STEPS.map((_, i) => (
-                    <div
-                      key={i}
-                      className={`h-1 flex-1 rounded-full ${i <= step ? 'bg-stone-900' : 'bg-stone-200'}`}
-                    />
+                <p className="font-medium text-ink text-sm">{STEPS[step]}</p>
+                <div className="mt-3 flex gap-2">
+                  {STEPS.map((label, i) => (
+                    <div key={label} className="flex-1">
+                      <div
+                        className={`h-1 rounded-full ${i <= step ? 'bg-accent' : 'bg-surface-2'}`}
+                      />
+                      <p
+                        className={`mt-1.5 font-mono text-[10px] uppercase tracking-wide ${
+                          i === step ? 'text-accent' : i < step ? 'text-ink-2' : 'text-ink-3'
+                        }`}
+                      >
+                        {label}
+                      </p>
+                    </div>
                   ))}
                 </div>
               </div>
@@ -186,24 +194,24 @@ export default function Home() {
         )}
 
         {preview && (
-          <div className="mt-8 overflow-x-auto bg-white border border-stone-200 rounded-2xl">
-            <div className="px-5 py-3 border-b border-stone-100 flex items-baseline justify-between">
-              <h3 className="font-semibold text-stone-900 text-sm">Preview</h3>
-              <span className="text-xs text-stone-400">{preview.data.length} rows · {preview.columns.length} columns</span>
+          <div className="mt-8 overflow-x-auto card shadow-card rounded-2xl">
+            <div className="px-5 py-3 border-b border-line flex items-baseline justify-between">
+              <h3 className="font-display text-base text-ink">Preview</h3>
+              <span className="font-mono text-xs text-ink-3">{preview.data.length} rows · {preview.columns.length} columns</span>
             </div>
             <table className="min-w-full text-sm">
               <thead>
-                <tr className="bg-stone-50">
+                <tr className="bg-surface-2">
                   {preview.columns.map((c) => (
-                    <th key={c} className="px-4 py-2.5 text-left font-medium text-stone-600 text-xs uppercase tracking-wide">{c}</th>
+                    <th key={c} className="px-4 py-2.5 text-left font-mono text-xs uppercase tracking-wide text-ink-3">{c}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
                 {preview.data.map((row, i) => (
-                  <tr key={i} className="border-t border-stone-100">
+                  <tr key={i} className="border-t border-line">
                     {preview.columns.map((c) => (
-                      <td key={c} className="px-4 py-2 text-stone-700">{row[c]?.toString() ?? ''}</td>
+                      <td key={c} className="px-4 py-2 text-ink-2">{row[c]?.toString() ?? ''}</td>
                     ))}
                   </tr>
                 ))}
