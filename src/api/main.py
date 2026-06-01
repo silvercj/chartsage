@@ -831,9 +831,29 @@ async def deepen_report(
     ]
 
     # Re-narrate over the FULL enriched set so the summary + captions cover the new charts.
+    # Covered by the same busy/error handling as deepen() above: a 529 overload during the
+    # narrative pass must surface as a clean 503 BUSY (not a generic 500), fire deepen_failed,
+    # and — critically — leave the report unsaved and the user uncharged.
     all_specs = [c.spec for c in existing_report.charts] + [c.spec for c in new_charts]
     all_charts = list(existing_report.charts) + new_charts
-    narrative = gen.generate_narrative(all_specs)
+    try:
+        narrative = gen.generate_narrative(all_specs)
+    except RetryableBusy:
+        posthog.capture(identity.distinct_id, "deepen_failed", {
+            "reportId": session_id, "reason": "busy", "httpStatus": 503,
+            "elapsedMs": int((time.perf_counter() - started) * 1000),
+        })
+        raise HTTPException(status_code=503, detail={
+            "code": "BUSY",
+            "message": "Claude is busy. Try again in 30s.",
+        })
+    except Exception as e:
+        posthog.capture(identity.distinct_id, "deepen_failed", {
+            "reportId": session_id, "reason": "internal",
+            "errorClass": type(e).__name__,
+            "elapsedMs": int((time.perf_counter() - started) * 1000),
+        })
+        raise
     captions = list(narrative.captions)
     if len(captions) < len(all_charts):
         captions = captions + [c.spec.intent for c in all_charts[len(captions):]]
