@@ -1,6 +1,9 @@
 import MarketingNav from './MarketingNav';
 import Hero from './Hero';
 import TrustStrip from './TrustStrip';
+import HowItWorks from './HowItWorks';
+import Features from './Features';
+import UseCases from './UseCases';
 
 export default function MarketingLanding() {
   return (
@@ -8,6 +11,9 @@ export default function MarketingLanding() {
       <MarketingNav />
       <Hero />
       <TrustStrip />
+      <HowItWorks />
+      <Features />
+      <UseCases />
     </main>
   );
 }
