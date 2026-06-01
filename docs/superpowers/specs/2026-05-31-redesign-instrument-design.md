@@ -40,10 +40,15 @@ Tokens are CSS variables (RGB triplets for Tailwind `<alpha-value>` support), su
 - Light: warm soft shadows — `0 1px 2px rgba(27,26,22,.04), 0 14px 34px -14px rgba(27,26,22,.18)`; large `…-28px rgba(27,26,22,.28)`.
 - Dark: deep shadows + teal glow on primary — `--glow: 0 0 30px -6px rgba(45,212,191,.5)`; card top-edge highlight `linear-gradient(90deg,transparent,rgba(255,255,255,.08),transparent)`.
 
-### Chart data palette (light report canvas only)
-Curated editorial sequence, replacing ad-hoc colors for cohesion:
-`#0C5C52` teal · `#5B8C7E` sage · `#C99A3F` ochre · `#B5673A` clay · `#3E5C6B` slate · `#9DB7AE` soft-green.
-Heatmap keeps its existing teal `visualMap` (and the recent dense-grid fix). Diverging scales keep red↔white↔teal.
+### Charts (light report canvas only) — full editorial treatment
+Validated in real ECharts (see `design/charts.html`); this is **not** a library limit. All charts inherit a shared theme (`charts/chartTheme.ts`):
+- **Palette:** curated editorial sequence — `#0C5C52` teal · `#5B8C7E` sage · `#C99A3F` ochre · `#B5673A` clay · `#3E5C6B` slate · `#9DB7AE` soft-green.
+- **Axes:** stripped chrome — `axisLine` & `axisTick` hidden; hairline `splitLine` (`#E6E0D4`); labels in Geist Mono 11px `#9A9183`.
+- **Tooltip:** white, hairline border, soft shadow, rounded; values in Geist Mono.
+- **Lines:** `smooth: true`, 2.5px, soft markers (`showSymbol` on emphasis), teal→transparent `areaStyle` gradient where an area read suits.
+- **Bars:** rounded tops (`borderRadius`), ~50% width, teal with darker emphasis.
+- **Heatmap:** keeps teal `visualMap` + the dense-grid fix; diverging scales clay↔paper↔teal.
+- **Robustness (real-world data):** label rotation/truncation for long or many categories, sensible `grid` padding, graceful empty/﻿single-value states — the theme must hold up on messy CSVs, not just clean demos.
 
 ### Texture & decoration
 - **Grain:** fixed full-screen SVG `feTurbulence` overlay, opacity ~.035 (light) / ~.045 (dark), `pointer-events:none`.
@@ -109,7 +114,8 @@ Headline accent device: a single italic word in `--accent` (e.g. *"story"*, *"di
 - `ReportSummary.tsx` — Fraunces report title, mono meta (generated · time · N charts), summary body.
 - `Toolbar.tsx` — light, sits on the document; generate-more (cost + spinner, unchanged behavior) + export PDF; teal primary on light.
 - `ChartCard.tsx`, `DataQualityCallout.tsx`, `Sidebar*.tsx` — light cards, Fraunces titles, Fraunces-italic captions, mono labels.
-- `charts/*` (8 components) — apply the editorial data palette + mono axis/legend labels; keep all logic/guards and the heatmap dense-grid fix.
+- `charts/chartTheme.ts` (**new** shared module) — the base ECharts option/theme described in §1 (palette, stripped axes, hairline split-lines, mono labels, styled tooltip, smooth lines, soft markers, area gradient, rounded bars, real-data robustness). Single source of truth for chart styling.
+- `charts/*` (8 components) — consume `chartTheme`; add per-type polish (line area-gradient, bar radius/width, pie donut/label treatment, scatter opacity, box-plot styling). Keep all logic/guards and the heatmap dense-grid fix.
 
 **PDF**
 - `report/[id]/print/page.tsx` — `.theme-light`; ensure Fraunces/Geist load in the print route so the export is brand-consistent. Otherwise layout unchanged.
