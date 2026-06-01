@@ -135,6 +135,20 @@ CHART_TOOLS: list[dict] = [
         },
         ["mode", "title", "intent"],
     ),
+    _t(
+        "grouped_bar_chart",
+        "Bar chart of a value aggregated by a category AND split by a second (sub)category. "
+        "mode='grouped' compares side by side; mode='stacked' shows composition. Keep the breakdown to ≤6 values.",
+        {
+            "category_col": {"type": "string"},
+            "breakdown_col": {"type": "string", "description": "Second categorical to split each bar by (≤6 values)."},
+            "value_col": {"type": "string"},
+            "agg": {"type": "string", "enum": ["sum", "mean", "median", "min", "max"]},
+            "mode": {"type": "string", "enum": ["grouped", "stacked"]},
+            **_TITLE_INTENT,
+        },
+        ["category_col", "breakdown_col", "value_col", "agg", "mode", "title", "intent"],
+    ),
 ]
 
 

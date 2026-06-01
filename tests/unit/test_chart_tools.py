@@ -13,6 +13,7 @@ def test_all_tools_present():
         "pie_chart",
         "box_plot",
         "heatmap_chart",
+        "grouped_bar_chart",
     }
 
 

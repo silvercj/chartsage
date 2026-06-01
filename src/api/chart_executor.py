@@ -587,6 +587,81 @@ def execute_heatmap_chart(df: pd.DataFrame, params: dict) -> ChartSpec | ToolErr
     )
 
 
+_GROUPED_BAR_AGGS = {"sum", "mean", "median", "min", "max"}
+MAX_GROUPED_BREAKDOWN = 6  # multi-series bars stay legible only with a small breakdown
+
+
+def execute_grouped_bar_chart(df: pd.DataFrame, params: dict) -> ChartSpec | ToolError:
+    category_col = params["category_col"]
+    breakdown_col = params["breakdown_col"]
+    value_col = params["value_col"]
+    agg = params["agg"]
+    mode = params["mode"]
+    title = params["title"]
+    intent = params["intent"]
+
+    if agg not in _GROUPED_BAR_AGGS:
+        return _err(f"agg='{agg}' is not allowed. Allowed: {sorted(_GROUPED_BAR_AGGS)}.")
+
+    avail = _available_columns_by_role(df)
+    if category_col not in df.columns:
+        return _err(f"category_col='{category_col}' is not a column. Available categorical columns: {avail['categorical']}")
+    if breakdown_col not in df.columns:
+        return _err(f"breakdown_col='{breakdown_col}' is not a column. Available categorical columns: {avail['categorical']}")
+    if value_col not in df.columns:
+        return _err(f"value_col='{value_col}' is not a column. Available numeric columns: {avail['numeric']}")
+    if not pd.api.types.is_numeric_dtype(df[value_col]):
+        return _err(f"value_col='{value_col}' is not numeric. Available numeric columns: {avail['numeric']}")
+
+    breakdowns = int(df[breakdown_col].dropna().nunique())
+    if breakdowns == 0:
+        return _err(f"breakdown_col='{breakdown_col}' has no non-null values.")
+    if breakdowns > MAX_GROUPED_BREAKDOWN:
+        return _err(
+            f"breakdown_col='{breakdown_col}' has {breakdowns} unique values, more than the max ({MAX_GROUPED_BREAKDOWN}) "
+            f"for a grouped/stacked bar. Use aggregation_bar_chart (value_col='{value_col}', group_col='{breakdown_col}', "
+            f"agg='{agg}') instead, or pick a lower-cardinality breakdown."
+        )
+
+    categories = int(df[category_col].dropna().nunique())
+    if categories == 0:
+        return _err(f"category_col='{category_col}' has no non-null values.")
+    if categories > MAX_CATEGORIES:
+        return _err(f"category_col='{category_col}' has {categories} unique values, more than max ({MAX_CATEGORIES}).")
+
+    work = df[[category_col, breakdown_col, value_col]].dropna()
+    if len(work) == 0:
+        return _err(f"No rows where '{category_col}', '{breakdown_col}', and '{value_col}' are all non-null.")
+
+    pivot = work.pivot_table(
+        index=category_col, columns=breakdown_col, values=value_col, aggfunc=agg
+    )
+    # x order: categories by total value descending (matches aggregation_bar_chart).
+    pivot = pivot.loc[pivot.sum(axis=1).sort_values(ascending=False).index]
+
+    x = [str(c) for c in pivot.index.tolist()]
+    series_list: list[dict] = []
+    for breakdown_value in pivot.columns.tolist():
+        col = pivot[breakdown_value]
+        data = [None if pd.isna(v) else float(v) for v in col.tolist()]
+        series_list.append({"name": str(breakdown_value), "data": data})
+
+    return ChartSpec(
+        kind="grouped_bar",
+        title=title,
+        intent=intent,
+        x=x,
+        series=series_list,
+        x_label=category_col,
+        y_label=f"{agg.capitalize()} of {value_col}",
+        x_display_type="category",
+        y_display_type=_infer_display_type(value_col, agg),
+        stacked=(mode == "stacked"),
+        source_columns=[category_col, breakdown_col, value_col],
+        data_point_count=int(len(work)),
+    )
+
+
 def execute_key_metrics(df: pd.DataFrame, params: dict) -> list[KeyMetric] | ToolError:
     out: list[KeyMetric] = []
     for m in (params.get("metrics") or [])[:5]:
@@ -627,4 +702,5 @@ TOOL_EXECUTORS: dict[str, Callable[[pd.DataFrame, dict], ChartSpec | ToolError]]
     "pie_chart": execute_pie_chart,
     "box_plot": execute_box_plot,
     "heatmap_chart": execute_heatmap_chart,
+    "grouped_bar_chart": execute_grouped_bar_chart,
 }
