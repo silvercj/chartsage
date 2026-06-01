@@ -110,14 +110,14 @@ function ReportView({ sessionId, initialReport }: { sessionId: string; initialRe
   return (
     <div className="theme-light bg-canvas text-ink min-h-screen">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <KpiTiles metrics={report.key_metrics} />
-
         <Toolbar sessionId={sessionId} onReportUpdated={replaceReport} />
 
         <ReportSummary summary={report.summary} generatedAt={report.generated_at} />
         {report.data_quality && report.data_quality.length > 0 && (
           <DataQualityCallout notes={report.data_quality} />
         )}
+
+        <KpiTiles metrics={report.key_metrics} />
 
         {saveError && (
           <div className="mt-4 p-3 bg-surface-2 border border-line text-ember text-sm rounded-lg">

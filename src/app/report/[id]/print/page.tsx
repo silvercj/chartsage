@@ -75,8 +75,6 @@ export default function PrintReportPage({ params }: { params: { id: string } }) 
         .report-footer { break-before: avoid; page-break-before: avoid; }
       `}</style>
       <div className="theme-light bg-white text-ink print-container max-w-[700px] mx-auto p-8">
-        <KpiTiles metrics={report.key_metrics} />
-
         {/* Cover page: title + summary + data quality */}
         <header className="mb-8">
           <p className="font-mono text-xs uppercase tracking-widest text-ink-3 mb-2">ChartSage Report</p>
@@ -97,6 +95,9 @@ export default function PrintReportPage({ params }: { params: { id: string } }) 
         {report.data_quality && report.data_quality.length > 0 && (
           <DataQualityCallout notes={report.data_quality} />
         )}
+
+        <KpiTiles metrics={report.key_metrics} />
+
 
         <div className="print-page-break" />
 
