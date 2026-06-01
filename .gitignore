@@ -74,5 +74,6 @@ logs/
 # Cursor rules
 .cursor/rules/
 
-# Cursor rules
-.cursor/rules/debugging.mdc 
+# design scratch / local preview
+design/
+.claude/launch.json
