@@ -65,7 +65,7 @@ export default function PrintReportPage({ params }: { params: { id: string } }) 
           .no-print { display: none !important; }
         }
         body { background: white; }
-        .print-container { font-family: Inter, system-ui, sans-serif; }
+        .print-container { font-family: var(--font-geist-sans), system-ui, sans-serif; }
         /* keep each chart card whole on one page; let cards flow & pack naturally */
         .avoid-break { break-inside: avoid; page-break-inside: avoid; }
         .report-footer { break-before: avoid; page-break-before: avoid; }
