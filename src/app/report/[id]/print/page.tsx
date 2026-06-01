@@ -44,9 +44,12 @@ export default function PrintReportPage({ params }: { params: { id: string } }) 
     if (!report) return;
     // Signal readiness after the charts have had time to render.
     // ECharts mounts asynchronously; this rAF + small timeout is enough.
+    // Scale the wait to the chart count — ECharts mounts asynchronously, and the export
+    // render now includes all charts (main + sidebar), so more charts need more paint time.
+    const delay = Math.min(1200 + report.charts.length * 250, 6000);
     const t = setTimeout(() => {
       document.body.setAttribute('data-charts-ready', 'true');
-    }, 1500);
+    }, delay);
     return () => clearTimeout(t);
   }, [report]);
 
