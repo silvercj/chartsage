@@ -15,6 +15,7 @@ def test_all_tools_present():
         "heatmap_chart",
         "grouped_bar_chart",
         "dual_axis_chart",
+        "treemap_chart",
     }
 
 

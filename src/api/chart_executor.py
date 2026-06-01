@@ -749,6 +749,96 @@ def execute_dual_axis_chart(df: pd.DataFrame, params: dict) -> ChartSpec | ToolE
     )
 
 
+_TREEMAP_AGGS = {"sum", "mean", "count"}
+
+
+def execute_treemap_chart(df: pd.DataFrame, params: dict) -> ChartSpec | ToolError:
+    category_col = params["category_col"]
+    subcategory_col = params.get("subcategory_col")
+    value_col = params["value_col"]
+    agg = params["agg"]
+    title = params["title"]
+    intent = params["intent"]
+
+    if agg not in _TREEMAP_AGGS:
+        return _err(f"agg='{agg}' is not allowed for treemap_chart. Allowed: {sorted(_TREEMAP_AGGS)}.")
+
+    avail = _available_columns_by_role(df)
+    if category_col not in df.columns:
+        return _err(f"category_col='{category_col}' is not a column. Available categorical columns: {avail['categorical']}")
+    if subcategory_col is not None and subcategory_col not in df.columns:
+        return _err(f"subcategory_col='{subcategory_col}' is not a column. Available categorical columns: {avail['categorical']}")
+    if value_col not in df.columns:
+        return _err(f"value_col='{value_col}' is not a column. Available numeric columns: {avail['numeric']}")
+    if agg != "count" and not pd.api.types.is_numeric_dtype(df[value_col]):
+        return _err(f"value_col='{value_col}' is not numeric (required when agg != 'count'). "
+                    f"Available numeric columns: {avail['numeric']}")
+
+    categories = int(df[category_col].dropna().nunique())
+    if categories == 0:
+        return _err(f"category_col='{category_col}' has no non-null values.")
+    if categories > MAX_CATEGORIES:
+        return _err(f"category_col='{category_col}' has {categories} unique values, more than max ({MAX_CATEGORIES}).")
+
+    group_cols = [category_col] + ([subcategory_col] if subcategory_col else [])
+    subset = group_cols + ([value_col] if agg != "count" else [])
+    work = df[list(dict.fromkeys(subset))].dropna(subset=group_cols)
+    if agg != "count":
+        work = work.dropna(subset=[value_col])
+    if len(work) == 0:
+        return _err(f"No usable rows for treemap on '{category_col}'.")
+
+    def _agg(g: pd.DataFrame) -> float:
+        if agg == "count":
+            return float(len(g))
+        return float(g[value_col].agg(agg))
+
+    nodes: list[dict] = []
+    if subcategory_col:
+        # 2-level hierarchy: parent value is the sum of its children's aggregated values.
+        parents: list[tuple[str, float, list[dict]]] = []
+        for parent_value, parent_df in work.groupby(category_col):
+            children: list[dict] = []
+            for child_value, child_df in parent_df.groupby(subcategory_col):
+                children.append({"name": str(child_value), "value": _agg(child_df)})
+            total = float(sum(c["value"] for c in children))
+            children.sort(key=lambda c: c["value"], reverse=True)
+            parents.append((str(parent_value), total, children))
+        parents.sort(key=lambda p: p[1], reverse=True)
+        nodes = [{"name": name, "value": total, "children": children} for name, total, children in parents]
+    else:
+        flat: list[dict] = []
+        for cat_value, cat_df in work.groupby(category_col):
+            flat.append({"name": str(cat_value), "value": _agg(cat_df)})
+        flat.sort(key=lambda n: n["value"], reverse=True)
+        nodes = flat
+
+    def _all_values(ns: list[dict]):
+        for n in ns:
+            yield n["value"]
+            if n.get("children"):
+                yield from _all_values(n["children"])
+
+    if any(v < 0 for v in _all_values(nodes)):
+        return _err(
+            f"treemap_chart can't show negative values ('{value_col}' produced a negative {agg}). "
+            f"Use aggregation_bar_chart instead, which can show negatives."
+        )
+
+    return ChartSpec(
+        kind="treemap",
+        title=title,
+        intent=intent,
+        nodes=nodes,
+        x_label=category_col,
+        y_label=(f"{agg.capitalize()}" if agg == "count" else f"{agg.capitalize()} of {value_col}"),
+        x_display_type="category",
+        y_display_type=_infer_display_type(value_col, agg),
+        source_columns=group_cols + ([value_col] if agg != "count" else []),
+        data_point_count=int(len(work)),
+    )
+
+
 def execute_key_metrics(df: pd.DataFrame, params: dict) -> list[KeyMetric] | ToolError:
     out: list[KeyMetric] = []
     for m in (params.get("metrics") or [])[:5]:
@@ -791,4 +881,5 @@ TOOL_EXECUTORS: dict[str, Callable[[pd.DataFrame, dict], ChartSpec | ToolError]]
     "heatmap_chart": execute_heatmap_chart,
     "grouped_bar_chart": execute_grouped_bar_chart,
     "dual_axis_chart": execute_dual_axis_chart,
+    "treemap_chart": execute_treemap_chart,
 }

@@ -3,7 +3,7 @@ from typing import Any, Literal, Optional
 from pydantic import BaseModel, Field
 
 
-ChartKind = Literal["bar", "histogram", "scatter", "line", "pie", "box", "heatmap", "grouped_bar", "dual_axis"]
+ChartKind = Literal["bar", "histogram", "scatter", "line", "pie", "box", "heatmap", "grouped_bar", "dual_axis", "treemap"]
 LayoutPosition = Literal["main", "sidebar"]
 ColumnRole = Literal["categorical", "numeric", "date", "identifier", "unusable"]
 XDisplayType = Literal["category", "number", "date", "text"]
@@ -73,6 +73,7 @@ class ChartSpec(BaseModel):
     stacked: bool = False
     area: bool = False
     y_label_secondary: Optional[str] = None
+    nodes: Optional[list] = None
     source_columns: list[str]
     data_point_count: int
 

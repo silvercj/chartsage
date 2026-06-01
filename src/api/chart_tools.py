@@ -164,6 +164,19 @@ CHART_TOOLS: list[dict] = [
         },
         ["x_col", "bar_value_col", "line_value_col", "bar_agg", "line_agg", "title", "intent"],
     ),
+    _t(
+        "treemap_chart",
+        "Treemap of a category's share of a total (optionally a 2-level hierarchy). "
+        "Prefer over a pie when there are many categories (>8) or a sub-category breakdown.",
+        {
+            "category_col": {"type": "string"},
+            "subcategory_col": {"type": "string", "description": "Optional second level."},
+            "value_col": {"type": "string"},
+            "agg": {"type": "string", "enum": ["sum", "mean", "count"]},
+            **_TITLE_INTENT,
+        },
+        ["category_col", "value_col", "agg", "title", "intent"],
+    ),
 ]
 
 
