@@ -70,19 +70,19 @@ export default function PrintReportPage({ params }: { params: { id: string } }) 
         .avoid-break { break-inside: avoid; page-break-inside: avoid; }
         .report-footer { break-before: avoid; page-break-before: avoid; }
       `}</style>
-      <div className="print-container max-w-[700px] mx-auto p-8">
+      <div className="theme-light bg-white text-ink print-container max-w-[700px] mx-auto p-8">
         {/* Cover page: title + summary + data quality */}
         <header className="mb-8">
-          <p className="text-xs uppercase tracking-widest text-stone-400 mb-2">ChartSage Report</p>
-          <h1 className="text-4xl font-semibold tracking-tight text-stone-900 mb-3">Insights</h1>
-          <p className="text-xs text-stone-500">
+          <p className="font-mono text-xs uppercase tracking-widest text-ink-3 mb-2">ChartSage Report</p>
+          <h1 className="font-display text-4xl font-semibold tracking-tight text-ink mb-3">Insights</h1>
+          <p className="font-mono text-xs text-ink-2">
             Generated {new Date(report.generated_at).toLocaleDateString(undefined, {
               year: 'numeric', month: 'long', day: 'numeric',
             })}
           </p>
         </header>
 
-        <article className="prose prose-sm max-w-none text-stone-700 leading-relaxed mb-8">
+        <article className="prose prose-sm max-w-none text-ink-2 leading-relaxed mb-8">
           {report.summary.split(/\n\s*\n/).filter(Boolean).map((p, i) => (
             <p key={i}>{p}</p>
           ))}
@@ -108,7 +108,7 @@ export default function PrintReportPage({ params }: { params: { id: string } }) 
           </div>
         ))}
 
-        <footer className="report-footer mt-8 pt-4 border-t border-stone-200 text-xs text-stone-400 text-center">
+        <footer className="report-footer mt-8 pt-4 border-t border-line font-mono text-xs text-ink-3 text-center">
           ChartSage · Report {params.id.slice(0, 8)}
         </footer>
       </div>

@@ -72,17 +72,17 @@ export default function Toolbar({ sessionId, onReportUpdated }: Props) {
 
   return (
     <>
-      <div className="sticky top-0 z-10 -mx-4 sm:-mx-6 lg:-mx-8 px-4 sm:px-6 lg:px-8 py-3 mb-6 bg-stone-50/90 backdrop-blur border-b border-stone-200 flex items-center justify-end gap-3">
-        {error && <span className="text-sm text-red-600 mr-auto">{error}</span>}
+      <div className="sticky top-0 z-10 -mx-4 sm:-mx-6 lg:-mx-8 px-4 sm:px-6 lg:px-8 py-3 mb-6 bg-canvas/90 backdrop-blur border-b border-line flex items-center justify-end gap-3">
+        {error && <span className="text-sm text-ember mr-auto">{error}</span>}
         <button
           type="button"
           onClick={handleGenerateMore}
           disabled={generating}
-          className="px-4 py-2 text-sm font-medium text-stone-700 bg-white ring-1 ring-stone-200 rounded-lg hover:bg-stone-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          className="btn btn-ghost"
         >
           {generating ? (
             <span className="inline-flex items-center gap-2">
-              <span className="h-3.5 w-3.5 rounded-full border-2 border-stone-300 border-t-stone-600 animate-spin" />
+              <span className="h-3.5 w-3.5 rounded-full border-2 border-line-2 border-t-accent animate-spin" />
               Generating…
             </span>
           ) : (
@@ -93,7 +93,7 @@ export default function Toolbar({ sessionId, onReportUpdated }: Props) {
           type="button"
           onClick={handleExportPdf}
           disabled={exporting}
-          className="px-4 py-2 text-sm font-medium text-white bg-stone-900 rounded-lg hover:bg-stone-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          className="btn btn-primary"
         >
           {exporting ? 'Preparing PDF…' : 'Export PDF'}
         </button>
