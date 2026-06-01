@@ -27,20 +27,20 @@ const Toolbar = dynamic(() => import('./Toolbar'), { ssr: false });
 
 function Loading() {
   return (
-    <div className="flex flex-col items-center justify-center min-h-screen bg-stone-50">
-      <div className="animate-spin rounded-full h-9 w-9 border-2 border-stone-300 border-t-stone-900 mb-4" />
-      <p className="text-stone-600 text-sm">Loading report…</p>
+    <div className="theme-light flex flex-col items-center justify-center min-h-screen bg-canvas text-ink">
+      <div className="animate-spin rounded-full h-9 w-9 border-2 border-line-2 border-t-accent mb-4" />
+      <p className="text-ink-2 text-sm">Loading report…</p>
     </div>
   );
 }
 
 function ErrorView({ message }: { message: string }) {
   return (
-    <div className="flex flex-col items-center justify-center min-h-screen bg-stone-50">
+    <div className="theme-light flex flex-col items-center justify-center min-h-screen bg-canvas text-ink">
       <div className="text-center">
-        <h2 className="text-xl font-semibold text-stone-900">Could not load report</h2>
-        <p className="mt-2 text-stone-600">{message}</p>
-        <a href="/" className="mt-6 inline-block px-5 py-2.5 bg-stone-900 text-white text-sm rounded-lg hover:bg-stone-800 transition-colors">
+        <h2 className="font-display text-2xl font-medium text-ink">Could not load report</h2>
+        <p className="mt-2 text-ink-2">{message}</p>
+        <a href="/" className="btn btn-primary mt-6">
           Back to upload
         </a>
       </div>
@@ -107,7 +107,7 @@ function ReportView({ sessionId, initialReport }: { sessionId: string; initialRe
   }
 
   return (
-    <div className="min-h-screen bg-stone-50">
+    <div className="theme-light bg-canvas text-ink min-h-screen">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <Toolbar sessionId={sessionId} onReportUpdated={replaceReport} />
 
@@ -117,7 +117,7 @@ function ReportView({ sessionId, initialReport }: { sessionId: string; initialRe
         )}
 
         {saveError && (
-          <div className="mt-4 p-3 bg-amber-50 border border-amber-200 text-amber-900 text-sm rounded-lg">
+          <div className="mt-4 p-3 bg-surface-2 border border-line text-ember text-sm rounded-lg">
             {saveError}
           </div>
         )}
@@ -159,9 +159,9 @@ function ReportView({ sessionId, initialReport }: { sessionId: string; initialRe
           </div>
         </DndContext>
 
-        <footer className="mt-16 pt-6 border-t border-stone-200 text-xs text-stone-400 flex justify-between">
+        <footer className="mt-16 pt-6 border-t border-line font-mono text-xs text-ink-3 flex justify-between">
           <span>Report id: {sessionId.slice(0, 8)}</span>
-          <a href="/" className="hover:text-stone-600">New report →</a>
+          <a href="/" className="hover:text-ink-2 transition-colors">New report →</a>
         </footer>
       </div>
     </div>

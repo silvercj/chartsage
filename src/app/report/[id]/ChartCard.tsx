@@ -35,7 +35,7 @@ function ChartContent({ spec }: { spec: any }) {
     case 'pie': return <PieChart spec={spec} />;
     case 'box': return <BoxPlot spec={spec} />;
     case 'heatmap': return <Heatmap spec={spec} />;
-    default: return <p className="text-sm text-red-600">Unsupported chart kind: {String(spec.kind)}</p>;
+    default: return <p className="text-sm text-ember">Unsupported chart kind: {String(spec.kind)}</p>;
   }
 }
 
@@ -55,14 +55,14 @@ export default function ChartCard({ index, spec, caption, chartId, onHide, print
     <section
       ref={setNodeRef}
       style={style}
-      className="bg-white rounded-2xl ring-1 ring-stone-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.04)] hover:shadow-[0_4px_12px_rgba(0,0,0,0.06)] transition-shadow p-6 flex flex-col"
+      className="card shadow-card rounded-2xl p-5 flex flex-col"
     >
       <div className="flex items-start justify-between mb-3 gap-2">
         <div className="flex items-baseline gap-3 min-w-0 flex-1">
           {!printMode && (
             <button
               type="button"
-              className="text-stone-300 hover:text-stone-600 cursor-grab active:cursor-grabbing -ml-1 px-1 leading-none focus:outline-none focus:ring-2 focus:ring-stone-400 rounded"
+              className="text-ink-3 hover:text-ink-2 cursor-grab active:cursor-grabbing -ml-1 px-1 leading-none focus:outline-none focus:ring-2 focus:ring-accent rounded"
               aria-label="Drag to reorder"
               {...attributes}
               {...listeners}
@@ -74,16 +74,16 @@ export default function ChartCard({ index, spec, caption, chartId, onHide, print
               </svg>
             </button>
           )}
-          <span className="text-xs font-mono text-stone-400 tabular-nums shrink-0">
+          <span className="font-mono text-xs text-ink-3 tabular-nums shrink-0">
             {String(index).padStart(2, '0')}
           </span>
-          <h2 className="text-base font-semibold text-stone-900 leading-snug tracking-tight truncate">
+          <h2 className="font-display text-lg text-ink leading-snug truncate">
             {spec.title}
           </h2>
         </div>
         <div className="flex items-center gap-2 shrink-0">
           {!printMode && (
-            <span className="text-[10px] uppercase tracking-widest text-stone-400 mt-1">
+            <span className="font-mono text-xs uppercase tracking-wide text-ink-3 mt-1">
               {kindLabel}
             </span>
           )}
@@ -91,7 +91,7 @@ export default function ChartCard({ index, spec, caption, chartId, onHide, print
             <button
               type="button"
               onClick={() => onHide(chartId)}
-              className="text-stone-300 hover:text-stone-700 transition-colors w-6 h-6 flex items-center justify-center rounded hover:bg-stone-100 focus:outline-none focus:ring-2 focus:ring-stone-400"
+              className="text-ink-3 hover:text-ink transition-colors w-6 h-6 flex items-center justify-center rounded hover:bg-surface-2 focus:outline-none focus:ring-2 focus:ring-accent"
               aria-label="Move to sidebar"
               title="Move to sidebar"
             >
@@ -106,7 +106,7 @@ export default function ChartCard({ index, spec, caption, chartId, onHide, print
         <ChartContent spec={spec} />
       </div>
       {caption && (
-        <p className="text-sm text-stone-600 mt-4 pt-4 border-t border-stone-100 leading-relaxed">
+        <p className="font-display italic text-ink-2 text-sm mt-4 pt-4 border-t border-line leading-relaxed">
           {caption}
         </p>
       )}

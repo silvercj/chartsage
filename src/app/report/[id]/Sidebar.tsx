@@ -17,7 +17,7 @@ export default function Sidebar({ charts, onPromote }: Props) {
         <button
           type="button"
           onClick={() => setOpen(true)}
-          className="w-10 h-10 rounded-lg bg-white ring-1 ring-stone-200/80 flex items-center justify-center text-stone-500 hover:text-stone-900 hover:bg-stone-50"
+          className="w-10 h-10 rounded-lg bg-surface border border-line flex items-center justify-center text-ink-2 hover:text-ink hover:bg-surface-2 transition-colors"
           aria-label="Expand sidebar"
           title={`${charts.length} extra charts`}
         >
@@ -32,20 +32,20 @@ export default function Sidebar({ charts, onPromote }: Props) {
   return (
     <aside className="w-72 shrink-0">
       <div className="flex items-baseline justify-between mb-3">
-        <h3 className="text-xs uppercase tracking-widest text-stone-400">
+        <h3 className="font-mono text-xs uppercase tracking-wide text-ink-3">
           More charts · {charts.length}
         </h3>
         <button
           type="button"
           onClick={() => setOpen(false)}
-          className="text-stone-400 hover:text-stone-700 text-sm"
+          className="text-ink-3 hover:text-ink text-sm transition-colors"
           aria-label="Collapse sidebar"
         >
           ›
         </button>
       </div>
       {charts.length === 0 ? (
-        <p className="text-sm text-stone-400 italic">
+        <p className="text-sm text-ink-3 italic">
           Drag a chart here or click ×, or hit "Generate 5 more" above.
         </p>
       ) : (

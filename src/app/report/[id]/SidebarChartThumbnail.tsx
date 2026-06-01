@@ -1,10 +1,11 @@
 'use client';
 import ReactECharts from 'echarts-for-react';
+import { CHART_PALETTE, CHART_TEAL, CHART_OCHRE } from './charts/chartTheme';
 
-const ACCENT = '#0D9488';   // teal — bar/line/scatter
-const VIOLET = '#7C3AED';   // histogram
-const SKY = '#0EA5E9';      // box
-const PIE_COLORS = ['#0D9488', '#7C3AED', '#F59E0B', '#0EA5E9', '#EF4444', '#10B981', '#EC4899', '#84CC16', '#A8A29E'];
+const ACCENT = CHART_TEAL;   // teal — bar/line/scatter
+const VIOLET = CHART_OCHRE;  // histogram
+const SKY = CHART_TEAL;      // box
+const PIE_COLORS = CHART_PALETTE;
 
 const HIDDEN_AXIS = {
   show: false,
@@ -47,7 +48,7 @@ function thumbnailOption(spec: any): any | null {
       series: [{
         type: 'line', data: y, smooth: true, symbol: 'none',
         lineStyle: { width: 1.5, color: ACCENT },
-        areaStyle: { color: 'rgba(13,148,136,0.12)' },
+        areaStyle: { color: 'rgba(12,92,82,0.12)' },
       }],
     };
   }
@@ -97,7 +98,7 @@ function thumbnailOption(spec: any): any | null {
       yAxis: { type: 'value', ...HIDDEN_AXIS, scale: true },
       series: [{
         type: 'boxplot', data: boxData,
-        itemStyle: { color: SKY, borderColor: '#0369A1', borderWidth: 0.8 },
+        itemStyle: { color: 'rgba(12,92,82,0.12)', borderColor: SKY, borderWidth: 0.8 },
         boxWidth: ['40%', '70%'],
       }],
     };
@@ -121,7 +122,7 @@ function thumbnailOption(spec: any): any | null {
         show: false,
         min: sym ? -bound : vmin,
         max: sym ? bound : vmax,
-        inRange: { color: sym ? ['#EF4444', '#ffffff', '#0D9488'] : ['#F5F5F4', '#0D9488'] },
+        inRange: { color: sym ? ['#B5673A', '#F6F3EC', '#0C5C52'] : ['#F6F3EC', '#0C5C52'] },
       },
       series: [{ type: 'heatmap', data, itemStyle: { borderColor: '#fff', borderWidth: 0.5 } }],
     };

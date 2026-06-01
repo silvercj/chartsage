@@ -28,12 +28,12 @@ export default function SidebarCard({ chartId, spec, onPromote }: Props) {
     <div
       ref={setNodeRef}
       style={style}
-      className="group bg-white rounded-xl ring-1 ring-stone-200/80 p-3 mb-2 hover:ring-stone-300 hover:shadow-sm transition-all"
+      className="group bg-surface rounded-xl border border-line p-3 mb-2 hover:border-accent hover:shadow-card transition-all"
     >
       <div className="flex items-start gap-2">
         <button
           type="button"
-          className="text-stone-300 hover:text-stone-600 cursor-grab active:cursor-grabbing px-0.5 leading-none focus:outline-none focus:ring-2 focus:ring-stone-400 rounded shrink-0 mt-0.5"
+          className="text-ink-3 hover:text-ink-2 cursor-grab active:cursor-grabbing px-0.5 leading-none focus:outline-none focus:ring-2 focus:ring-accent rounded shrink-0 mt-0.5"
           aria-label="Drag to reorder"
           {...attributes}
           {...listeners}
@@ -47,19 +47,19 @@ export default function SidebarCard({ chartId, spec, onPromote }: Props) {
         <div className="flex-1 min-w-0">
           {/* full title shows on hover via the native title attribute */}
           <p
-            className="text-sm font-medium text-stone-800 leading-snug line-clamp-2"
+            className="text-sm font-medium text-ink leading-snug line-clamp-2"
             title={spec.title}
           >
             {spec.title}
           </p>
-          <p className="text-[10px] uppercase tracking-widest text-stone-400 mt-0.5">
+          <p className="font-mono text-xs uppercase tracking-wide text-ink-3 mt-0.5">
             {KIND_LABEL[spec.kind] ?? spec.kind}
           </p>
         </div>
         <button
           type="button"
           onClick={() => onPromote(chartId)}
-          className="text-stone-400 hover:text-stone-900 transition-colors w-6 h-6 flex items-center justify-center rounded hover:bg-stone-100 shrink-0 focus:outline-none focus:ring-2 focus:ring-stone-400"
+          className="text-ink-3 hover:text-ink transition-colors w-6 h-6 flex items-center justify-center rounded hover:bg-surface-2 shrink-0 focus:outline-none focus:ring-2 focus:ring-accent"
           aria-label="Move to main report"
           title="Move to main"
         >
