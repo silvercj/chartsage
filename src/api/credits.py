@@ -18,6 +18,7 @@ def _int_env(name: str, default: int) -> int:
 REPORT_COST = _int_env("REPORT_COST", 100)
 GENERATE_MORE_COST = _int_env("GENERATE_MORE_COST", 40)
 ADD_CHART_COST = _int_env("ADD_CHART_COST", 20)
+DEEP_ANALYSIS_COST = _int_env("DEEP_ANALYSIS_COST", 250)
 SIGNUP_GRANT = _int_env("SIGNUP_GRANT", 300)
 
 

@@ -17,7 +17,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, StreamingResponse
 
 from claude_client import ClaudeClient, RetryableBusy
-from credits import ADD_CHART_COST, GENERATE_MORE_COST, REPORT_COST, SIGNUP_GRANT, InsufficientCredits
+from credits import ADD_CHART_COST, DEEP_ANALYSIS_COST, GENERATE_MORE_COST, REPORT_COST, SIGNUP_GRANT, InsufficientCredits
 from db import SupabaseDB
 from deps import Identity, get_identity
 from pydantic import BaseModel
@@ -27,7 +27,7 @@ from profile import profile_dataframe
 import report_export
 from report_generator import ReportGenerator
 from chart_tools import CHART_TOOLS
-from schemas import ChartLayoutEntry, Report
+from schemas import ChartLayoutEntry, ChartWithCaption, Report
 from storage import StorageError, SupabaseStorage
 
 
@@ -164,6 +164,7 @@ def _ensure_profile_tracked(db: SupabaseDB, posthog: PostHogServer, identity: Id
 async def generate_report(
     file: UploadFile = File(...),
     custom_prompt: str | None = Form(None),
+    deep: bool = Form(False),
     identity: Identity = Depends(get_identity),
     claude: ClaudeClient = Depends(get_claude_client),
     db: SupabaseDB = Depends(get_db),
@@ -173,9 +174,23 @@ async def generate_report(
     run_id, _ = setup_run_logging()
     started = time.perf_counter()
 
+    # Deep analysis is a paid feature: it always costs DEEP_ANALYSIS_COST, requires
+    # auth (anon gets the upsell, never the free-report path), and debits under the
+    # "deep_analysis" reason. Non-deep keeps the existing REPORT_COST/"report" flow.
+    report_cost = DEEP_ANALYSIS_COST if deep else REPORT_COST
+    spend_reason = "deep_analysis" if deep else "report"
+
     # Identity-aware gating: anonymous visitors keep the 1-free-report cap
     # (with an owner/QA allowlist bypass); authenticated users are credit-gated.
     if not identity.is_authenticated:
+        if deep:
+            posthog.capture(identity.distinct_id, "upgrade_required",
+                            {"action": "deep_analysis"})
+            raise HTTPException(
+                status_code=402,
+                detail={"code": "UPGRADE_REQUIRED",
+                        "message": "Create a free account to run a deep analysis."},
+            )
         anon_id = identity.anon_id
         bypass = str(anon_id) in UNLIMITED_ANON_IDS
         existing_count = db.count_anon_reports(anon_id)
@@ -194,13 +209,13 @@ async def generate_report(
             raise HTTPException(status_code=503, detail={
                 "code": "CREDITS_UNAVAILABLE",
                 "message": "Couldn't check your credits right now. Please retry."})
-        if balance < REPORT_COST:
+        if balance < report_cost:
             posthog.capture(identity.distinct_id, "out_of_credits",
-                            {"action": "report", "balance": balance})
+                            {"action": spend_reason, "balance": balance})
             raise HTTPException(status_code=402, detail={
                 "code": "OUT_OF_CREDITS",
                 "message": "You're out of credits.",
-                "balance": balance, "cost": REPORT_COST,
+                "balance": balance, "cost": report_cost,
             })
 
     # Validation
@@ -239,7 +254,7 @@ async def generate_report(
             model_selection=MODEL_SELECTION, model_narrative=MODEL_NARRATIVE,
             custom_prompt=custom_prompt,
         )
-        report = gen.build_report()
+        report = gen.build_report(deep=deep)
     except RetryableBusy:
         posthog.capture(identity.distinct_id, "claude_overloaded", {"stage": "selection"})
         raise HTTPException(status_code=503, detail={
@@ -301,9 +316,9 @@ async def generate_report(
 
     if identity.is_authenticated:
         try:
-            new_balance = db.spend_credits(identity.user_id, REPORT_COST, "report", report_id)
+            new_balance = db.spend_credits(identity.user_id, report_cost, spend_reason, report_id)
             posthog.capture(identity.distinct_id, "credits_spent",
-                            {"amount": REPORT_COST, "balance": new_balance, "reason": "report"})
+                            {"amount": report_cost, "balance": new_balance, "reason": spend_reason})
         except InsufficientCredits:
             logging.warning("Credit spend lost a race on report %s; serving free.", report_id)
 
@@ -704,6 +719,157 @@ async def add_chart(
     posthog.capture(identity.distinct_id, "add_chart_succeeded", {
         "reportId": session_id, "mode": body.mode,
         "chartKind": cwc.spec.kind,
+        "elapsedMs": int((time.perf_counter() - started) * 1000),
+    })
+
+    return JSONResponse(content=report_dict, status_code=200)
+
+
+@app.post("/report/{session_id}/deepen")
+async def deepen_report(
+    session_id: str,
+    identity: Identity = Depends(get_identity),
+    claude: ClaudeClient = Depends(get_claude_client),
+    db: SupabaseDB = Depends(get_db),
+    storage: SupabaseStorage = Depends(get_storage),
+    posthog: PostHogServer = Depends(get_posthog),
+):
+    """Deep-analysis on an existing report: run the iterative-deepening loop over the
+    current charts, append any new ones, and re-narrate over the full enriched set.
+    Mirrors generate_more's gate -> work -> append -> debit-after-save pattern.
+    Paid feature: auth required, costs DEEP_ANALYSIS_COST, debited only on success.
+    """
+    if not identity.is_authenticated:
+        raise HTTPException(
+            status_code=402,
+            detail={"code": "UPGRADE_REQUIRED",
+                    "message": "Create a free account to run a deep analysis."},
+        )
+    try:
+        balance = _ensure_profile_tracked(db, posthog, identity)
+    except Exception:
+        logging.exception("ensure_profile failed")
+        raise HTTPException(status_code=503, detail={
+            "code": "CREDITS_UNAVAILABLE",
+            "message": "Couldn't check your credits right now. Please retry."})
+    if balance < DEEP_ANALYSIS_COST:
+        posthog.capture(identity.distinct_id, "out_of_credits",
+                        {"action": "deep_analysis", "balance": balance})
+        raise HTTPException(status_code=402, detail={
+            "code": "OUT_OF_CREDITS",
+            "message": "You're out of credits.",
+            "balance": balance, "cost": DEEP_ANALYSIS_COST,
+        })
+
+    started = time.perf_counter()
+    row = db.get_report(session_id)
+    if not row:
+        raise HTTPException(status_code=404, detail="Report not found.")
+
+    existing_report = Report.model_validate(row["report_json"])
+    csv_key = row.get("csv_storage_key")
+    if not csv_key:
+        raise HTTPException(status_code=404, detail={
+            "code": "SOURCE_DATA_UNAVAILABLE",
+            "message": "Source data for this report is no longer available.",
+        })
+    try:
+        csv_bytes = storage.download_by_key(csv_key)
+    except StorageError:
+        raise HTTPException(status_code=404, detail={
+            "code": "SOURCE_DATA_UNAVAILABLE",
+            "message": "Source data for this report is no longer available.",
+        })
+
+    df = pd.read_csv(io.StringIO(csv_bytes.decode("utf-8")))
+    df.columns = [str(c).lower() for c in df.columns]
+
+    posthog.capture(identity.distinct_id, "deepen_started", {
+        "reportId": session_id,
+        "existingChartCount": len(existing_report.charts),
+    })
+
+    profile = profile_dataframe(df)
+    persisted_prompt = row["report_json"].get("metadata", {}).get("custom_prompt")
+    gen = ReportGenerator(
+        profile=profile, df=df, claude=claude,
+        model_selection=MODEL_SELECTION, model_narrative=MODEL_NARRATIVE,
+        custom_prompt=persisted_prompt,
+    )
+
+    try:
+        extra = gen.deepen([c.spec for c in existing_report.charts])
+    except RetryableBusy:
+        posthog.capture(identity.distinct_id, "deepen_failed", {
+            "reportId": session_id, "reason": "busy", "httpStatus": 503,
+            "elapsedMs": int((time.perf_counter() - started) * 1000),
+        })
+        raise HTTPException(status_code=503, detail={
+            "code": "BUSY",
+            "message": "Claude is busy. Try again in 30s.",
+        })
+    except Exception as e:
+        posthog.capture(identity.distinct_id, "deepen_failed", {
+            "reportId": session_id, "reason": "internal",
+            "errorClass": type(e).__name__,
+            "elapsedMs": int((time.perf_counter() - started) * 1000),
+        })
+        raise
+
+    # Loop added nothing (the AI's "done" signal) -> serve the report unchanged, no debit.
+    if not extra:
+        posthog.capture(identity.distinct_id, "deepen_succeeded", {
+            "reportId": session_id, "newChartCount": 0,
+            "elapsedMs": int((time.perf_counter() - started) * 1000),
+        })
+        return JSONResponse(content=row["report_json"], status_code=200)
+
+    from uuid import uuid4
+    new_charts = [
+        ChartWithCaption(chart_id=uuid4().hex, spec=spec, caption=spec.intent)
+        for spec in extra
+    ]
+
+    # Re-narrate over the FULL enriched set so the summary + captions cover the new charts.
+    all_specs = [c.spec for c in existing_report.charts] + [c.spec for c in new_charts]
+    all_charts = list(existing_report.charts) + new_charts
+    narrative = gen.generate_narrative(all_specs)
+    captions = list(narrative.captions)
+    if len(captions) < len(all_charts):
+        captions = captions + [c.spec.intent for c in all_charts[len(captions):]]
+
+    report_dict = row["report_json"]
+    report_dict["summary"] = narrative.summary or report_dict.get("summary", "")
+    if narrative.data_quality:
+        report_dict["data_quality"] = narrative.data_quality
+    if isinstance(report_dict.get("metadata"), dict):
+        report_dict["metadata"]["deep"] = True
+
+    # Apply refreshed captions to existing charts and append the new ones.
+    for cwc, cap in zip(all_charts, captions):
+        cwc.caption = cap
+    report_dict["charts"] = [c.model_dump() for c in all_charts]
+
+    sidebar_max = max(
+        (e["order"] for e in report_dict["layout"] if e["position"] == "sidebar"),
+        default=-1,
+    )
+    for i, c in enumerate(new_charts):
+        report_dict["layout"].append(
+            ChartLayoutEntry(chart_id=c.chart_id, position="sidebar", order=sidebar_max + 1 + i).model_dump()
+        )
+
+    db.update_report_json(session_id, report_dict)
+    try:
+        new_balance = db.spend_credits(identity.user_id, DEEP_ANALYSIS_COST, "deep_analysis", session_id)
+        posthog.capture(identity.distinct_id, "credits_spent",
+                        {"amount": DEEP_ANALYSIS_COST, "balance": new_balance, "reason": "deep_analysis"})
+    except InsufficientCredits:
+        logging.warning("Credit spend lost a race on deepen %s; serving free.", session_id)
+
+    posthog.capture(identity.distinct_id, "deepen_succeeded", {
+        "reportId": session_id,
+        "newChartCount": len(new_charts),
         "elapsedMs": int((time.perf_counter() - started) * 1000),
     })
 

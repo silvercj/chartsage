@@ -19,6 +19,11 @@ from fallback import pick_fallback_charts
 MAX_CHARTS = 10
 MIN_CHARTS_FOR_NO_FALLBACK = 3
 
+# Deep analysis (iterative deepening): hard caps that bound cost + latency. The
+# loop also stops early when a round proposes 0 new charts (the AI's "done" signal).
+MAX_DEEP_ROUNDS = 3
+MAX_DEEP_CHARTS = 20
+
 _PROMPT_DIR = Path(__file__).parent / "prompts"
 SELECTION_SYSTEM = (_PROMPT_DIR / "selection_system.txt").read_text()
 NARRATIVE_SYSTEM = (_PROMPT_DIR / "narrative_system.txt").read_text()
@@ -316,12 +321,53 @@ class ReportGenerator:
         spec = specs[0]
         return ChartWithCaption(chart_id=uuid4().hex, spec=spec, caption=spec.intent)
 
-    def build_report(self) -> Report:
+    def deepen(self, seed_specs: list[ChartSpec]) -> list[ChartSpec]:
+        """Iterative-deepening loop: add follow-up charts the AI thinks reveal more,
+        until a round adds nothing (its 'done' signal) or the caps hit. Returns the
+        NEW specs (beyond seed).
+
+        Hard-capped by MAX_DEEP_ROUNDS / MAX_DEEP_CHARTS. Uses auto tool_choice so
+        the model can return zero tool calls to signal the analysis is complete.
+        """
+        have = list(seed_specs)
+        added: list[ChartSpec] = []
+        for _ in range(MAX_DEEP_ROUNDS):
+            if len(have) >= MAX_DEEP_CHARTS:
+                break
+            summary = "\n".join(f"- [{c.kind}] {c.title} — {c.intent}" for c in have)
+            msg = (
+                f"{self.profile.to_text()}{self._focus_block()}\n\n"
+                f"Charts already in the report:\n{summary or '(none yet)'}\n\n"
+                f"Propose additional charts that reveal something NOT already shown — different "
+                f"columns, relationships, breakdowns, or segments. If the analysis is already "
+                f"complete, return no tool calls."
+            )
+            response = self._call_claude(
+                model=self.model_selection,
+                max_tokens=4096,
+                system=SELECTION_SYSTEM,
+                tools=CHART_TOOLS,
+                messages=[{"role": "user", "content": msg}],
+                cache_static=True,
+            )
+            specs, _ = self._execute_tool_calls(response.content)
+            if not specs:
+                break                       # AI's "done" signal
+            room = MAX_DEEP_CHARTS - len(have)
+            specs = specs[:room]
+            have.extend(specs)
+            added.extend(specs)
+        return added
+
+    def build_report(self, deep: bool = False) -> Report:
         from datetime import datetime
         from uuid import uuid4
         from schemas import ChartLayoutEntry
 
         charts = self.generate_charts()
+        if deep:
+            # Iterative deepening enriches the set beyond the initial MAX_CHARTS cap.
+            charts = charts + self.deepen(charts)
         narrative = self.generate_narrative(charts)
 
         captions = narrative.captions
@@ -354,6 +400,7 @@ class ReportGenerator:
                 "row_count": self.profile.row_count,
                 "column_count": len(self.profile.columns),
                 "custom_prompt": self.custom_prompt,
+                "deep": deep,
                 **self._token_totals,
             },
         )
