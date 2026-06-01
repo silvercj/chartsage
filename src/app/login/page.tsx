@@ -36,27 +36,27 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen bg-stone-50 flex items-center justify-center px-4">
-      <div className="w-full max-w-sm">
-        <p className="text-xs uppercase tracking-widest text-stone-400 mb-2">ChartSage</p>
-        <h1 className="text-3xl font-semibold tracking-tight text-stone-900 mb-1">Sign in or sign up</h1>
-        <p className="text-sm text-stone-500 mb-6">New here? Either option below creates your account — 300 free credits to start.</p>
+    <div className="min-h-screen bg-canvas flex items-center justify-center px-6">
+      <div className="card shadow-card-lg rounded-2xl p-8 max-w-md w-full">
+        <p className="eyebrow mb-3">ChartSage</p>
+        <h1 className="font-display text-2xl font-medium text-ink mb-1.5">Sign in or sign up</h1>
+        <p className="text-ink-2 text-sm mb-6">New here? Either option below creates your account — 300 free credits to start.</p>
 
         <button
           type="button"
           onClick={google}
-          className="w-full px-4 py-2.5 bg-white ring-1 ring-stone-300 rounded-lg text-stone-800 font-medium hover:bg-stone-50 transition-colors"
+          className="btn btn-ghost w-full"
         >
           Continue with Google
         </button>
 
-        <div className="my-5 flex items-center gap-3 text-xs text-stone-400">
-          <div className="flex-1 h-px bg-stone-200" /> or <div className="flex-1 h-px bg-stone-200" />
+        <div className="my-5 flex items-center gap-3 font-mono text-xs text-ink-3">
+          <div className="flex-1 h-px bg-line-2" /> or <div className="flex-1 h-px bg-line-2" />
         </div>
 
         {sent ? (
-          <p className="text-sm text-stone-600">
-            Check your inbox — we sent a magic link to <strong>{email}</strong>.
+          <p className="text-ink-2 text-sm">
+            Check your inbox — we sent a magic link to <strong className="text-ink">{email}</strong>.
           </p>
         ) : (
           <form onSubmit={magicLink} className="space-y-3">
@@ -67,20 +67,20 @@ export default function LoginPage() {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               placeholder="you@example.com"
-              className="w-full px-3 py-2.5 rounded-lg ring-1 ring-stone-300 focus:ring-2 focus:ring-teal-500 outline-none text-stone-900"
+              className="w-full bg-surface-2 border border-line-2 rounded-lg px-4 py-3 text-ink placeholder:text-ink-3 focus:border-accent outline-none transition-colors"
             />
             <button
               type="submit"
-              className="w-full px-4 py-2.5 bg-stone-900 text-white rounded-lg font-medium hover:bg-stone-800 transition-colors"
+              className="btn btn-primary w-full"
             >
               Email me a magic link
             </button>
-            {error && <p className="text-sm text-red-600">{error}</p>}
+            {error && <p className="text-sm text-ember">{error}</p>}
           </form>
         )}
 
-        <p className="mt-6 text-sm text-stone-400 text-center">
-          <a href="/" className="hover:text-stone-700">← Back to home</a>
+        <p className="mt-6 text-sm text-ink-2 text-center">
+          <a href="/" className="hover:text-ink transition-colors">← Back to home</a>
         </p>
       </div>
     </div>

@@ -65,40 +65,34 @@ export default function WelcomePage() {
   if (!ready) return null;
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-stone-50 to-stone-100 flex items-center justify-center px-4 py-12">
-      <div className="w-full max-w-lg bg-white rounded-3xl ring-1 ring-stone-200/70 shadow-sm overflow-hidden">
-        <div className="h-1.5 bg-gradient-to-r from-teal-400 to-teal-600" />
-        <div className="p-8 sm:p-10">
-          <div className="flex items-center gap-2.5 mb-7">
-            <span className="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-stone-900 text-white text-sm font-semibold">C</span>
-            <p className="text-xs uppercase tracking-widest text-stone-400">Welcome to ChartSage</p>
-          </div>
+    <div className="min-h-screen bg-canvas flex items-center justify-center px-6 py-12">
+      <div className="card shadow-card-lg rounded-2xl p-8 sm:p-10 max-w-lg w-full">
+        <p className="eyebrow mb-7">Welcome to ChartSage</p>
 
-          <h1 className="text-3xl font-semibold tracking-tight text-stone-900 mb-2">You're in.</h1>
-          <p className="text-stone-500 mb-8">Here's what your account unlocks.</p>
+        <h1 className="font-display text-3xl font-medium text-ink mb-2">You're in.</h1>
+        <p className="text-ink-2 mb-8">Here's what your account unlocks.</p>
 
-          <ul className="space-y-5 mb-9">
-            {UNLOCKS.map((u) => (
-              <li key={u.title} className="flex gap-4">
-                <span className="flex-shrink-0 inline-flex items-center justify-center w-10 h-10 rounded-xl bg-teal-50 text-teal-600 ring-1 ring-teal-100">
-                  {u.icon}
-                </span>
-                <div className="pt-0.5">
-                  <p className="font-medium text-stone-900">{u.title}</p>
-                  <p className="text-sm text-stone-500 leading-relaxed">{u.body}</p>
-                </div>
-              </li>
-            ))}
-          </ul>
+        <ul className="space-y-5 mb-9">
+          {UNLOCKS.map((u) => (
+            <li key={u.title} className="flex gap-4">
+              <span className="flex-shrink-0 inline-flex items-center justify-center w-10 h-10 rounded-xl bg-surface-2 text-accent">
+                {u.icon}
+              </span>
+              <div className="pt-0.5">
+                <p className="font-medium text-ink">{u.title}</p>
+                <p className="text-sm text-ink-2 leading-relaxed">{u.body}</p>
+              </div>
+            </li>
+          ))}
+        </ul>
 
-          <button
-            type="button"
-            onClick={finish}
-            className="w-full sm:w-auto px-6 py-2.5 bg-stone-900 text-white text-sm font-medium rounded-lg hover:bg-stone-800 transition-colors"
-          >
-            Get started →
-          </button>
-        </div>
+        <button
+          type="button"
+          onClick={finish}
+          className="btn btn-primary w-full sm:w-auto"
+        >
+          Get started →
+        </button>
       </div>
     </div>
   );
