@@ -13,10 +13,10 @@ export default function AppHeader() {
   if (pathname?.startsWith('/report/') && pathname.endsWith('/print')) return null;
 
   return (
-    <header className="border-b border-stone-200 bg-white/80 backdrop-blur">
+    <header className="border-b border-line bg-canvas/80 backdrop-blur">
       <nav className="max-w-7xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between gap-4">
-        <a href="/" className="flex items-center gap-2 font-semibold tracking-tight text-stone-900">
-          <span className="inline-flex w-7 h-7 items-center justify-center rounded-lg bg-stone-900">
+        <a href="/" className="flex items-center gap-2 font-display text-lg font-medium text-ink">
+          <span className="inline-flex w-7 h-7 items-center justify-center rounded-lg bg-surface-2 border border-line-2">
             <svg viewBox="0 0 32 32" className="w-4 h-4" aria-hidden="true">
               <rect x="6.5" y="17" width="4.5" height="8.5" rx="1.4" fill="#5EEAD4" />
               <rect x="13.75" y="11.5" width="4.5" height="14" rx="1.4" fill="#2DD4BF" />
@@ -28,16 +28,16 @@ export default function AppHeader() {
         <div className="flex items-center gap-3 text-sm">
           {email ? (
             <>
-              <a href="/reports" className="text-stone-600 hover:text-stone-900">Reports</a>
-              <a href="/credits" className="text-stone-600 hover:text-stone-900">Credits</a>
+              <a href="/reports" className="text-ink-2 hover:text-ink transition-colors">Reports</a>
+              <a href="/credits" className="text-ink-2 hover:text-ink transition-colors">Credits</a>
               <CreditsBadge />
-              <span className="hidden md:inline text-stone-400 max-w-[160px] truncate">{email}</span>
-              <button type="button" onClick={signOut} className="text-stone-500 hover:text-stone-900">
+              <span className="hidden md:inline font-mono text-xs text-ink-3 max-w-[160px] truncate">{email}</span>
+              <button type="button" onClick={signOut} className="text-ink-2 hover:text-ink transition-colors">
                 Sign out
               </button>
             </>
           ) : (
-            <a href="/login" className="px-3 py-1.5 rounded-lg bg-stone-900 text-white hover:bg-stone-800">
+            <a href="/login" className="btn btn-primary !px-4 !py-2">
               Sign in
             </a>
           )}

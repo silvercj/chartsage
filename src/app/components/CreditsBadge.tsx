@@ -10,11 +10,9 @@ export default function CreditsBadge() {
     <a
       href="/credits"
       title="Your credit balance"
-      className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-sm font-medium ring-1 ${
-        low ? 'bg-amber-50 text-amber-700 ring-amber-200' : 'bg-stone-100 text-stone-700 ring-stone-200'
-      }`}
+      className={`pill ${low ? '!border-ember/50 !text-ember' : ''}`}
     >
-      <span aria-hidden>⚡</span>{balance}
+      <span aria-hidden className={low ? '' : 'text-ember'}>⚡</span>{balance}
     </a>
   );
 }
