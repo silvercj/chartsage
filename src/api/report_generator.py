@@ -282,6 +282,40 @@ class ReportGenerator:
             for c in new_charts
         ]
 
+    def add_chart(self, mode: str, chart_type: str | None, prompt: str | None) -> ChartWithCaption | None:
+        """Focused single-chart selection for the request-a-chart action.
+
+        mode='type'     forces the given tool (chart_type), model picks the columns.
+        mode='describe' lets the model choose the tool that best answers the prompt.
+        Honors the report's persisted custom_prompt via _focus_block(). Returns a
+        ChartWithCaption, or None when no spec is produced (caller turns that into a
+        422 with no debit).
+        """
+        from uuid import uuid4
+
+        if mode == "type" and chart_type:
+            instruction = f"Create one {chart_type} for this data — choose the most revealing columns."
+            tool_choice = {"type": "tool", "name": chart_type}
+        else:
+            instruction = f"Create one chart that best answers: {prompt}"
+            tool_choice = {"type": "any"}
+
+        user = f"{self.profile.to_text()}{self._focus_block()}\n\n{instruction}"
+        response = self._call_claude(
+            model=self.model_selection,
+            max_tokens=1024,
+            system=SELECTION_SYSTEM,
+            tools=CHART_TOOLS,
+            tool_choice=tool_choice,
+            messages=[{"role": "user", "content": user}],
+            cache_static=True,
+        )
+        specs, _ = self._execute_tool_calls(response.content)
+        if not specs:
+            return None
+        spec = specs[0]
+        return ChartWithCaption(chart_id=uuid4().hex, spec=spec, caption=spec.intent)
+
     def build_report(self) -> Report:
         from datetime import datetime
         from uuid import uuid4

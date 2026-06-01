@@ -6,7 +6,7 @@ import os
 import time
 import uuid
 from datetime import datetime
-from typing import Any
+from typing import Any, Literal
 from uuid import UUID
 
 import pandas as pd
@@ -17,7 +17,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, StreamingResponse
 
 from claude_client import ClaudeClient, RetryableBusy
-from credits import GENERATE_MORE_COST, REPORT_COST, SIGNUP_GRANT, InsufficientCredits
+from credits import ADD_CHART_COST, GENERATE_MORE_COST, REPORT_COST, SIGNUP_GRANT, InsufficientCredits
 from db import SupabaseDB
 from deps import Identity, get_identity
 from pydantic import BaseModel
@@ -26,6 +26,7 @@ from posthog_server import PostHogServer
 from profile import profile_dataframe
 import report_export
 from report_generator import ReportGenerator
+from chart_tools import CHART_TOOLS
 from schemas import ChartLayoutEntry, Report
 from storage import StorageError, SupabaseStorage
 
@@ -564,6 +565,146 @@ async def generate_more(
         "outputTokens": 0,
         "estCostUsd": 0.005, # rough — 1 selection pass on Haiku
         "elapsedMs": elapsed_ms,
+    })
+
+    return JSONResponse(content=report_dict, status_code=200)
+
+
+class AddChartIn(BaseModel):
+    mode: Literal["type", "describe"]
+    chart_type: str | None = None
+    prompt: str | None = None
+
+
+# Tool names a user may force via mode="type": every chart-producing tool
+# (key_metrics is a stat band, not a chart, so it's excluded).
+_ADD_CHART_TYPES = {t["name"] for t in CHART_TOOLS if t["name"] != "key_metrics"}
+
+
+@app.post("/report/{session_id}/add-chart")
+async def add_chart(
+    session_id: str,
+    body: AddChartIn,
+    identity: Identity = Depends(get_identity),
+    claude: ClaudeClient = Depends(get_claude_client),
+    db: SupabaseDB = Depends(get_db),
+    storage: SupabaseStorage = Depends(get_storage),
+    posthog: PostHogServer = Depends(get_posthog),
+):
+    if not identity.is_authenticated:
+        raise HTTPException(
+            status_code=402,
+            detail={"code": "UPGRADE_REQUIRED",
+                    "message": "Create a free account to add a chart."},
+        )
+    try:
+        balance = _ensure_profile_tracked(db, posthog, identity)
+    except Exception:
+        logging.exception("ensure_profile failed")
+        raise HTTPException(status_code=503, detail={
+            "code": "CREDITS_UNAVAILABLE",
+            "message": "Couldn't check your credits right now. Please retry."})
+    if balance < ADD_CHART_COST:
+        posthog.capture(identity.distinct_id, "out_of_credits",
+                        {"action": "add_chart", "balance": balance})
+        raise HTTPException(status_code=402, detail={
+            "code": "OUT_OF_CREDITS",
+            "message": "You're out of credits.",
+            "balance": balance, "cost": ADD_CHART_COST,
+        })
+
+    if body.mode == "type" and body.chart_type not in _ADD_CHART_TYPES:
+        raise HTTPException(status_code=422, detail={
+            "code": "INVALID_CHART_TYPE",
+            "message": f"Unknown chart type '{body.chart_type}'.",
+        })
+
+    started = time.perf_counter()
+    row = db.get_report(session_id)
+    if not row:
+        raise HTTPException(status_code=404, detail="Report not found.")
+
+    csv_key = row.get("csv_storage_key")
+    if not csv_key:
+        raise HTTPException(status_code=404, detail={
+            "code": "SOURCE_DATA_UNAVAILABLE",
+            "message": "Source data for this report is no longer available.",
+        })
+    try:
+        csv_bytes = storage.download_by_key(csv_key)
+    except StorageError:
+        raise HTTPException(status_code=404, detail={
+            "code": "SOURCE_DATA_UNAVAILABLE",
+            "message": "Source data for this report is no longer available.",
+        })
+
+    df = pd.read_csv(io.StringIO(csv_bytes.decode("utf-8")))
+    df.columns = [str(c).lower() for c in df.columns]
+
+    posthog.capture(identity.distinct_id, "add_chart_started", {
+        "reportId": session_id, "mode": body.mode,
+        "chartType": body.chart_type if body.mode == "type" else None,
+    })
+
+    profile = profile_dataframe(df)
+    persisted_prompt = row["report_json"].get("metadata", {}).get("custom_prompt")
+    gen = ReportGenerator(
+        profile=profile, df=df, claude=claude,
+        model_selection=MODEL_SELECTION, model_narrative=MODEL_NARRATIVE,
+        custom_prompt=persisted_prompt,
+    )
+
+    try:
+        cwc = gen.add_chart(mode=body.mode, chart_type=body.chart_type, prompt=body.prompt)
+    except RetryableBusy:
+        posthog.capture(identity.distinct_id, "add_chart_failed", {
+            "reportId": session_id, "reason": "busy", "httpStatus": 503,
+            "elapsedMs": int((time.perf_counter() - started) * 1000),
+        })
+        raise HTTPException(status_code=503, detail={
+            "code": "BUSY",
+            "message": "Claude is busy. Try again in 30s.",
+        })
+    except Exception as e:
+        posthog.capture(identity.distinct_id, "add_chart_failed", {
+            "reportId": session_id, "reason": "internal",
+            "errorClass": type(e).__name__,
+            "elapsedMs": int((time.perf_counter() - started) * 1000),
+        })
+        raise
+
+    # No chart produced -> 422, and no debit (mirrors the no-debit-on-failure rule).
+    if cwc is None:
+        posthog.capture(identity.distinct_id, "add_chart_failed", {
+            "reportId": session_id, "reason": "no_chart", "httpStatus": 422,
+            "elapsedMs": int((time.perf_counter() - started) * 1000),
+        })
+        raise HTTPException(status_code=422, detail={
+            "code": "NO_CHART",
+            "message": "Couldn't build that chart — try another type or description.",
+        })
+
+    report_dict = row["report_json"]
+    sidebar_max = max(
+        (e["order"] for e in report_dict["layout"] if e["position"] == "sidebar"),
+        default=-1,
+    )
+    layout_entry = ChartLayoutEntry(chart_id=cwc.chart_id, position="sidebar", order=sidebar_max + 1)
+    report_dict["charts"].append(cwc.model_dump())
+    report_dict["layout"].append(layout_entry.model_dump())
+
+    db.update_report_json(session_id, report_dict)
+    try:
+        new_balance = db.spend_credits(identity.user_id, ADD_CHART_COST, "add_chart", session_id)
+        posthog.capture(identity.distinct_id, "credits_spent",
+                        {"amount": ADD_CHART_COST, "balance": new_balance, "reason": "add_chart"})
+    except InsufficientCredits:
+        logging.warning("Credit spend lost a race on add-chart %s; serving free.", session_id)
+
+    posthog.capture(identity.distinct_id, "add_chart_succeeded", {
+        "reportId": session_id, "mode": body.mode,
+        "chartKind": cwc.spec.kind,
+        "elapsedMs": int((time.perf_counter() - started) * 1000),
     })
 
     return JSONResponse(content=report_dict, status_code=200)
