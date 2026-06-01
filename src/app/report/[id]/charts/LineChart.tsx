@@ -54,7 +54,9 @@ export default function LineChart({ spec }: { spec: any }) {
         lineStyle: { width: 2.5, color: CHART_PALETTE[0] },
         itemStyle: { color: CHART_PALETTE[0] },
         emphasis: { showSymbol: true },
-        ...(area ? { areaStyle: { color: tealAreaGradient() } } : {}),
+        // Single-series lines keep the subtle teal fill by default (shipped redesign look);
+        // the `area` flag is meaningful for multi-series (stacked area, above).
+        areaStyle: { color: tealAreaGradient() },
       }];
 
   if (showSmoothed) {
