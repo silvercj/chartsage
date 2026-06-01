@@ -12,6 +12,7 @@ const LABELS: Record<string, string> = {
   signup_grant: 'Welcome credits',
   report: 'New report',
   generate_more: 'Generate more charts',
+  add_chart: 'Added chart',
   adjustment: 'Adjustment',
 };
 

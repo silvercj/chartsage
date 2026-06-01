@@ -5,6 +5,7 @@ import { posthog } from '../../lib/posthog';
 import type { Report } from './useReportLayout';
 import UpsellModal from '../../components/UpsellModal';
 import OutOfCreditsModal from '../../components/OutOfCreditsModal';
+import AddChartModal from './AddChartModal';
 import { useCredits } from '../../lib/useCredits';
 import { GENERATE_MORE_COST } from '../../lib/credits';
 
@@ -19,6 +20,7 @@ export default function Toolbar({ sessionId, onReportUpdated }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [showUpsell, setShowUpsell] = useState(false);
   const [showOutOfCredits, setShowOutOfCredits] = useState(false);
+  const [showAddChart, setShowAddChart] = useState(false);
   const { refetch } = useCredits();
 
   async function handleGenerateMore() {
@@ -84,6 +86,13 @@ export default function Toolbar({ sessionId, onReportUpdated }: Props) {
         {error && <span className="text-sm text-ember mr-auto">{error}</span>}
         <button
           type="button"
+          onClick={() => setShowAddChart(true)}
+          className="btn btn-ghost"
+        >
+          + Add a chart
+        </button>
+        <button
+          type="button"
           onClick={handleGenerateMore}
           disabled={generating}
           className="btn btn-ghost"
@@ -130,6 +139,16 @@ export default function Toolbar({ sessionId, onReportUpdated }: Props) {
           </div>
         </details>
       </div>
+      <AddChartModal
+        open={showAddChart}
+        onClose={() => setShowAddChart(false)}
+        sessionId={sessionId}
+        onReportUpdated={(next) => { onReportUpdated(next); refetch(); }}
+        onOutOfCredits={(code) => {
+          if (code === 'OUT_OF_CREDITS') setShowOutOfCredits(true);
+          else setShowUpsell(true);   // UPGRADE_REQUIRED (anon)
+        }}
+      />
       <UpsellModal open={showUpsell} onClose={() => setShowUpsell(false)} />
       <OutOfCreditsModal open={showOutOfCredits} onClose={() => setShowOutOfCredits(false)} />
     </>
