@@ -25,6 +25,8 @@ export default function LineChart({ spec }: { spec: any }) {
   const xLen = xData?.length ?? 0;
   const showSmoothed = xLen >= 12 && !hasSeries;   // only on single-series, long enough to be useful
 
+  const area = !!spec.area;
+
   const baseSeries = hasSeries
     ? spec.series.map((s: any, i: number) => ({
         name: s.name,
@@ -37,6 +39,9 @@ export default function LineChart({ spec }: { spec: any }) {
         lineStyle: { width: 2.5 },
         itemStyle: { color: CHART_PALETTE[i % CHART_PALETTE.length] },
         emphasis: { showSymbol: true },
+        ...(area
+          ? { stack: 'total', areaStyle: { color: CHART_PALETTE[i % CHART_PALETTE.length], opacity: 0.18 } }
+          : {}),
       }))
     : [{
         name: spec.y_label || 'value',
@@ -49,7 +54,7 @@ export default function LineChart({ spec }: { spec: any }) {
         lineStyle: { width: 2.5, color: CHART_PALETTE[0] },
         itemStyle: { color: CHART_PALETTE[0] },
         emphasis: { showSymbol: true },
-        areaStyle: { color: tealAreaGradient() },
+        ...(area ? { areaStyle: { color: tealAreaGradient() } } : {}),
       }];
 
   if (showSmoothed) {
