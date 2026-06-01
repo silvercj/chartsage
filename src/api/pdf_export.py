@@ -56,6 +56,29 @@ async def render_report_pdf(session_id: str) -> bytes:
         await page.close()
 
 
+async def render_chart_images(session_id: str) -> list[dict]:
+    """Return [{"chart_id": str, "png": bytes}, ...] for every chart, in DOM order."""
+    browser = await _ensure_browser()
+    page = await browser.new_page(viewport={"width": 1240, "height": 1754}, device_scale_factor=2)
+    try:
+        await page.goto(f"{_FRONTEND_BASE}/report/{session_id}/print", wait_until="networkidle", timeout=30_000)
+        try:
+            await page.wait_for_selector('body[data-charts-ready="true"]', timeout=_CHARTS_READY_TIMEOUT_MS)
+        except Exception:
+            logging.warning("[IMG] charts-ready flag not seen — proceeding")
+        out: list[dict] = []
+        locators = page.locator('[data-chart-export-id]')
+        count = await locators.count()
+        for i in range(count):
+            el = locators.nth(i)
+            cid = await el.get_attribute('data-chart-export-id')
+            png = await el.screenshot(type='png')
+            out.append({"chart_id": cid or f"chart-{i}", "png": png})
+        return out
+    finally:
+        await page.close()
+
+
 async def shutdown():
     """Close the Browser and Playwright instance. Used on app shutdown."""
     global _browser, _playwright
