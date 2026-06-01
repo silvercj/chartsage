@@ -9,7 +9,7 @@ One executor per Anthropic tool. Each must:
 from typing import Any, Callable
 import numpy as np
 import pandas as pd
-from schemas import ChartSpec, ToolError
+from schemas import ChartSpec, KeyMetric, ToolError
 
 
 MAX_CATEGORIES = 30
@@ -587,6 +587,37 @@ def execute_heatmap_chart(df: pd.DataFrame, params: dict) -> ChartSpec | ToolErr
     )
 
 
+def execute_key_metrics(df: pd.DataFrame, params: dict) -> list[KeyMetric] | ToolError:
+    out: list[KeyMetric] = []
+    for m in (params.get("metrics") or [])[:5]:
+        col, agg = m.get("column"), m.get("agg")
+        label, fmt = m.get("label") or col, m.get("format", "number")
+        if col not in df.columns:
+            continue
+        s = df[col]
+        try:
+            if agg == "count":
+                val = float(s.dropna().shape[0])
+            elif agg == "nunique":
+                val = float(s.dropna().nunique())
+            else:  # sum/mean/median/min/max
+                nums = pd.to_numeric(s, errors="coerce").dropna()
+                if nums.empty:
+                    continue
+                val = float(getattr(nums, agg)())
+        except Exception:
+            continue
+        if fmt not in ("number", "currency", "percent"):
+            fmt = "number"
+        out.append(KeyMetric(label=str(label)[:60], value=val, format=fmt))
+    if not out:
+        return _err("no valid metrics could be computed")
+    return out
+
+
+# NOTE: execute_key_metrics is intentionally NOT registered below — it returns
+# list[KeyMetric] | ToolError (not a ChartSpec) and is routed by name in
+# report_generator._execute_tool_calls so it never counts as a chart.
 TOOL_EXECUTORS: dict[str, Callable[[pd.DataFrame, dict], ChartSpec | ToolError]] = {
     "frequency_bar_chart": execute_frequency_bar_chart,
     "aggregation_bar_chart": execute_aggregation_bar_chart,

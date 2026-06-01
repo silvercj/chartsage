@@ -12,7 +12,7 @@ from typing import Any
 import pandas as pd
 from schemas import ChartSpec, Report, ChartWithCaption, ReportNarrative, ToolError, DataProfile
 from chart_tools import CHART_TOOLS, NARRATIVE_TOOL
-from chart_executor import TOOL_EXECUTORS
+from chart_executor import TOOL_EXECUTORS, execute_key_metrics
 from fallback import pick_fallback_charts
 
 
@@ -54,6 +54,7 @@ class ReportGenerator:
         self.claude = claude
         self.model_selection = model_selection
         self.model_narrative = model_narrative
+        self._key_metrics: list = []
         self._token_totals = {
             "input_tokens_total": 0,
             "output_tokens_total": 0,
@@ -142,6 +143,13 @@ class ReportGenerator:
         errors: list[dict] = []
         for block in content_blocks:
             if getattr(block, "type", None) != "tool_use":
+                continue
+            if block.name == "key_metrics":
+                res = execute_key_metrics(self.df, block.input)
+                if isinstance(res, ToolError):
+                    errors.append({"id": block.id, "reason": res.reason})
+                else:
+                    self._key_metrics = res   # stored, NOT counted as a chart
                 continue
             executor = TOOL_EXECUTORS.get(block.name)
             if executor is None:
@@ -291,6 +299,7 @@ class ReportGenerator:
             generated_at=datetime.utcnow().isoformat(),
             summary=narrative.summary or self._narrative_template_fallback(charts).summary,
             data_quality=narrative.data_quality,
+            key_metrics=self._key_metrics,
             charts=charts_with_caption,
             layout=layout,
             metadata={

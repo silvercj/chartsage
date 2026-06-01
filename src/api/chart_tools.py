@@ -22,6 +22,30 @@ _TITLE_INTENT = {
 
 CHART_TOOLS: list[dict] = [
     _t(
+        "key_metrics",
+        "Headline numbers shown as a stat band at the top of the report. Call this ONCE with the "
+        "3–5 most important figures a reader wants first (a total, an average, a key rate, a notable count). "
+        "You choose the label/column/agg; the value is computed from the data.",
+        {
+            "metrics": {
+                "type": "array",
+                "minItems": 1, "maxItems": 5,
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "label": {"type": "string", "description": "Short human label, e.g. 'Total revenue'."},
+                        "column": {"type": "string"},
+                        "agg": {"type": "string", "enum": ["sum", "mean", "median", "min", "max", "count", "nunique"]},
+                        "format": {"type": "string", "enum": ["number", "currency", "percent"]},
+                    },
+                    "required": ["label", "column", "agg"],
+                    "additionalProperties": False,
+                },
+            },
+        },
+        ["metrics"],
+    ),
+    _t(
         "frequency_bar_chart",
         "Bar chart of counts per category. Use for: 'how many rows fall in each category'.",
         {

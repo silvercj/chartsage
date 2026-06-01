@@ -75,6 +75,54 @@ def test_full_report_includes_narrative(activities):
     assert "negative" in report.data_quality[0]
 
 
+def test_key_metrics_routed_to_report_not_charts(sales):
+    """A key_metrics tool_use populates report.key_metrics and is NOT a chart.
+
+    Pass #1 emits key_metrics + 3 real chart tool_uses. The 3 charts clear
+    MIN_CHARTS_FOR_NO_FALLBACK so no heuristic fallback fires, leaving charts
+    determined solely by the chart tool_uses. If key_metrics were wrongly
+    treated as a chart, charts would be 4 — pinning the exclusion contract.
+    """
+    fake = FakeClaude([
+        {"tool_calls": [
+            tool_use("key_metrics", {"metrics": [
+                {"label": "Total revenue", "column": "revenue", "agg": "sum", "format": "currency"},
+                {"label": "Regions", "column": "region", "agg": "nunique", "format": "number"},
+            ]}),
+            tool_use("frequency_bar_chart", {
+                "column": "region", "title": "Orders by region", "intent": "show mix"}),
+            tool_use("aggregation_bar_chart", {
+                "value_col": "revenue", "group_col": "region",
+                "agg": "sum", "title": "Revenue by region", "intent": "compare"}),
+            tool_use("line_chart", {
+                "date_col": "order_date", "value_col": "revenue", "agg": "sum",
+                "granularity": "month", "title": "Revenue over time", "intent": "trend"}),
+        ]},
+        {"tool_calls": [
+            tool_use("submit_narrative", {
+                "summary": "Revenue concentrates in a few regions.",
+                "captions": ["Caption A.", "Caption B.", "Caption C."],
+                "data_quality": [],
+            }),
+        ]},
+    ])
+    gen = _make_generator(sales, fake)
+    report = gen.build_report()
+
+    # key_metrics populated and values computed from the dataframe (not the AI)
+    assert len(report.key_metrics) == 2
+    by_label = {m.label: m for m in report.key_metrics}
+    assert by_label["Total revenue"].value == float(sales["revenue"].sum())
+    assert by_label["Total revenue"].format == "currency"
+    assert by_label["Regions"].value == float(sales["region"].nunique())
+
+    # the key_metrics call is NOT a chart: only the 3 chart tool_uses landed
+    assert len(report.charts) == 3
+    assert all(c.spec.kind != "key_metrics" for c in report.charts)
+    # and it never entered the layout
+    assert len(report.layout) == 3
+
+
 def test_narrative_template_fallback_on_failure(activities):
     """If pass #2 returns nothing usable, we fill in a template."""
     fake = FakeClaude([
