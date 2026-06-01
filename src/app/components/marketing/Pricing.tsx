@@ -1,3 +1,5 @@
+'use client';
+import { posthog } from '../../lib/posthog';
 import { PRICING, APP_HREF } from './content';
 
 export default function Pricing() {
@@ -19,7 +21,11 @@ export default function Pricing() {
               {PRICING.blurbH}
             </h3>
             <p className="text-ink-2 text-[15px] font-light mt-3">{PRICING.blurbP}</p>
-            <a href={APP_HREF} className="btn btn-primary mt-[22px]">
+            <a
+              href={APP_HREF}
+              onClick={() => posthog.capture?.('marketing_cta_clicked', { location: 'pricing' })}
+              className="btn btn-primary mt-[22px]"
+            >
               Upload a CSV — free
             </a>
           </div>

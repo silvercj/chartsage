@@ -1,4 +1,5 @@
 'use client';
+import { posthog } from '../../lib/posthog';
 import { APP_HREF } from './content';
 
 export default function MarketingNav() {
@@ -21,7 +22,13 @@ export default function MarketingNav() {
           <a href="#pricing" className="hidden md:inline text-sm text-ink-2 hover:text-ink transition-colors">Pricing</a>
           <a href="#faq" className="hidden md:inline text-sm text-ink-2 hover:text-ink transition-colors">FAQ</a>
           <a href="/login" className="text-sm text-ink-2 hover:text-ink transition-colors">Sign in</a>
-          <a href={APP_HREF} className="btn btn-primary !px-4 !py-[9px]">Upload a CSV</a>
+          <a
+            href={APP_HREF}
+            onClick={() => posthog.capture?.('marketing_cta_clicked', { location: 'nav' })}
+            className="btn btn-primary !px-4 !py-[9px]"
+          >
+            Upload a CSV
+          </a>
         </div>
       </div>
     </nav>

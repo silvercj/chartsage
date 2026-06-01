@@ -1,3 +1,5 @@
+'use client';
+import { posthog } from '../../lib/posthog';
 import { CLOSING, APP_HREF } from './content';
 
 export default function ClosingCta() {
@@ -20,7 +22,11 @@ export default function ClosingCta() {
           {CLOSING.p}
         </p>
         <div className="mt-7">
-          <a href={APP_HREF} className="btn btn-primary">
+          <a
+            href={APP_HREF}
+            onClick={() => posthog.capture?.('marketing_cta_clicked', { location: 'closing' })}
+            className="btn btn-primary"
+          >
             {CLOSING.cta}
           </a>
         </div>

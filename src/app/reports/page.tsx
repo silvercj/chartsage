@@ -59,13 +59,13 @@ export default function MyReportsPage() {
       <div className="max-w-5xl mx-auto px-6 py-12">
         <header className="mb-8 flex items-baseline justify-between">
           <h1 className="font-display text-3xl font-medium text-ink">My reports</h1>
-          <a href="/" className="text-sm text-ink-2 hover:text-ink transition-colors">New report →</a>
+          <a href="/app" className="text-sm text-ink-2 hover:text-ink transition-colors">New report →</a>
         </header>
 
         {reports.length === 0 ? (
           <div className="card shadow-card rounded-2xl p-8 text-center">
             <p className="text-ink-3 mb-4">You haven't created any reports yet.</p>
-            <a href="/" className="btn btn-primary">
+            <a href="/app" className="btn btn-primary">
               Create your first report
             </a>
           </div>

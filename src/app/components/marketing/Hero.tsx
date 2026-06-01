@@ -1,4 +1,5 @@
 'use client';
+import { posthog } from '../../lib/posthog';
 import { HERO, APP_HREF } from './content';
 
 export default function Hero() {
@@ -28,7 +29,13 @@ export default function Hero() {
               {HERO.sub}
             </p>
             <div className="flex flex-wrap items-center gap-3.5 mt-8">
-              <a href={APP_HREF} className="btn btn-primary">{HERO.ctaPrimary}</a>
+              <a
+                href={APP_HREF}
+                onClick={() => posthog.capture?.('marketing_cta_clicked', { location: 'hero' })}
+                className="btn btn-primary"
+              >
+                {HERO.ctaPrimary}
+              </a>
               <a href="#example" className="btn btn-ghost">{HERO.ctaSecondary}</a>
             </div>
           </div>
