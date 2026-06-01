@@ -25,27 +25,27 @@ export default function UpsellModal({ open, onClose }: { open: boolean; onClose:
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-stone-900/40 px-4" onClick={onClose}>
-      <div className="w-full max-w-sm bg-white rounded-2xl p-6 shadow-xl" onClick={(e) => e.stopPropagation()}>
-        <h2 className="text-lg font-semibold text-stone-900 mb-1">Create a free account</h2>
-        <p className="text-sm text-stone-600 mb-5">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm px-4" onClick={onClose}>
+      <div className="card shadow-card-lg rounded-2xl p-6 w-full max-w-md" onClick={(e) => e.stopPropagation()}>
+        <h2 className="font-display text-xl text-ink mb-1">Create a free account</h2>
+        <p className="text-sm text-ink-2 mb-5">
           Sign in to generate more charts — your current report comes with you.
         </p>
 
         <button
           type="button"
           onClick={google}
-          className="w-full px-4 py-2.5 bg-white ring-1 ring-stone-300 rounded-lg text-stone-800 font-medium hover:bg-stone-50"
+          className="btn btn-ghost w-full"
         >
           Continue with Google
         </button>
 
-        <div className="my-4 flex items-center gap-3 text-xs text-stone-400">
-          <div className="flex-1 h-px bg-stone-200" /> or <div className="flex-1 h-px bg-stone-200" />
+        <div className="my-4 flex items-center gap-3 text-xs text-ink-3">
+          <div className="flex-1 h-px bg-line" /> or <div className="flex-1 h-px bg-line" />
         </div>
 
         {sent ? (
-          <p className="text-sm text-stone-600">Check your inbox for a magic link.</p>
+          <p className="text-sm text-ink-2">Check your inbox for a magic link.</p>
         ) : (
           <form onSubmit={magic} className="space-y-3">
             <input
@@ -55,16 +55,16 @@ export default function UpsellModal({ open, onClose }: { open: boolean; onClose:
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               placeholder="you@example.com"
-              className="w-full px-3 py-2.5 rounded-lg ring-1 ring-stone-300 focus:ring-2 focus:ring-teal-500 outline-none text-stone-900"
+              className="w-full bg-surface-2 border border-line-2 rounded-lg px-4 py-3 text-ink placeholder:text-ink-3 focus:border-accent outline-none"
             />
-            <button type="submit" className="w-full px-4 py-2.5 bg-stone-900 text-white rounded-lg font-medium hover:bg-stone-800">
+            <button type="submit" className="btn btn-primary w-full">
               Email me a magic link
             </button>
-            {error && <p className="text-sm text-red-600">{error}</p>}
+            {error && <p className="text-sm text-ember">{error}</p>}
           </form>
         )}
 
-        <button type="button" onClick={onClose} className="mt-4 w-full text-sm text-stone-400 hover:text-stone-700">
+        <button type="button" onClick={onClose} className="mt-4 w-full text-sm text-ink-2 hover:text-ink">
           Maybe later
         </button>
       </div>

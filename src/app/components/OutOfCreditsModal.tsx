@@ -26,29 +26,29 @@ export default function OutOfCreditsModal({ open, onClose }: { open: boolean; on
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-stone-900/40 px-4" onClick={onClose}>
-      <div className="w-full max-w-sm bg-white rounded-2xl p-6 shadow-xl" onClick={(e) => e.stopPropagation()}>
-        <h2 className="text-lg font-semibold text-stone-900 mb-1">You're out of credits</h2>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm px-4" onClick={onClose}>
+      <div className="card shadow-card-lg rounded-2xl p-6 w-full max-w-md" onClick={(e) => e.stopPropagation()}>
+        <h2 className="font-display text-xl text-ember mb-1">You're out of credits</h2>
         {done ? (
-          <p className="text-sm text-stone-600 mb-5">
+          <p className="text-sm text-ink-2 mb-5">
             Thanks — we'll email you the moment paid top-ups launch.
           </p>
         ) : (
           <>
-            <p className="text-sm text-stone-600 mb-5">
+            <p className="text-sm text-ink-2 mb-5">
               Paid top-ups are coming soon. Want us to let you know when you can buy more credits?
             </p>
             <button
               type="button"
               onClick={notifyMe}
               disabled={busy}
-              className="w-full px-4 py-2.5 bg-stone-900 text-white rounded-lg font-medium hover:bg-stone-800 disabled:opacity-50"
+              className="btn btn-primary w-full"
             >
               {busy ? 'Saving…' : 'Notify me'}
             </button>
           </>
         )}
-        <button type="button" onClick={onClose} className="mt-4 w-full text-sm text-stone-400 hover:text-stone-700">
+        <button type="button" onClick={onClose} className="mt-4 w-full text-sm text-ink-2 hover:text-ink">
           {done ? 'Close' : 'Maybe later'}
         </button>
       </div>

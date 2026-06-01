@@ -36,38 +36,38 @@ export default function CreditsPage() {
   }, [authLoading, session, router]);
 
   return (
-    <div className="min-h-screen bg-stone-50">
-      <div className="max-w-2xl mx-auto px-4 sm:px-6 py-12">
-        <h1 className="text-3xl font-semibold tracking-tight text-stone-900 mb-1">Credits</h1>
-        <p className="text-stone-500 mb-8">What you have, and where it went.</p>
+    <div className="min-h-screen bg-canvas">
+      <div className="max-w-2xl mx-auto px-6 py-12">
+        <h1 className="font-display text-3xl font-medium text-ink mb-1">Credits</h1>
+        <p className="text-ink-2 mb-8">What you have, and where it went.</p>
 
-        <div className="p-6 bg-white border border-stone-200 rounded-2xl mb-6">
-          <p className="text-xs uppercase tracking-widest text-stone-400 mb-1">Balance</p>
-          <p className="text-4xl font-semibold text-stone-900">{balance ?? '—'} <span className="text-base font-normal text-stone-400">credits</span></p>
-          <div className="mt-4 text-sm text-stone-500 flex gap-6">
-            <span>New report · <strong className="text-stone-700">{REPORT_COST}</strong></span>
-            <span>Generate 5 more · <strong className="text-stone-700">{GENERATE_MORE_COST}</strong></span>
+        <div className="card shadow-card p-6 rounded-2xl mb-6">
+          <p className="eyebrow mb-2">Balance</p>
+          <p className="font-mono text-4xl font-semibold text-ink">{balance ?? '—'} <span className="text-base font-normal text-ink-3">credits</span></p>
+          <div className="mt-4 text-sm text-ink-2 flex gap-6">
+            <span>New report · <strong className="font-mono text-ink">{REPORT_COST}</strong></span>
+            <span>Generate 5 more · <strong className="font-mono text-ink">{GENERATE_MORE_COST}</strong></span>
           </div>
           <button
             type="button"
             onClick={() => setShowNotify(true)}
-            className="mt-5 px-4 py-2 text-sm font-medium text-stone-700 bg-white ring-1 ring-stone-300 rounded-lg hover:bg-stone-50"
+            className="btn btn-ghost mt-5"
           >
             Need more? Get notified about top-ups
           </button>
         </div>
 
-        <h2 className="text-sm font-medium text-stone-500 mb-3">History</h2>
+        <h2 className="eyebrow mb-3">History</h2>
         {!txns ? (
-          <p className="text-stone-400 text-sm">Loading…</p>
+          <p className="text-ink-3 text-sm">Loading…</p>
         ) : txns.length === 0 ? (
-          <p className="text-stone-400 text-sm">No activity yet.</p>
+          <p className="text-ink-3 text-sm">No activity yet.</p>
         ) : (
-          <ul className="divide-y divide-stone-100 bg-white border border-stone-200 rounded-2xl overflow-hidden">
+          <ul className="card divide-y divide-line overflow-hidden">
             {txns.map((t, i) => (
               <li key={i} className="px-5 py-3 flex items-center justify-between text-sm">
-                <span className="text-stone-700">{LABELS[t.reason] ?? t.reason}</span>
-                <span className={t.delta >= 0 ? 'text-teal-600 font-medium' : 'text-stone-500'}>
+                <span className="text-ink">{LABELS[t.reason] ?? t.reason}</span>
+                <span className={t.delta >= 0 ? 'font-mono text-accent font-medium' : 'font-mono text-ink-2'}>
                   {t.delta >= 0 ? `+${t.delta}` : t.delta}
                 </span>
               </li>
