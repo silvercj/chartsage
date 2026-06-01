@@ -40,7 +40,7 @@ function ErrorView({ message }: { message: string }) {
       <div className="text-center">
         <h2 className="font-display text-2xl font-medium text-ink">Could not load report</h2>
         <p className="mt-2 text-ink-2">{message}</p>
-        <a href="/" className="btn btn-primary mt-6">
+        <a href="/app" className="btn btn-primary mt-6">
           Back to upload
         </a>
       </div>
@@ -161,7 +161,7 @@ function ReportView({ sessionId, initialReport }: { sessionId: string; initialRe
 
         <footer className="mt-16 pt-6 border-t border-line font-mono text-xs text-ink-3 flex justify-between">
           <span>Report id: {sessionId.slice(0, 8)}</span>
-          <a href="/" className="hover:text-ink-2 transition-colors">New report →</a>
+          <a href="/app" className="hover:text-ink-2 transition-colors">New report →</a>
         </footer>
       </div>
     </div>
