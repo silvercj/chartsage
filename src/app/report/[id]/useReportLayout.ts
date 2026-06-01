@@ -14,6 +14,12 @@ export interface ChartWithCaption {
   caption: string;
 }
 
+export interface KeyMetric {
+  label: string;
+  value: number;
+  format: 'number' | 'currency' | 'percent';
+}
+
 export interface Report {
   generated_at: string;
   summary: string;
@@ -21,6 +27,7 @@ export interface Report {
   charts: ChartWithCaption[];
   layout: ChartLayoutEntry[];
   metadata: Record<string, any>;
+  key_metrics?: KeyMetric[];
 }
 
 const PATCH_DEBOUNCE_MS = 500;

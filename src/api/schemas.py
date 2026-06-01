@@ -78,6 +78,15 @@ class ToolError(BaseModel):
     reason: str
 
 
+KpiFormat = Literal["number", "currency", "percent"]
+
+
+class KeyMetric(BaseModel):
+    label: str
+    value: float
+    format: KpiFormat = "number"
+
+
 class ChartLayoutEntry(BaseModel):
     chart_id: str
     position: LayoutPosition
@@ -100,6 +109,7 @@ class Report(BaseModel):
     generated_at: str
     summary: str
     data_quality: list[str]
+    key_metrics: list[KeyMetric] = Field(default_factory=list)
     charts: list[ChartWithCaption]
     layout: list[ChartLayoutEntry] = Field(default_factory=list)
     metadata: dict[str, Any] = Field(default_factory=dict)
