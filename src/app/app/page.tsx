@@ -19,6 +19,7 @@ export default function Home() {
   const [error, setError] = useState<string | null>(null);
   const [step, setStep] = useState(0);
   const [showOutOfCredits, setShowOutOfCredits] = useState(false);
+  const [focus, setFocus] = useState('');
 
   // Parse state — the selected sheet's rows/columns and the user's column selection.
   const [sheetNames, setSheetNames] = useState<string[]>([]);
@@ -130,6 +131,7 @@ export default function Home() {
       );
       const fd = new FormData();
       fd.append('file', blob);
+      if (focus.trim()) fd.append('custom_prompt', focus.trim());
       const res = await apiFetch('/generate-report', { method: 'POST', body: fd });
       let body: any = null;
       try { body = await res.json(); } catch {}
@@ -206,18 +208,35 @@ export default function Home() {
         )}
 
         {file && !isProcessing && (
-          <div className="mt-6 card shadow-card p-5 rounded-2xl flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
+          <div className="mt-6 card shadow-card p-5 rounded-2xl">
             <div>
-              <p className="font-medium text-ink">{file.name}</p>
-              <p className="font-mono text-xs text-ink-3">{(file.size / 1024).toFixed(0)} KB</p>
+              <label htmlFor="focus" className="block font-mono text-[10px] uppercase tracking-wide text-ink-3 mb-1.5">
+                Anything specific to focus on? (optional)
+              </label>
+              <textarea
+                id="focus"
+                value={focus}
+                onChange={(e) => setFocus(e.target.value)}
+                maxLength={280}
+                rows={2}
+                placeholder="e.g. margins by region, or what's driving the recent drop"
+                className="w-full resize-none bg-surface-2 border border-line rounded-lg px-3 py-2 text-sm text-ink placeholder:text-ink-3 focus:outline-none focus:border-accent"
+              />
+              <p className="mt-1 text-right font-mono text-[10px] text-ink-3">{focus.length}/280</p>
             </div>
-            <button
-              onClick={generate}
-              disabled={allExcluded}
-              className="btn btn-primary w-full sm:w-auto disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {balance !== null ? `Generate report · ${REPORT_COST}` : 'Generate report →'}
-            </button>
+            <div className="mt-4 flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
+              <div>
+                <p className="font-medium text-ink">{file.name}</p>
+                <p className="font-mono text-xs text-ink-3">{(file.size / 1024).toFixed(0)} KB</p>
+              </div>
+              <button
+                onClick={generate}
+                disabled={allExcluded}
+                className="btn btn-primary w-full sm:w-auto disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {balance !== null ? `Generate report · ${REPORT_COST}` : 'Generate report →'}
+              </button>
+            </div>
           </div>
         )}
 

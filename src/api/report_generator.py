@@ -48,12 +48,17 @@ class ReportGenerator:
         claude: Any,
         model_selection: str,
         model_narrative: str,
+        custom_prompt: str | None = None,
     ):
         self.profile = profile
         self.df = df
         self.claude = claude
         self.model_selection = model_selection
         self.model_narrative = model_narrative
+        # Optional free-text steer. Trimmed and capped; empty -> None so we never
+        # inject an empty focus block. Goes into the USER message only (the system
+        # prompt is cached) and is treated as guidance, not a rule override.
+        self.custom_prompt = (custom_prompt or "").strip()[:280] or None
         self._key_metrics: list = []
         self._token_totals = {
             "input_tokens_total": 0,
@@ -69,6 +74,12 @@ class ReportGenerator:
             self._token_totals["output_tokens_total"] += getattr(usage, "output_tokens", 0) or 0
             self._token_totals["cache_read_input_tokens_total"] += getattr(usage, "cache_read_input_tokens", 0) or 0
         return response
+
+    def _focus_block(self) -> str:
+        """User-message suffix carrying the optional focus steer (empty when unset)."""
+        if not self.custom_prompt:
+            return ""
+        return f"\n\nUser's focus (guidance — still follow all the rules above): {self.custom_prompt}"
 
     def generate_charts(self) -> list[ChartSpec]:
         """Pass #1: tool-use selection + 1 retry round + fallback."""
@@ -91,7 +102,7 @@ class ReportGenerator:
             max_tokens=4096,
             system=SELECTION_SYSTEM,
             tools=CHART_TOOLS,
-            messages=[{"role": "user", "content": self.profile.to_text()}],
+            messages=[{"role": "user", "content": self.profile.to_text() + self._focus_block()}],
             cache_static=True,
         )
         specs, errors = self._execute_tool_calls(response.content)
@@ -123,7 +134,7 @@ class ReportGenerator:
                 })
 
         messages = [
-            {"role": "user", "content": self.profile.to_text()},
+            {"role": "user", "content": self.profile.to_text() + self._focus_block()},
             {"role": "assistant", "content": _serialize_content(prior_content)},
             {"role": "user", "content": tool_results},
         ]
@@ -194,7 +205,7 @@ class ReportGenerator:
             lines.append(f"{i}. [{c.kind}] {c.title}")
             lines.append(f"   Intent: {c.intent}")
             lines.append(f"   Data: {data_sample}")
-        return "\n".join(lines)
+        return "\n".join(lines) + self._focus_block()
 
     @staticmethod
     def _summarize_chart_data(spec: ChartSpec) -> str:
@@ -234,6 +245,7 @@ class ReportGenerator:
             f"You have already produced these charts:\n{existing_summary}\n\n"
             f"Pick 5 different angles that are NOT repeats of the above. "
             f"Vary kinds; aim for chart types or column combinations not yet covered."
+            f"{self._focus_block()}"
         )
 
         response = self._call_claude(
@@ -307,6 +319,7 @@ class ReportGenerator:
                 "model_narrative": self.model_narrative,
                 "row_count": self.profile.row_count,
                 "column_count": len(self.profile.columns),
+                "custom_prompt": self.custom_prompt,
                 **self._token_totals,
             },
         )

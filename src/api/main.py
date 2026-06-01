@@ -12,7 +12,7 @@ from uuid import UUID
 import pandas as pd
 from anthropic import APIStatusError
 from dotenv import load_dotenv
-from fastapi import Depends, FastAPI, File, Header, HTTPException, UploadFile
+from fastapi import Depends, FastAPI, File, Form, Header, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, StreamingResponse
 
@@ -162,6 +162,7 @@ def _ensure_profile_tracked(db: SupabaseDB, posthog: PostHogServer, identity: Id
 @app.post("/generate-report")
 async def generate_report(
     file: UploadFile = File(...),
+    custom_prompt: str | None = Form(None),
     identity: Identity = Depends(get_identity),
     claude: ClaudeClient = Depends(get_claude_client),
     db: SupabaseDB = Depends(get_db),
@@ -235,6 +236,7 @@ async def generate_report(
         gen = ReportGenerator(
             profile=profile, df=df, claude=claude,
             model_selection=MODEL_SELECTION, model_narrative=MODEL_NARRATIVE,
+            custom_prompt=custom_prompt,
         )
         report = gen.build_report()
     except RetryableBusy:
@@ -507,9 +509,11 @@ async def generate_more(
     })
 
     profile = profile_dataframe(df)
+    persisted_prompt = row["report_json"].get("metadata", {}).get("custom_prompt")
     gen = ReportGenerator(
         profile=profile, df=df, claude=claude,
         model_selection=MODEL_SELECTION, model_narrative=MODEL_NARRATIVE,
+        custom_prompt=persisted_prompt,
     )
 
     try:
