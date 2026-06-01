@@ -1,64 +1,90 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import { useDropzone } from 'react-dropzone';
 import { useRouter } from 'next/navigation';
 import Papa from 'papaparse';
+import * as XLSX from 'xlsx';
 import { apiFetch } from '../lib/api';
 import OutOfCreditsModal from '../components/OutOfCreditsModal';
 import { useCredits } from '../lib/useCredits';
 import { REPORT_COST } from '../lib/credits';
 
-interface DataPreview {
-  columns: string[];
-  data: Record<string, any>[];
-}
-
 const STEPS = ['Reading file', 'Analyzing with AI', 'Writing report', 'Done'];
+const PREVIEW_ROWS = 10;
 
 export default function Home() {
   const [file, setFile] = useState<File | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [preview, setPreview] = useState<DataPreview | null>(null);
   const [step, setStep] = useState(0);
   const [showOutOfCredits, setShowOutOfCredits] = useState(false);
+
+  // Parse state — the selected sheet's rows/columns and the user's column selection.
+  const [sheetNames, setSheetNames] = useState<string[]>([]);
+  const [sheet, setSheet] = useState<string>('');
+  const [columns, setColumns] = useState<string[]>([]);
+  const [excluded, setExcluded] = useState<Set<string>>(new Set());
+  const [rows, setRows] = useState<Record<string, any>[]>([]);
+
+  // Keep the parsed workbook so re-selecting a sheet doesn't re-read the file.
+  const wbRef = useRef<XLSX.WorkBook | null>(null);
+
   const { balance, refetch } = useCredits();
   const router = useRouter();
 
-  const onDrop = useCallback((accepted: File[]) => {
-    if (accepted.length === 0) return;
-    const f = accepted[0];
-    if (f.size > 10 * 1024 * 1024) {
-      setError('File must be under 10MB.');
-      return;
-    }
-    if (!/\.(csv|xlsx)$/i.test(f.name)) {
-      setError('Please upload a .csv or .xlsx file.');
-      return;
-    }
-    setFile(f);
-    setError(null);
-    setPreview(null);
+  const loadSheet = useCallback((wb: XLSX.WorkBook, name: string) => {
+    const ws = wb.Sheets[name];
+    const parsed: Record<string, any>[] = ws
+      ? XLSX.utils.sheet_to_json(ws, { defval: '' })
+      : [];
+    const cols = parsed.length > 0 ? Object.keys(parsed[0]) : [];
+    setSheet(name);
+    setRows(parsed);
+    setColumns(cols);
+    setExcluded(new Set());
+  }, []);
 
-    if (f.name.toLowerCase().endsWith('.csv')) {
+  const onDrop = useCallback(
+    (accepted: File[]) => {
+      if (accepted.length === 0) return;
+      const f = accepted[0];
+      if (f.size > 10 * 1024 * 1024) {
+        setError('File must be under 10MB.');
+        return;
+      }
+      if (!/\.(csv|xlsx)$/i.test(f.name)) {
+        setError('Please upload a .csv or .xlsx file.');
+        return;
+      }
+      setFile(f);
+      setError(null);
+      // Reset any prior parse state.
+      wbRef.current = null;
+      setSheetNames([]);
+      setSheet('');
+      setColumns([]);
+      setExcluded(new Set());
+      setRows([]);
+
       const reader = new FileReader();
       reader.onload = (e) => {
-        const text = e.target?.result as string;
-        const parsed = Papa.parse(text, { header: true, skipEmptyLines: true });
-        if (parsed.errors.length === 0) {
-          const cols = (parsed.meta.fields || []).map((c) => c.toLowerCase());
-          const rows = parsed.data.slice(0, 10).map((r: any) => {
-            const out: Record<string, any> = {};
-            for (const k of Object.keys(r)) out[k.toLowerCase()] = r[k];
-            return out;
-          });
-          setPreview({ columns: cols, data: rows });
+        try {
+          const buf = e.target?.result as ArrayBuffer;
+          const wb = XLSX.read(buf, { type: 'array' });
+          wbRef.current = wb;
+          setSheetNames(wb.SheetNames);
+          const first = wb.SheetNames[0];
+          if (first) loadSheet(wb, first);
+        } catch {
+          setError('Could not read that file. Please check it is a valid .csv or .xlsx.');
         }
       };
-      reader.readAsText(f);
-    }
-  }, []);
+      reader.onerror = () => setError('Could not read that file.');
+      reader.readAsArrayBuffer(f);
+    },
+    [loadSheet]
+  );
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
@@ -69,15 +95,41 @@ export default function Home() {
     maxFiles: 1,
   });
 
+  function toggleColumn(col: string) {
+    setExcluded((prev) => {
+      const next = new Set(prev);
+      if (next.has(col)) next.delete(col);
+      else next.add(col);
+      return next;
+    });
+  }
+
+  const keep = columns.filter((c) => !excluded.has(c));
+  const hasData = columns.length > 0;
+  const allExcluded = hasData && keep.length === 0;
+
   async function generate() {
     if (!file) return;
+    if (allExcluded) {
+      setError('Select at least one column to include.');
+      return;
+    }
     setIsProcessing(true);
     setError(null);
     setStep(0);
     try {
       setStep(1);
+      // Emit the chosen sheet (minus dropped columns) as a CSV and send that.
+      const csv = Papa.unparse(
+        rows.map((r) => Object.fromEntries(keep.map((c) => [c, r[c]])))
+      );
+      const blob = new File(
+        [csv],
+        (file?.name?.replace(/\.(xlsx|csv)$/i, '') || 'data') + '.csv',
+        { type: 'text/csv' }
+      );
       const fd = new FormData();
-      fd.append('file', file);
+      fd.append('file', blob);
       const res = await apiFetch('/generate-report', { method: 'POST', body: fd });
       let body: any = null;
       try { body = await res.json(); } catch {}
@@ -108,6 +160,8 @@ export default function Home() {
       setIsProcessing(false);
     }
   }
+
+  const previewRows = rows.slice(0, PREVIEW_ROWS);
 
   return (
     <div className="min-h-screen bg-canvas">
@@ -159,7 +213,8 @@ export default function Home() {
             </div>
             <button
               onClick={generate}
-              className="btn btn-primary w-full sm:w-auto"
+              disabled={allExcluded}
+              className="btn btn-primary w-full sm:w-auto disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {balance !== null ? `Generate report · ${REPORT_COST}` : 'Generate report →'}
             </button>
@@ -193,30 +248,91 @@ export default function Home() {
           </div>
         )}
 
-        {preview && (
+        {sheetNames.length > 1 && !isProcessing && (
+          <div className="mt-6 card shadow-card p-5 rounded-2xl flex flex-col sm:flex-row sm:items-center gap-3">
+            <label htmlFor="sheet-picker" className="font-mono text-xs uppercase tracking-wide text-ink-3">
+              Sheet
+            </label>
+            <select
+              id="sheet-picker"
+              value={sheet}
+              onChange={(e) => {
+                if (wbRef.current) loadSheet(wbRef.current, e.target.value);
+              }}
+              className="bg-surface-2 border border-line rounded-lg px-3 py-2 text-sm text-ink focus:outline-none focus:border-accent"
+            >
+              {sheetNames.map((name) => (
+                <option key={name} value={name}>
+                  {name}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
+
+        {hasData && !isProcessing && (
           <div className="mt-8 overflow-x-auto card shadow-card rounded-2xl">
-            <div className="px-5 py-3 border-b border-line flex items-baseline justify-between">
-              <h3 className="font-display text-base text-ink">Preview</h3>
-              <span className="font-mono text-xs text-ink-3">{preview.data.length} rows · {preview.columns.length} columns</span>
+            <div className="px-5 py-3 border-b border-line flex flex-wrap items-baseline justify-between gap-2">
+              <div className="flex items-baseline gap-3">
+                <h3 className="font-display text-base text-ink">Preview</h3>
+                <span className="font-mono text-xs text-ink-3">
+                  {rows.length} rows · {keep.length}/{columns.length} columns
+                </span>
+              </div>
+              <span className="font-mono text-[10px] uppercase tracking-wide text-ink-3">
+                Uncheck a column to drop it
+              </span>
             </div>
             <table className="min-w-full text-sm">
               <thead>
                 <tr className="bg-surface-2">
-                  {preview.columns.map((c) => (
-                    <th key={c} className="px-4 py-2.5 text-left font-mono text-xs uppercase tracking-wide text-ink-3">{c}</th>
-                  ))}
+                  {columns.map((c) => {
+                    const included = !excluded.has(c);
+                    return (
+                      <th
+                        key={c}
+                        className={`px-4 py-2.5 text-left font-mono text-xs uppercase tracking-wide ${
+                          included ? 'text-ink-3' : 'text-ink-3/40 line-through'
+                        }`}
+                      >
+                        <label className="flex items-center gap-2 cursor-pointer select-none">
+                          <input
+                            type="checkbox"
+                            checked={included}
+                            onChange={() => toggleColumn(c)}
+                            className="accent-accent cursor-pointer"
+                            aria-label={`Include column ${c}`}
+                          />
+                          <span>{c}</span>
+                        </label>
+                      </th>
+                    );
+                  })}
                 </tr>
               </thead>
               <tbody>
-                {preview.data.map((row, i) => (
+                {previewRows.map((row, i) => (
                   <tr key={i} className="border-t border-line">
-                    {preview.columns.map((c) => (
-                      <td key={c} className="px-4 py-2 text-ink-2">{row[c]?.toString() ?? ''}</td>
-                    ))}
+                    {columns.map((c) => {
+                      const included = !excluded.has(c);
+                      return (
+                        <td
+                          key={c}
+                          className={`px-4 py-2 ${included ? 'text-ink-2' : 'text-ink-3/40'}`}
+                        >
+                          {row[c]?.toString() ?? ''}
+                        </td>
+                      );
+                    })}
                   </tr>
                 ))}
               </tbody>
             </table>
+            {allExcluded && (
+              <div className="px-5 py-3 border-t border-line text-ember text-xs">
+                Select at least one column to generate a report.
+              </div>
+            )}
           </div>
         )}
       </div>
