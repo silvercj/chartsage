@@ -5,6 +5,10 @@ import HowItWorks from './HowItWorks';
 import ExampleReport from './ExampleReport';
 import Features from './Features';
 import UseCases from './UseCases';
+import Pricing from './Pricing';
+import Faq from './Faq';
+import ClosingCta from './ClosingCta';
+import MarketingFooter from './MarketingFooter';
 
 export default function MarketingLanding() {
   return (
@@ -16,6 +20,10 @@ export default function MarketingLanding() {
       <ExampleReport />
       <Features />
       <UseCases />
+      <Pricing />
+      <Faq />
+      <ClosingCta />
+      <MarketingFooter />
     </main>
   );
 }
