@@ -37,6 +37,23 @@ def test_uses_scatter_for_correlated_pair():
     assert "scatter" in kinds
 
 
+def test_fallback_caps_bars_and_diversifies():
+    # Several categoricals + numerics: the OLD heuristic produced 2 frequency bars first.
+    # The rebalanced one caps bars at 1 and mixes in other kinds.
+    df = pd.DataFrame({
+        "region":  (["West", "East", "North", "South"] * 25),
+        "tier":    (["A", "B", "C", "D", "E"] * 20),
+        "channel": (["Direct", "Online", "Partner"] * 33 + ["Direct"]),
+        "revenue": [i * 1.5 for i in range(100)],
+        "orders":  [i % 30 for i in range(100)],
+    })
+    profile = profile_dataframe(df)
+    specs = pick_fallback_charts(profile, df)
+    kinds = [s.kind for s in specs]
+    assert kinds.count("bar") <= 1          # at most one frequency bar
+    assert len(set(kinds)) >= 2             # not an all-one-kind report
+
+
 def test_handles_degenerate(degenerate):
     profile = profile_dataframe(degenerate)
     specs = pick_fallback_charts(profile, degenerate)

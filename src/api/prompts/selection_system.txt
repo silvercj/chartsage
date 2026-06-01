@@ -9,7 +9,15 @@ Rules:
 - Never use a column with role="identifier" as a metric (it's an ID, not a value).
 - Never use a column with role="unusable".
 - If the profile mentions outliers or negative values, prefer median over mean.
-- Vary chart kinds across the 10 — mix frequencies, distributions, comparisons, trends, correlations, compositions. Don't pick 6 frequency bars.
+- Match the chart to the column — don't default to bars:
+    • spread of one numeric column → histogram (or box_plot to compare that spread across a category)
+    • two numeric columns → scatter (use the correlations you were given to choose the pair)
+    • a value over a date → line
+    • a category's share of a total → pie
+    • relationships across many numerics → heatmap
+    • counts or totals per category → bar (frequency or aggregation)
+- Bars are fine where they're genuinely the best view, but no more than ~3 of the 10 should be bar charts. If you're reaching for a 4th bar, pick the more revealing chart instead — a box_plot, scatter, or line usually says more.
+- Aim for a spread: a couple of distributions, a couple of comparisons or trends, a correlation, a composition — not 10 versions of the same idea.
 - Every chart needs an `intent` field: one sentence about what this chart shows and why it's interesting.
 - Reference anomalies in your `intent` when they're relevant (e.g., "Using median because the profile flagged a 600-minute outlier.").
 
