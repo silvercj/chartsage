@@ -7,15 +7,17 @@ import UpsellModal from '../../components/UpsellModal';
 import OutOfCreditsModal from '../../components/OutOfCreditsModal';
 import AddChartModal from './AddChartModal';
 import { useCredits } from '../../lib/useCredits';
-import { GENERATE_MORE_COST } from '../../lib/credits';
+import { GENERATE_MORE_COST, DEEP_ANALYSIS_COST } from '../../lib/credits';
 
 interface Props {
   sessionId: string;
+  report: Report;
   onReportUpdated: (next: Report) => void;
 }
 
-export default function Toolbar({ sessionId, onReportUpdated }: Props) {
+export default function Toolbar({ sessionId, report, onReportUpdated }: Props) {
   const [generating, setGenerating] = useState(false);
+  const [deepening, setDeepening] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showUpsell, setShowUpsell] = useState(false);
@@ -48,6 +50,34 @@ export default function Toolbar({ sessionId, onReportUpdated }: Props) {
       setError(e.message || 'Failed to generate more charts.');
     } finally {
       setGenerating(false);
+    }
+  }
+
+  async function handleDeepen() {
+    setDeepening(true);
+    setError(null);
+    posthog.capture?.('deepen_clicked', { reportId: sessionId });
+    try {
+      const res = await apiFetch(`/report/${sessionId}/deepen`, { method: 'POST' });
+      if (res.status === 503) {
+        setError('The AI is busy. Try again in 30 seconds.');
+        return;
+      }
+      if (res.status === 402) {
+        let body: any = null;
+        try { body = await res.json(); } catch {}
+        if (body?.detail?.code === 'OUT_OF_CREDITS') setShowOutOfCredits(true);
+        else setShowUpsell(true);   // UPGRADE_REQUIRED (anon)
+        return;
+      }
+      if (!res.ok) throw new Error(`Failed (${res.status})`);
+      const updated: Report = await res.json();
+      onReportUpdated(updated);
+      refetch();   // balance changed
+    } catch (e: any) {
+      setError(e.message || 'Failed to deepen this report.');
+    } finally {
+      setDeepening(false);
     }
   }
 
@@ -91,6 +121,23 @@ export default function Toolbar({ sessionId, onReportUpdated }: Props) {
         >
           + Add a chart
         </button>
+        {!report.metadata?.deep && (
+          <button
+            type="button"
+            onClick={handleDeepen}
+            disabled={deepening}
+            className="btn btn-ghost"
+          >
+            {deepening ? (
+              <span className="inline-flex items-center gap-2">
+                <span className="h-3.5 w-3.5 rounded-full border-2 border-line-2 border-t-accent animate-spin" />
+                Deepening…
+              </span>
+            ) : (
+              `Deepen this report · ${DEEP_ANALYSIS_COST}`
+            )}
+          </button>
+        )}
         <button
           type="button"
           onClick={handleGenerateMore}

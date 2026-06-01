@@ -13,6 +13,7 @@ const LABELS: Record<string, string> = {
   report: 'New report',
   generate_more: 'Generate more charts',
   add_chart: 'Added chart',
+  deep_analysis: 'Deep analysis',
   adjustment: 'Adjustment',
 };
 

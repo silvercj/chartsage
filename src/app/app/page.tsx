@@ -8,7 +8,7 @@ import * as XLSX from 'xlsx';
 import { apiFetch } from '../lib/api';
 import OutOfCreditsModal from '../components/OutOfCreditsModal';
 import { useCredits } from '../lib/useCredits';
-import { REPORT_COST } from '../lib/credits';
+import { REPORT_COST, DEEP_ANALYSIS_COST } from '../lib/credits';
 
 const STEPS = ['Reading file', 'Analyzing with AI', 'Writing report', 'Done'];
 const PREVIEW_ROWS = 10;
@@ -20,6 +20,7 @@ export default function Home() {
   const [step, setStep] = useState(0);
   const [showOutOfCredits, setShowOutOfCredits] = useState(false);
   const [focus, setFocus] = useState('');
+  const [deep, setDeep] = useState(false);
 
   // Parse state — the selected sheet's rows/columns and the user's column selection.
   const [sheetNames, setSheetNames] = useState<string[]>([]);
@@ -132,6 +133,7 @@ export default function Home() {
       const fd = new FormData();
       fd.append('file', blob);
       if (focus.trim()) fd.append('custom_prompt', focus.trim());
+      fd.append('deep', deep ? 'true' : 'false');
       const res = await apiFetch('/generate-report', { method: 'POST', body: fd });
       let body: any = null;
       try { body = await res.json(); } catch {}
@@ -224,6 +226,23 @@ export default function Home() {
               />
               <p className="mt-1 text-right font-mono text-[10px] text-ink-3">{focus.length}/280</p>
             </div>
+            <div className="mt-4 pt-4 border-t border-line">
+              <label htmlFor="deep" className="flex items-start gap-3 cursor-pointer select-none">
+                <input
+                  id="deep"
+                  type="checkbox"
+                  checked={deep}
+                  onChange={(e) => setDeep(e.target.checked)}
+                  className="mt-0.5 accent-accent cursor-pointer"
+                />
+                <span>
+                  <span className="block text-sm font-medium text-ink">Deep analysis · {DEEP_ANALYSIS_COST}</span>
+                  <span className="block text-xs text-ink-3 mt-0.5">
+                    Runs multiple passes for a richer report. Costs {DEEP_ANALYSIS_COST} credits.
+                  </span>
+                </span>
+              </label>
+            </div>
             <div className="mt-4 flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
               <div>
                 <p className="font-medium text-ink">{file.name}</p>
@@ -234,7 +253,11 @@ export default function Home() {
                 disabled={allExcluded}
                 className="btn btn-primary w-full sm:w-auto disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {balance !== null ? `Generate report · ${REPORT_COST}` : 'Generate report →'}
+                {deep
+                  ? `Generate report · ${DEEP_ANALYSIS_COST}`
+                  : balance !== null
+                    ? `Generate report · ${REPORT_COST}`
+                    : 'Generate report →'}
               </button>
             </div>
           </div>

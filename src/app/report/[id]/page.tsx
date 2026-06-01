@@ -110,7 +110,7 @@ function ReportView({ sessionId, initialReport }: { sessionId: string; initialRe
   return (
     <div className="theme-light bg-canvas text-ink min-h-screen">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <Toolbar sessionId={sessionId} onReportUpdated={replaceReport} />
+        <Toolbar sessionId={sessionId} report={report} onReportUpdated={replaceReport} />
 
         <ReportSummary summary={report.summary} generatedAt={report.generated_at} />
         {report.data_quality && report.data_quality.length > 0 && (
