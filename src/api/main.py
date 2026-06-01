@@ -245,6 +245,8 @@ async def generate_report(
         "columnCount": int(df.shape[1]),
         "filename": file.filename,
         "sizeBytes": len(content),
+        "deep": deep,
+        "customPrompt": bool(custom_prompt),
     })
 
     try:
@@ -339,6 +341,8 @@ async def generate_report(
         "cacheReadTokens": int(cache_tok),
         "estCostUsd": estimate_cost_usd(MODEL_SELECTION, int(in_tok), int(out_tok), int(cache_tok)),
         "elapsedMs": elapsed_ms,
+        "deep": deep,
+        "customPrompt": bool(custom_prompt),
     })
 
     logging.info(

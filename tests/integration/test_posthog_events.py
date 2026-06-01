@@ -61,6 +61,27 @@ def test_generate_report_fires_started_and_succeeded(fakes_and_client, sales):
     # No snake_case leakage
     for k in s:
         assert "_" not in k or k.startswith("$"), f"property {k} contains underscore"
+    # Smarter-analysis: deep + custom-prompt adoption must be measurable on the funnel.
+    assert s["deep"] is False
+    assert s["customPrompt"] is False
+
+
+def test_custom_prompt_flagged_in_generation_events(fakes_and_client, sales):
+    """The free 'focus' field is otherwise invisible (no credit spend), so its
+    adoption must ride the generation events as a boolean."""
+    tc, ph = fakes_and_client
+    anon = str(uuid4())
+    resp = tc.post("/generate-report",
+                   files={"file": ("sales.csv", _csv(sales), "text/csv")},
+                   data={"custom_prompt": "focus on region performance"},
+                   headers={"X-Anon-Id": anon})
+    assert resp.status_code == 200
+    started = ph.find("report_generation_started")[0]["properties"]
+    succeeded = ph.find("report_generation_succeeded")[0]["properties"]
+    assert started["customPrompt"] is True
+    assert succeeded["customPrompt"] is True
+    # Anon path is never deep (deep requires auth, gated before the started event).
+    assert started["deep"] is False
 
 
 def test_anon_limit_blocked_event_camelcase_only(fakes_and_client, sales):
