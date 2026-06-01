@@ -24,6 +24,7 @@ from pydantic import BaseModel
 from llm_config import MODEL_NARRATIVE, MODEL_SELECTION, estimate_cost_usd
 from posthog_server import PostHogServer
 from profile import profile_dataframe
+import report_export
 from report_generator import ReportGenerator
 from schemas import ChartLayoutEntry, Report
 from storage import StorageError, SupabaseStorage
@@ -604,6 +605,159 @@ async def export_pdf(
         media_type="application/pdf",
         headers={"Content-Disposition": f'attachment; filename="chartsage-{short}.pdf"'},
     )
+
+
+def _export_response(payload: bytes, session_id: str, ext: str, media_type: str) -> StreamingResponse:
+    short = session_id[:8]
+    return StreamingResponse(
+        io.BytesIO(payload),
+        media_type=media_type,
+        headers={"Content-Disposition": f'attachment; filename="chartsage-{short}.{ext}"'},
+    )
+
+
+@app.get("/report/{session_id}/export.pptx")
+async def export_pptx(
+    session_id: str,
+    identity: Identity = Depends(get_identity),
+    db: SupabaseDB = Depends(get_db),
+    posthog: PostHogServer = Depends(get_posthog),
+):
+    row = db.get_report(session_id)
+    if not row:
+        raise HTTPException(status_code=404, detail="Report not found.")
+    report = Report.model_validate(row["report_json"])
+
+    import pdf_export
+    try:
+        images = await pdf_export.render_chart_images(session_id)
+        payload = report_export.build_pptx(report, images)
+    except Exception as e:
+        logging.exception("PPTX export failed")
+        raise HTTPException(status_code=500, detail=f"PPTX export failed: {e}")
+
+    posthog.capture(identity.distinct_id, "report_exported",
+                    {"reportId": session_id, "format": "pptx"})
+    return _export_response(
+        payload, session_id, "pptx",
+        "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+    )
+
+
+@app.get("/report/{session_id}/export.xlsx")
+async def export_xlsx(
+    session_id: str,
+    identity: Identity = Depends(get_identity),
+    db: SupabaseDB = Depends(get_db),
+    storage: SupabaseStorage = Depends(get_storage),
+    posthog: PostHogServer = Depends(get_posthog),
+):
+    row = db.get_report(session_id)
+    if not row:
+        raise HTTPException(status_code=404, detail="Report not found.")
+    report = Report.model_validate(row["report_json"])
+
+    csv_key = row.get("csv_storage_key")
+    if not csv_key:
+        raise HTTPException(status_code=404, detail={
+            "code": "SOURCE_DATA_UNAVAILABLE",
+            "message": "Source data for this report is no longer available.",
+        })
+    try:
+        csv_bytes = storage.download_by_key(csv_key)
+    except StorageError:
+        raise HTTPException(status_code=404, detail={
+            "code": "SOURCE_DATA_UNAVAILABLE",
+            "message": "Source data for this report is no longer available.",
+        })
+
+    try:
+        payload = report_export.build_xlsx(report, csv_bytes)
+    except Exception as e:
+        logging.exception("XLSX export failed")
+        raise HTTPException(status_code=500, detail=f"XLSX export failed: {e}")
+
+    posthog.capture(identity.distinct_id, "report_exported",
+                    {"reportId": session_id, "format": "xlsx"})
+    return _export_response(
+        payload, session_id, "xlsx",
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    )
+
+
+@app.get("/report/{session_id}/export.zip")
+async def export_zip(
+    session_id: str,
+    identity: Identity = Depends(get_identity),
+    db: SupabaseDB = Depends(get_db),
+    posthog: PostHogServer = Depends(get_posthog),
+):
+    row = db.get_report(session_id)
+    if not row:
+        raise HTTPException(status_code=404, detail="Report not found.")
+    report = Report.model_validate(row["report_json"])
+
+    import pdf_export
+    try:
+        images = await pdf_export.render_chart_images(session_id)
+        payload = report_export.build_png_zip(images, report)
+    except Exception as e:
+        logging.exception("PNG zip export failed")
+        raise HTTPException(status_code=500, detail=f"PNG zip export failed: {e}")
+
+    posthog.capture(identity.distinct_id, "report_exported",
+                    {"reportId": session_id, "format": "zip"})
+    return _export_response(payload, session_id, "zip", "application/zip")
+
+
+@app.get("/report/{session_id}/export.md")
+async def export_md(
+    session_id: str,
+    identity: Identity = Depends(get_identity),
+    db: SupabaseDB = Depends(get_db),
+    posthog: PostHogServer = Depends(get_posthog),
+):
+    row = db.get_report(session_id)
+    if not row:
+        raise HTTPException(status_code=404, detail="Report not found.")
+    report = Report.model_validate(row["report_json"])
+
+    import pdf_export
+    try:
+        images = await pdf_export.render_chart_images(session_id)
+        payload = report_export.build_markdown(report, images).encode("utf-8")
+    except Exception as e:
+        logging.exception("Markdown export failed")
+        raise HTTPException(status_code=500, detail=f"Markdown export failed: {e}")
+
+    posthog.capture(identity.distinct_id, "report_exported",
+                    {"reportId": session_id, "format": "md"})
+    return _export_response(payload, session_id, "md", "text/markdown")
+
+
+@app.get("/report/{session_id}/export.html")
+async def export_html(
+    session_id: str,
+    identity: Identity = Depends(get_identity),
+    db: SupabaseDB = Depends(get_db),
+    posthog: PostHogServer = Depends(get_posthog),
+):
+    row = db.get_report(session_id)
+    if not row:
+        raise HTTPException(status_code=404, detail="Report not found.")
+    report = Report.model_validate(row["report_json"])
+
+    import pdf_export
+    try:
+        images = await pdf_export.render_chart_images(session_id)
+        payload = report_export.build_html(report, images)
+    except Exception as e:
+        logging.exception("HTML export failed")
+        raise HTTPException(status_code=500, detail=f"HTML export failed: {e}")
+
+    posthog.capture(identity.distinct_id, "report_exported",
+                    {"reportId": session_id, "format": "html"})
+    return _export_response(payload, session_id, "html", "text/html")
 
 
 @app.on_event("shutdown")
