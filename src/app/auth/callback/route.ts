@@ -55,7 +55,7 @@ export async function GET(request: NextRequest) {
     // to `next`. "New" = created in the last 2 min (this very sign-up), read
     // server-side from the Supabase user rather than a per-browser/per-domain
     // localStorage flag (which re-fires on a new device or the new domain).
-    const user = data.user ?? data.session?.user;
+    const user = data.user;
     const createdAtMs = user?.created_at ? new Date(user.created_at).getTime() : 0;
     const isNewSignup = createdAtMs > 0 && Date.now() - createdAtMs < 120_000;
     const dest = isNewSignup ? `/welcome?next=${encodeURIComponent(next)}` : next;
