@@ -25,12 +25,29 @@ A running list of deferred work and hardening ideas. Not committed plans — cap
 
 ---
 
+## Payments — refund / chargeback clawback
+
+*Deferred 2026-06-02. SP4 payments shipped **live** (Stripe Checkout → signature-verified, idempotent `checkout.session.completed` webhook → `grant_credits`; USD packs $5/$15/$40; full analytics funnel incl. `checkout_started`, `credits_purchased`, `checkout_cancelled`). The happy path is complete and idempotent; this is the one remaining money-impact gap.*
+
+**Gap:** a refund or chargeback returns the customer's money but does **not** claw back the granted credits — so buy → spend → refund leaves them with free credits. Acceptable at beta volume (refunds are rare; handle manually via the admin console with a negative adjustment).
+
+**When to build:** once there's real payment volume, or if any refund abuse appears.
+
+**Sketch:**
+- Backend handler for Stripe **`charge.refunded`** (consider **`charge.dispute.created`** for chargebacks → alert + manual handling rather than auto-clawback).
+- On refund: deduct `min(credits_for_that_purchase, current_balance)` — **floor the balance at 0** (the credits may already be spent). Resolve the purchase's credit amount from the original session / the `stripe_purchase` ledger row (match on the session `ref`).
+- **Idempotent** on the refund/event id (reuse the `stripe_events` pattern) so retries don't double-deduct.
+- **Partial refunds:** prorate, or — simplest v1 — only act on full refunds.
+- Enable `charge.refunded` on **both** the live and test webhook endpoints (the dashboard toggle is useless without the handler; the webhook already 200-ignores all non-checkout events, so this is additive and safe).
+
+---
+
 ## Product / feature backlog
 
 - **Geo / map charts** — a chart family deferred from the chart-types expansion; warrants its own brainstorm (choropleth, point maps; data shape + geocoding considerations).
 - **KPI deltas** — period-over-period change indicators on the KPI tiles (fast-follow on the existing tiles).
 - **Deep-analysis pricing revisit** — `DEEP_ANALYSIS_COST` shipped at 250 credits as a placeholder; revisit against real cost/latency once there's usage data.
-- **SP4 — payments** — credit purchase flow (the credit economy is live; buying credits is the next monetization sub-project).
+- **Payments** — shipped **live** (Stripe Checkout + idempotent webhook + buy-credits UI). Remaining hardening: refund/chargeback clawback (see the dedicated section above).
 - **Playwright E2E suite** — automated end-to-end browser tests (raised as an idea; not started).
 - **Data deletion / retention** — user-initiated data deletion + a retention policy (privacy/compliance).
 
