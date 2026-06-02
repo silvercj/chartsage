@@ -11,6 +11,7 @@ from typing import Any, Literal
 from uuid import UUID
 
 import pandas as pd
+import stripe
 from anthropic import APIStatusError
 from dotenv import load_dotenv
 from fastapi import Depends, FastAPI, File, Form, Header, HTTPException, Request, UploadFile
@@ -132,6 +133,18 @@ _SENTRY_DSN = os.environ.get("SENTRY_DSN", "")
 if _SENTRY_DSN:
     import sentry_sdk
     sentry_sdk.init(dsn=_SENTRY_DSN, traces_sample_rate=0.0, send_default_pii=False)
+
+
+# ---- Stripe (payments / credit packs) --------------------------------------
+stripe.api_key = os.environ.get("STRIPE_SECRET_KEY") or None
+STRIPE_WEBHOOK_SECRET = os.environ.get("STRIPE_WEBHOOK_SECRET", "")
+_FRONTEND_BASE = os.environ.get("FRONTEND_BASE_URL", "http://localhost:3000")
+# The signature-verification error moved to the top level in newer stripe-python;
+# import it compatibly so the webhook catch clause works across versions.
+try:
+    from stripe import SignatureVerificationError
+except ImportError:  # pragma: no cover - older stripe layout
+    from stripe.error import SignatureVerificationError
 
 
 # ---- App -------------------------------------------------------------------
