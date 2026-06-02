@@ -27,6 +27,8 @@ function CreditsInner() {
   const [txns, setTxns] = useState<Txn[] | null>(null);
   const [packs, setPacks] = useState<Pack[]>([]);
   const [buying, setBuying] = useState<string | null>(null);
+  const [showSuccess, setShowSuccess] = useState(false);
+  const [successDone, setSuccessDone] = useState(false);
   const purchase = params.get('purchase');
 
   const loadHistory = useCallback(async () => {
@@ -55,15 +57,28 @@ function CreditsInner() {
   }, []);
 
   // After returning from Stripe success the webhook credits asynchronously —
-  // poll the balance a few times so the new total appears without a refresh.
+  // poll the balance a few times so the new total appears without a refresh,
+  // then confirm and auto-dismiss the banner (and drop ?purchase from the URL so
+  // a refresh won't re-show it). All timers are tracked + cleared on unmount.
   useEffect(() => {
     if (purchase !== 'success') return;
+    setShowSuccess(true);
     let n = 0;
-    const tick = () => { refetch(); if (++n < 3) setTimeout(tick, 2000); };
+    const timers: ReturnType<typeof setTimeout>[] = [];
+    const tick = () => {
+      refetch();
+      n += 1;
+      if (n < 3) {
+        timers.push(setTimeout(tick, 2000));
+      } else {
+        loadHistory();
+        setSuccessDone(true);
+        timers.push(setTimeout(() => { setShowSuccess(false); router.replace('/credits'); }, 4000));
+      }
+    };
     tick();
-    const h = setTimeout(loadHistory, 2500);
-    return () => clearTimeout(h);
-  }, [purchase, refetch, loadHistory]);
+    return () => timers.forEach(clearTimeout);
+  }, [purchase, refetch, loadHistory, router]);
 
   async function buy(pkgId: string) {
     setBuying(pkgId);
@@ -86,9 +101,11 @@ function CreditsInner() {
         <h1 className="font-display text-3xl font-medium text-ink mb-1">Credits</h1>
         <p className="text-ink-2 mb-8">What you have, and where it went.</p>
 
-        {purchase === 'success' && (
+        {showSuccess && (
           <div className="card shadow-card p-4 rounded-2xl mb-6 border border-accent/40">
-            <p className="text-sm text-ink">Payment received — adding your credits…</p>
+            <p className="text-sm text-ink">
+              {successDone ? 'Credits added ✓' : 'Payment received — adding your credits…'}
+            </p>
           </div>
         )}
         {purchase === 'cancelled' && (
