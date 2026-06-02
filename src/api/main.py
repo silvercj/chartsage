@@ -121,6 +121,14 @@ def get_posthog() -> PostHogServer:
     return _posthog_singleton
 
 
+# ---- Sentry (no-op unless SENTRY_DSN is set) -------------------------------
+
+_SENTRY_DSN = os.environ.get("SENTRY_DSN", "")
+if _SENTRY_DSN:
+    import sentry_sdk
+    sentry_sdk.init(dsn=_SENTRY_DSN, traces_sample_rate=0.0, send_default_pii=False)
+
+
 # ---- App -------------------------------------------------------------------
 
 app = FastAPI(title="ChartSage v2")
