@@ -20,7 +20,7 @@ steps:
       - --concurrency=4
       - --timeout=120s
       - --service-account=chartsage-runner@$PROJECT_ID.iam.gserviceaccount.com
-      - --set-secrets=ANTHROPIC_API_KEY=anthropic-key:latest,SUPABASE_SERVICE_ROLE_KEY=supabase-srk:latest,POSTHOG_API_KEY=posthog-key:latest,ADMIN_API_TOKEN=admin-api-token:latest
+      - --set-secrets=ANTHROPIC_API_KEY=anthropic-key:latest,SUPABASE_SERVICE_ROLE_KEY=supabase-srk:latest,POSTHOG_API_KEY=posthog-key:latest,ADMIN_API_TOKEN=admin-api-token:latest,SENTRY_DSN=sentry-dsn:latest
       - --set-env-vars=SUPABASE_URL=$_SUPABASE_URL,FRONTEND_BASE_URL=$_FRONTEND_BASE_URL,CLAUDE_MODEL=haiku-4-5,ANON_REPORT_LIMIT=$_ANON_REPORT_LIMIT,UNLIMITED_ANON_IDS=$_UNLIMITED_ANON_IDS,ANON_IP_DAILY_CAP=$_ANON_IP_DAILY_CAP,ANON_GLOBAL_DAILY_CAP=$_ANON_GLOBAL_DAILY_CAP
 
 # _TAG defaults to 'latest'; CI/manual runs can pass --substitutions=_TAG=<git-sha>.
