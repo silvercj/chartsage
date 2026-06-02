@@ -38,3 +38,10 @@ A running list of deferred work and hardening ideas. Not committed plans — cap
 
 - **README refresh** — bring it up to date with the current product (redesign, marketing site, chart types, exports, smarter analysis, admin console).
 - **Dedicated OG image** — a purpose-built social/Open Graph image for the marketing site (currently relies on defaults).
+
+## Generation engine (from the selection-floor fix, 2026-06-02)
+
+*Two non-blocking nits flagged in review of the chart under-selection fix (which added the reach-for-more retry + the profiler top-N rescue). Both bounded; logged for later hardening.*
+
+- **Profiler ↔ executor cardinality mismatch.** The profiler now keeps a repeating object column `categorical` up to 200 distinct (ratio ≤ 0.5), but most chart executors cap at `MAX_CATEGORIES = 30` — only `pie_chart` renders past that (top-8 + "Other"). A borderline short-text column (31–200 repeating values) can therefore yield one weak pie. Harmless (never a crash), and partly intentional (top-N is desired), but worth aligning: either lower the profiler ceiling toward ~50–60, or add a mean-string-length heuristic to separate "tags/cities" from "sentences."
+- **`key_metrics` could be recomputed on the reach-for-more / deepen round.** `_execute_tool_calls` overwrites `self._key_metrics` if a later selection round emits a `key_metrics` call (the system prompt still says "call key_metrics first"). Idempotent in practice (recomputed from the same data), but cleaner to strip the `key_metrics` tool from the reach-for-more and deepen tool lists, or skip the overwrite when metrics already exist.
