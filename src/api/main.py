@@ -19,7 +19,7 @@ from fastapi.responses import JSONResponse, StreamingResponse
 from claude_client import ClaudeClient, RetryableBusy
 from credits import ADD_CHART_COST, DEEP_ANALYSIS_COST, GENERATE_MORE_COST, REPORT_COST, SIGNUP_GRANT, InsufficientCredits
 from db import SupabaseDB
-from deps import Identity, get_identity
+from deps import Identity, get_identity, require_admin
 from pydantic import BaseModel
 from llm_config import MODEL_NARRATIVE, MODEL_SELECTION, estimate_cost_usd
 from posthog_server import PostHogServer
@@ -1093,6 +1093,62 @@ async def export_html(
     posthog.capture(identity.distinct_id, "report_exported",
                     {"reportId": session_id, "format": "html"})
     return _export_response(payload, session_id, "html", "text/html")
+
+
+class GrantIn(BaseModel):
+    amount: int
+    reason: str | None = None
+
+
+@app.get("/admin/accounts")
+async def admin_search_accounts(
+    q: str = "",
+    limit: int = 50,
+    _admin: None = Depends(require_admin),
+    db: SupabaseDB = Depends(get_db),
+):
+    return db.search_accounts(q, min(max(limit, 1), 200))
+
+
+@app.get("/admin/accounts/{user_id}")
+async def admin_account_detail(
+    user_id: str,
+    _admin: None = Depends(require_admin),
+    db: SupabaseDB = Depends(get_db),
+):
+    detail = db.get_account_detail(user_id)
+    if detail is None:
+        raise HTTPException(status_code=404, detail={
+            "code": "USER_NOT_FOUND", "message": "No such account."})
+    return detail
+
+
+@app.post("/admin/accounts/{user_id}/grant")
+async def admin_grant_credits(
+    user_id: str,
+    body: GrantIn,
+    _admin: None = Depends(require_admin),
+    db: SupabaseDB = Depends(get_db),
+    posthog: PostHogServer = Depends(get_posthog),
+):
+    if body.amount < 1 or body.amount > 100000:
+        raise HTTPException(status_code=422, detail={
+            "code": "INVALID_AMOUNT", "message": "Amount must be between 1 and 100000."})
+    detail = db.get_account_detail(user_id)
+    if detail is None:
+        raise HTTPException(status_code=404, detail={
+            "code": "USER_NOT_FOUND", "message": "No such account."})
+    reason = (body.reason or "admin_grant").strip()[:60] or "admin_grant"
+    db.ensure_profile(user_id, 0)  # create the profiles row if missing (no signup bonus)
+    new_balance = db.grant_credits(user_id, body.amount, reason, ref="admin")
+    posthog.capture(str(user_id), "admin_credit_grant", {
+        "amount": body.amount,
+        "newBalance": new_balance,
+        "reason": reason,
+        "targetEmail": detail.get("email"),
+        "source": "admin_console",
+    })
+    return {"user_id": str(user_id), "credits_balance": new_balance}
 
 
 @app.on_event("shutdown")
