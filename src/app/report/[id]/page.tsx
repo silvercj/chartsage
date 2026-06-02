@@ -18,6 +18,7 @@ import {
 } from '@dnd-kit/sortable';
 import { useReportLayout, type Report } from './useReportLayout';
 import { apiFetch } from '../../lib/api';
+import ReportFeedback from './ReportFeedback';
 
 const ChartCard = dynamic(() => import('./ChartCard'), { ssr: false });
 const KpiTiles = dynamic(() => import('./KpiTiles'));
@@ -161,6 +162,8 @@ function ReportView({ sessionId, initialReport }: { sessionId: string; initialRe
             </SortableContext>
           </div>
         </DndContext>
+
+        <ReportFeedback reportId={sessionId} />
 
         <footer className="mt-16 pt-6 border-t border-line font-mono text-xs text-ink-3 flex justify-between">
           <span>Report id: {sessionId.slice(0, 8)}</span>
