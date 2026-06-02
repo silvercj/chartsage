@@ -1,4 +1,5 @@
 """FastAPI app — /generate-report, /report/{id}/*, /export.pdf."""
+import hashlib
 import io
 import json
 import logging
@@ -12,10 +13,11 @@ from uuid import UUID
 import pandas as pd
 from anthropic import APIStatusError
 from dotenv import load_dotenv
-from fastapi import Depends, FastAPI, File, Form, Header, HTTPException, UploadFile
+from fastapi import Depends, FastAPI, File, Form, Header, HTTPException, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, StreamingResponse
 
+from alerting import report_alert
 from claude_client import ClaudeClient, RetryableBusy
 from credits import ADD_CHART_COST, DEEP_ANALYSIS_COST, GENERATE_MORE_COST, REPORT_COST, SIGNUP_GRANT, InsufficientCredits
 from db import SupabaseDB
@@ -42,6 +44,9 @@ ANON_REPORT_LIMIT = int(os.environ.get("ANON_REPORT_LIMIT", "1"))
 UNLIMITED_ANON_IDS = {
     x.strip() for x in os.environ.get("UNLIMITED_ANON_IDS", "").split(",") if x.strip()
 }
+# Soft-launch daily abuse/cost guards for anonymous reports (env-overridable).
+ANON_IP_DAILY_CAP = int(os.environ.get("ANON_IP_DAILY_CAP", "5"))
+ANON_GLOBAL_DAILY_CAP = int(os.environ.get("ANON_GLOBAL_DAILY_CAP", "200"))
 
 
 # ---- Logging ---------------------------------------------------------------
@@ -146,6 +151,19 @@ def _title_from_summary(summary: str) -> str:
     return first_sentence[:200] if first_sentence else "Untitled report"
 
 
+def _client_ip(request: Request) -> str:
+    xff = request.headers.get("x-forwarded-for", "")
+    if xff:
+        return xff.split(",")[0].strip()
+    return request.client.host if request.client else ""
+
+
+def _client_fingerprint(request: Request) -> str:
+    ua = request.headers.get("user-agent", "")
+    lang = request.headers.get("accept-language", "")
+    return hashlib.sha256(f"{ua}|{lang}".encode()).hexdigest()[:16]
+
+
 def _ensure_profile_tracked(db: SupabaseDB, posthog: PostHogServer, identity: Identity) -> int:
     """Ensure the user's profile + one-time starter grant, firing the PostHog
     `credits_granted` event exactly once (on first creation). Race-tolerant: a
@@ -162,6 +180,7 @@ def _ensure_profile_tracked(db: SupabaseDB, posthog: PostHogServer, identity: Id
 
 @app.post("/generate-report")
 async def generate_report(
+    request: Request,
     file: UploadFile = File(...),
     custom_prompt: str | None = Form(None),
     deep: bool = Form(False),
@@ -173,6 +192,8 @@ async def generate_report(
 ):
     run_id, _ = setup_run_logging()
     started = time.perf_counter()
+    client_ip = _client_ip(request)
+    fingerprint = _client_fingerprint(request)
 
     # Deep analysis is a paid feature: it always costs DEEP_ANALYSIS_COST, requires
     # auth (anon gets the upsell, never the free-report path), and debits under the
@@ -201,6 +222,19 @@ async def generate_report(
                 detail={"code": "ANON_LIMIT_REACHED",
                         "message": "You've used your free report. Sign in to do more."},
             )
+        if not bypass:
+            if db.count_anon_reports_today_by_ip(client_ip) >= ANON_IP_DAILY_CAP:
+                posthog.capture(identity.distinct_id, "anon_cap_hit", {"scope": "ip"})
+                report_alert("anon per-IP daily cap hit", ip=client_ip)
+                raise HTTPException(status_code=429, detail={
+                    "code": "RATE_LIMITED",
+                    "message": "Too many free reports from your network today. Sign in to keep going."})
+            if db.count_anon_reports_today() >= ANON_GLOBAL_DAILY_CAP:
+                posthog.capture(identity.distinct_id, "anon_cap_hit", {"scope": "global"})
+                report_alert("anon global daily cap hit")
+                raise HTTPException(status_code=503, detail={
+                    "code": "FREE_TIER_AT_CAPACITY",
+                    "message": "The free tier is at capacity for today — sign in to keep going."})
     else:
         try:
             balance = _ensure_profile_tracked(db, posthog, identity)
@@ -323,6 +357,11 @@ async def generate_report(
                             {"amount": report_cost, "balance": new_balance, "reason": spend_reason})
         except InsufficientCredits:
             logging.warning("Credit spend lost a race on report %s; serving free.", report_id)
+    else:
+        try:
+            db.log_anon_report(identity.anon_id, client_ip, fingerprint)
+        except Exception:
+            logging.warning("anon_report_log insert failed for %s", report_id, exc_info=True)
 
     elapsed_ms = int((time.perf_counter() - started) * 1000)
     in_tok = report.metadata.get("input_tokens_total", 0) if isinstance(report.metadata, dict) else 0
