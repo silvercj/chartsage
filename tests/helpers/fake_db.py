@@ -16,6 +16,7 @@ class FakeDB:
         self._txns: list[dict] = []           # ledger
         self._intent: dict[str, str | None] = {}
         self._anon_log: list[dict] = []
+        self._support_messages: list[dict] = []
 
     def save_report(
         self,
@@ -122,6 +123,13 @@ class FakeDB:
 
     def record_upgrade_intent(self, user_id, email) -> None:
         self._intent[str(user_id)] = email
+
+    def save_support_message(self, email, message, user_id, anon_id) -> None:
+        self._support_messages.append({
+            "email": email, "message": message,
+            "user_id": str(user_id) if user_id else None,
+            "anon_id": str(anon_id) if anon_id else None,
+        })
 
     # --- anon abuse log (soft-launch) ---
     def log_anon_report(self, anon_id, ip, fingerprint) -> None:

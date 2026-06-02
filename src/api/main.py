@@ -1164,6 +1164,32 @@ async def export_html(
     return _export_response(payload, session_id, "html", "text/html")
 
 
+class ContactIn(BaseModel):
+    message: str
+    email: str | None = None
+    company: str | None = None   # honeypot: real users never fill this
+
+
+@app.post("/contact")
+async def contact(
+    body: ContactIn,
+    identity: Identity = Depends(get_identity),
+    db: SupabaseDB = Depends(get_db),
+    posthog: PostHogServer = Depends(get_posthog),
+):
+    if body.company and body.company.strip():     # honeypot -> silently accept, store nothing
+        return {"ok": True}
+    message = (body.message or "").strip()
+    if not (1 <= len(message) <= 4000):
+        raise HTTPException(status_code=422, detail={
+            "code": "INVALID_MESSAGE", "message": "Message must be 1–4000 characters."})
+    email = (body.email or "").strip()[:320] or None
+    db.save_support_message(email, message, identity.user_id, identity.anon_id)
+    posthog.capture(identity.distinct_id, "support_request",
+                    {"hasEmail": bool(email), "length": len(message)})
+    return {"ok": True}
+
+
 class GrantIn(BaseModel):
     amount: int
     reason: str | None = None

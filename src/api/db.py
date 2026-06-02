@@ -143,6 +143,14 @@ class SupabaseDB:
          .upsert({"user_id": str(user_id), "email": email}, on_conflict="user_id")
          .execute())
 
+    def save_support_message(self, email, message, user_id, anon_id) -> None:
+        self.client.table("support_messages").insert({
+            "email": email,
+            "message": message,
+            "user_id": str(user_id) if user_id else None,
+            "anon_id": str(anon_id) if anon_id else None,
+        }).execute()
+
     # --- anon abuse log (soft-launch) ---
     def _utc_today_start_iso(self) -> str:
         n = datetime.now(timezone.utc)
