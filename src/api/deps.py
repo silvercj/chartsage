@@ -1,4 +1,6 @@
 """FastAPI dependencies shared across endpoints."""
+import hmac
+import os
 from dataclasses import dataclass
 from uuid import UUID
 from fastapi import Header, HTTPException
@@ -75,3 +77,20 @@ def get_identity(
         detail={"code": "MISSING_ANON_ID",
                 "message": "Authentication or X-Anon-Id header is required."},
     )
+
+
+def require_admin(x_admin_token: str | None = Header(None)) -> None:
+    """Gate admin endpoints on a shared secret.
+
+    Reads ADMIN_API_TOKEN from the environment at call time (so it is test- and
+    rotation-friendly) and compares it to the X-Admin-Token header with a
+    constant-time compare. Fail-closed: if the env var is unset/empty or the
+    header is missing or mismatched, 403. The token is never logged.
+    """
+    expected = os.environ.get("ADMIN_API_TOKEN", "")
+    if not expected or not x_admin_token or not hmac.compare_digest(x_admin_token, expected):
+        raise HTTPException(
+            status_code=403,
+            detail={"code": "FORBIDDEN", "message": "Admin access required."},
+        )
+    return None
