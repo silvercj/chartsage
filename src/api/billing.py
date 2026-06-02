@@ -9,12 +9,13 @@ what it pays nor how many credits it receives.
 import os
 
 # package_id -> entry. credits = what we grant on purchase; price_env names the
-# env var holding that pack's Stripe Price ID; gbp = display hint only (the
-# authoritative amount lives in Stripe, and Adaptive Pricing may localise it).
+# env var holding that pack's Stripe Price ID; price_display is the label shown
+# on the pack card. The authoritative amount lives in Stripe (base currency USD;
+# Adaptive Pricing, if enabled, localises it at checkout).
 PACKAGES: dict[str, dict] = {
-    "starter":  {"credits": 600,  "label": "Starter",  "price_env": "STRIPE_PRICE_STARTER",  "gbp": 5},
-    "standard": {"credits": 2000, "label": "Standard", "price_env": "STRIPE_PRICE_STANDARD", "gbp": 15},
-    "pro":      {"credits": 6000, "label": "Pro",      "price_env": "STRIPE_PRICE_PRO",      "gbp": 40},
+    "starter":  {"credits": 600,  "label": "Starter",  "price_env": "STRIPE_PRICE_STARTER",  "price_display": "$5"},
+    "standard": {"credits": 2000, "label": "Standard", "price_env": "STRIPE_PRICE_STANDARD", "price_display": "$15"},
+    "pro":      {"credits": 6000, "label": "Pro",      "price_env": "STRIPE_PRICE_PRO",      "price_display": "$40"},
 }
 
 
@@ -31,6 +32,6 @@ def price_id_for(pkg: dict) -> str | None:
 def public_catalogue() -> list[dict]:
     """The catalogue shaped for the frontend (no env/price internals)."""
     return [
-        {"id": pid, "label": p["label"], "credits": p["credits"], "gbp": p["gbp"]}
+        {"id": pid, "label": p["label"], "credits": p["credits"], "price_display": p["price_display"]}
         for pid, p in PACKAGES.items()
     ]

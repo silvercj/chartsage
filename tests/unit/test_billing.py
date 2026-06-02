@@ -17,9 +17,9 @@ def test_public_catalogue_shape():
     assert len(cat) == 3
     assert {c["id"] for c in cat} == {"starter", "standard", "pro"}
     for c in cat:
-        assert set(c.keys()) == {"id", "label", "credits", "gbp"}
+        assert set(c.keys()) == {"id", "label", "credits", "price_display"}
     starter = next(c for c in cat if c["id"] == "starter")
-    assert starter["credits"] == 600 and starter["gbp"] == 5
+    assert starter["credits"] == 600 and starter["price_display"] == "$5"
 
 
 def test_price_id_for_reads_env(monkeypatch):

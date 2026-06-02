@@ -7,7 +7,7 @@ import { REPORT_COST, GENERATE_MORE_COST } from '../lib/credits';
 import { posthog } from '../lib/posthog';
 
 interface Txn { delta: number; reason: string; ref: string | null; created_at: string | number | null; }
-interface Pack { id: string; label: string; credits: number; gbp: number; }
+interface Pack { id: string; label: string; credits: number; price_display: string; }
 
 const LABELS: Record<string, string> = {
   signup_grant: 'Welcome credits',
@@ -118,7 +118,7 @@ function CreditsInner() {
                     ? <span className="eyebrow text-accent mb-1">Best value</span>
                     : <span className="eyebrow text-ink-3 mb-1">&nbsp;</span>}
                   <p className="font-display text-lg text-ink">{p.label}</p>
-                  <p className="font-mono text-2xl font-semibold text-ink mt-1">£{p.gbp}</p>
+                  <p className="font-mono text-2xl font-semibold text-ink mt-1">{p.price_display}</p>
                   <p className="text-sm text-ink-2 mt-1 mb-4">{p.credits.toLocaleString()} credits</p>
                   <button
                     type="button"
