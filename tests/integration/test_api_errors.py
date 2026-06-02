@@ -86,7 +86,8 @@ def test_rejects_non_csv_xlsx(client, anon_id):
 
 def test_rejects_oversize_file(client, anon_id):
     tc, *_ = client
-    big = b"a,b\n" + b"1,2\n" * 5_000_000
+    # Just over the 50 MB cap (each "1,2\n" row is 4 bytes -> ~56 MB).
+    big = b"a,b\n" + b"1,2\n" * 14_000_000
     resp = tc.post("/generate-report",
                    files={"file": ("big.csv", big, "text/csv")},
                    headers=_headers(anon_id))

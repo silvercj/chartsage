@@ -36,7 +36,11 @@ from storage import StorageError, SupabaseStorage
 load_dotenv()
 
 
-MAX_UPLOAD_BYTES = 10 * 1024 * 1024
+MAX_UPLOAD_BYTES = 50 * 1024 * 1024
+# Above this row count we analyze a deterministic random sample (the analysis is
+# column-driven, so a representative sample is statistically faithful while keeping
+# memory/latency bounded). Env-overridable.
+MAX_ANALYSIS_ROWS = int(os.environ.get("MAX_ANALYSIS_ROWS", "50000"))
 ALLOWED_EXTENSIONS = (".csv", ".xlsx")
 # Free reports per anonymous visitor (env-overridable).
 ANON_REPORT_LIMIT = int(os.environ.get("ANON_REPORT_LIMIT", "1"))
@@ -152,6 +156,16 @@ def _load_dataframe(filename: str, content: bytes) -> pd.DataFrame:
     if filename.lower().endswith(".xlsx"):
         return pd.read_excel(io.BytesIO(content))
     raise ValueError(f"Unsupported extension: {filename}")
+
+
+def sample_for_analysis(df: pd.DataFrame) -> tuple[pd.DataFrame, bool, int]:
+    """Bound rows for analysis. Returns (frame, was_sampled, original_row_count).
+    Deterministic (fixed seed) so generate-more / deepen — which re-read the stored
+    CSV — analyze the same rows."""
+    total = len(df)
+    if total > MAX_ANALYSIS_ROWS:
+        return df.sample(n=MAX_ANALYSIS_ROWS, random_state=0).reset_index(drop=True), True, total
+    return df, False, total
 
 
 def _title_from_summary(summary: str) -> str:
@@ -277,6 +291,10 @@ async def generate_report(
 
     df.columns = [str(c).lower() for c in df.columns]
 
+    df, was_sampled, total_rows = sample_for_analysis(df)
+    if was_sampled:
+        content = df.to_csv(index=False).encode("utf-8")   # store what we analyzed
+
     if df.shape[1] < 2:
         raise HTTPException(status_code=422, detail="File must have at least 2 columns to chart.")
     if df.shape[0] < 1:
@@ -323,6 +341,10 @@ async def generate_report(
             "elapsedMs": int((time.perf_counter() - started) * 1000),
         })
         raise HTTPException(status_code=500, detail=f"Report generation failed: {e}")
+
+    if was_sampled:
+        _note = f"Analyzed a representative random sample of {MAX_ANALYSIS_ROWS:,} of {total_rows:,} rows."
+        report.data_quality = [_note] + list(report.data_quality or [])
 
     report_id = uuid.uuid4().hex
     csv_csv = df.to_csv(index=False).encode("utf-8")
