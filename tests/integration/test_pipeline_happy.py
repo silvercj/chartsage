@@ -27,6 +27,9 @@ def test_happy_path_returns_chart_specs(activities):
                 "value_col": "duration_minutes", "group_col": "activity_type",
                 "agg": "median", "title": "Median by type", "intent": "compare"}),
         ]},
+        # Under MIN_CHARTS_TARGET with no errors -> a reach-for-more round fires; it
+        # proposes nothing here, so the chart set stays at 3.
+        {"tool_calls": []},
     ])
     gen = _make_generator(activities, fake)
     specs = gen.generate_charts()
@@ -59,6 +62,7 @@ def test_full_report_includes_narrative(activities):
                 "value_col": "duration_minutes", "group_col": "activity_type",
                 "agg": "median", "title": "T3", "intent": "i3"}),
         ]},
+        {"tool_calls": []},  # reach-for-more (under target, no errors) proposes nothing
         {"tool_calls": [
             tool_use("submit_narrative", {
                 "summary": "Three findings emerged.",
@@ -98,6 +102,7 @@ def test_key_metrics_routed_to_report_not_charts(sales):
                 "date_col": "order_date", "value_col": "revenue", "agg": "sum",
                 "granularity": "month", "title": "Revenue over time", "intent": "trend"}),
         ]},
+        {"tool_calls": []},  # reach-for-more (3 charts < target, no errors) proposes nothing
         {"tool_calls": [
             tool_use("submit_narrative", {
                 "summary": "Revenue concentrates in a few regions.",
@@ -135,6 +140,7 @@ def test_narrative_template_fallback_on_failure(activities):
                 "value_col": "duration_minutes", "group_col": "activity_type",
                 "agg": "median", "title": "T3", "intent": "i3"}),
         ]},
+        {"tool_calls": []},  # reach-for-more (under target, no errors) proposes nothing
         # Pass #2: no submit_narrative call (degraded)
         {"tool_calls": [], "text": "I cannot."},
     ])

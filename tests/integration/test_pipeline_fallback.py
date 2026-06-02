@@ -17,7 +17,10 @@ def _make_generator(df, fake):
 def test_fallback_when_claude_returns_nothing(activities):
     fake = FakeClaude([
         {"tool_calls": []},  # pass #1 first call: nothing
-        # No retry call expected because there are no errors to send back.
+        # No error-retry (no errors to send back), but 0 < MIN_CHARTS_TARGET with no
+        # errors fires one reach-for-more round; it also proposes nothing here, so the
+        # heuristic fallback then fills the report.
+        {"tool_calls": []},
         # Narrative is still called because we have fallback charts.
         {"tool_calls": [
             tool_use("submit_narrative", {

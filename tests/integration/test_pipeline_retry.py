@@ -59,7 +59,10 @@ def test_retry_failures_are_dropped(activities):
     assert "t2" not in titles
 
 
-def test_no_retry_when_no_errors(activities):
+def test_no_error_retry_when_no_errors(activities):
+    """No tool errors -> the ERROR-retry path does not fire. (3 charts is under
+    MIN_CHARTS_TARGET, so a separate reach-for-more round does run; it proposes
+    nothing here, leaving the count at 3.)"""
     fake = FakeClaude([
         {"tool_calls": [
             tool_use("frequency_bar_chart", {
@@ -70,9 +73,12 @@ def test_no_retry_when_no_errors(activities):
                 "value_col": "duration_minutes", "group_col": "activity_type",
                 "agg": "mean", "title": "Mean", "intent": "compare"}),
         ]},
-        # If retry happens, this will be hit and tests fail
+        # reach-for-more round (under target, no errors); proposes nothing.
+        {"tool_calls": []},
     ])
     gen = _make_generator(activities, fake)
     specs = gen.generate_charts()
     assert len(specs) == 3
-    assert len(fake.calls) == 1
+    # Two calls total: the initial selection + the reach-for-more round (NOT an
+    # error-retry — there were no errors).
+    assert len(fake.calls) == 2

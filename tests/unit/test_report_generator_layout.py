@@ -72,6 +72,7 @@ def test_fewer_than_5_charts_all_main(activities):
     ) for i in range(3)]
     fake = FakeClaude([
         {"tool_calls": chart_calls},
+        {"tool_calls": []},  # reach-for-more (under target, no errors) proposes nothing
         {"tool_calls": [tool_use(
             "submit_narrative",
             {"summary": "s", "captions": ["c1", "c2", "c3"], "data_quality": []},

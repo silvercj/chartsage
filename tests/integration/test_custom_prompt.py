@@ -29,15 +29,16 @@ def test_custom_prompt_reaches_selection_and_narrative_user_messages(sales):
     fc = FakeClaude([
         {"tool_calls": [tool_use("frequency_bar_chart",
                                  {"column": "region", "title": "T", "intent": "i"})]},
+        {"tool_calls": []},  # reach-for-more (1 chart < target, no errors) proposes nothing
         {"tool_calls": [tool_use("submit_narrative",
                                  {"summary": "S.", "captions": ["c"], "data_quality": []})]},
     ])
     gen = _gen(sales, fc)
     gen.build_report()
 
-    # The selection pass is call #0, the narrative pass is call #1.
+    # Call #0 selection, call #1 reach-for-more, call #2 narrative.
     selection_msgs = " ".join(str(m) for m in fc.calls[0]["messages"])
-    narrative_msgs = " ".join(str(m) for m in fc.calls[1]["messages"])
+    narrative_msgs = " ".join(str(m) for m in fc.calls[-1]["messages"])
     assert FOCUS in selection_msgs, "focus must reach the selection user message"
     assert FOCUS in narrative_msgs, "focus must reach the narrative user message"
 
@@ -50,6 +51,7 @@ def test_custom_prompt_persisted_to_metadata(sales):
     fc = FakeClaude([
         {"tool_calls": [tool_use("frequency_bar_chart",
                                  {"column": "region", "title": "T", "intent": "i"})]},
+        {"tool_calls": []},  # reach-for-more (1 chart < target, no errors) proposes nothing
         {"tool_calls": [tool_use("submit_narrative",
                                  {"summary": "S.", "captions": ["c"], "data_quality": []})]},
     ])
@@ -74,6 +76,7 @@ def test_blank_custom_prompt_is_none_and_not_injected(sales):
     fc = FakeClaude([
         {"tool_calls": [tool_use("frequency_bar_chart",
                                  {"column": "region", "title": "T", "intent": "i"})]},
+        {"tool_calls": []},  # reach-for-more (1 chart < target, no errors) proposes nothing
         {"tool_calls": [tool_use("submit_narrative",
                                  {"summary": "S.", "captions": ["c"], "data_quality": []})]},
     ])

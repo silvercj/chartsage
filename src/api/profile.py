@@ -11,6 +11,18 @@ from schemas import ColumnInfo, DataProfile
 
 
 _IDENTIFIER_SUFFIXES = ("_id", "_code", "_uuid", "_key")
+# Low-cardinality categoricals get their full top-5 list (small enough to enumerate).
+_LOW_CARDINALITY_MAX = 50
+# A high-cardinality object column is still chartable as a top-N (frequency bar /
+# treemap roll the long tail into "Other") AS LONG AS its values actually repeat.
+# Two guards keep this conservative:
+#   - distinct count must be well below the row count (values recur, not free text);
+#   - distinct count must stay under an absolute ceiling that comfortably covers
+#     real category sets (countries, genres, US states) but excludes columns with
+#     thousands of distinct values (names, directors) that read as free text.
+# A near-unique column (a movie title, a description) trips both and stays "unusable".
+_CATEGORICAL_MAX_DISTINCT_RATIO = 0.5
+_CATEGORICAL_MAX_DISTINCT = 200
 _NON_NEGATIVE_KEYWORDS = ("duration", "count", "quantity", "age", "price",
                           "amount", "revenue", "sales", "cost")
 _DATE_KEYWORDS = ("date", "time", "created", "updated", "start", "end", "timestamp")
@@ -75,7 +87,22 @@ def _profile_column(name: str, series: pd.Series, row_count: int) -> ColumnInfo:
             std=float(nonnull.std()) if len(nonnull) > 1 else None,
         )
 
-    if cardinality <= 50:
+    # Low-cardinality categorical: enumerate the full top-5.
+    if cardinality <= _LOW_CARDINALITY_MAX:
+        top = series.value_counts(dropna=True).head(5)
+        return ColumnInfo(
+            name=name, dtype=dtype, role="categorical",
+            cardinality=cardinality, null_count=null_count,
+            top_values=[(k, int(v)) for k, v in top.items()],
+        )
+
+    # High-cardinality but its values REPEAT (distinct count well below the row count):
+    # still chartable as a top-N — frequency_bar/treemap roll the long tail into "Other".
+    # This rescues catalog columns like country/genre/director from being dropped, while
+    # near-unique free text (a title, ratio ≈ 1.0) falls through to "unusable" below.
+    nonnull_count = int(series.notna().sum())
+    distinct_ratio = (cardinality / nonnull_count) if nonnull_count else 1.0
+    if cardinality <= _CATEGORICAL_MAX_DISTINCT and distinct_ratio <= _CATEGORICAL_MAX_DISTINCT_RATIO:
         top = series.value_counts(dropna=True).head(5)
         return ColumnInfo(
             name=name, dtype=dtype, role="categorical",

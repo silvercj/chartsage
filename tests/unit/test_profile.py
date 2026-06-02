@@ -47,6 +47,40 @@ def test_low_cardinality_numeric_still_numeric():
     assert rating.role == "numeric"
 
 
+def test_high_cardinality_repeating_categorical_is_usable():
+    """A categorical string column with many distinct values that REPEAT (well below
+    the row count) is chartable as a top-N (frequency bar / treemap) — it must be
+    'categorical', not 'unusable'. Mirrors Netflix 'country' (~70 distinct over 8807
+    rows): cardinality > 50 but values recur heavily."""
+    import random
+    random.seed(0)
+    countries = [f"Country {i}" for i in range(70)]
+    df = pd.DataFrame({"country": [random.choice(countries) for _ in range(2000)]})
+    country = next(c for c in profile_dataframe(df).columns if c.name == "country")
+    assert country.role == "categorical"
+    assert country.top_values is not None and len(country.top_values) > 0
+
+
+def test_near_unique_text_column_stays_unusable():
+    """A free-text / near-unique column (cardinality ≈ row count, like a movie title)
+    is NOT chartable — it must stay 'unusable' so it never becomes a frequency bar."""
+    df = pd.DataFrame({"title": [f"Title {i}" for i in range(2000)]})
+    title = next(c for c in profile_dataframe(df).columns if c.name == "title")
+    assert title.role == "unusable"
+
+
+def test_thousands_of_distinct_names_stay_unusable():
+    """Even when values repeat (ratio < 0.5), a column with thousands of distinct
+    values (a director / person name) reads as free text — the absolute ceiling keeps
+    it 'unusable' rather than turning it into a 1000-node treemap. Guards conservatism."""
+    import random
+    random.seed(1)
+    names = [f"Director {i}" for i in range(1500)]   # 1500 distinct, well over the ceiling
+    df = pd.DataFrame({"director": [random.choice(names) for _ in range(6000)]})
+    director = next(c for c in profile_dataframe(df).columns if c.name == "director")
+    assert director.role == "unusable"
+
+
 def test_anomaly_negative_duration(negative_duration):
     profile = profile_dataframe(negative_duration)
     assert any("negative" in a.lower() for a in profile.anomalies)

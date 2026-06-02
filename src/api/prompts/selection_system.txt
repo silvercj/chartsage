@@ -21,7 +21,8 @@ Rules:
     • two different-scale metrics over one x (category or time) → dual_axis_chart (e.g. revenue + conversion rate)
     • a cumulative or volume trend over time → line_chart with area:true (multi-series + area = stacked area)
     • a category's composition with many slices or a 2-level hierarchy → treemap_chart (prefer over pie when >8 categories)
-- Bars are fine where they're genuinely the best view, but no more than ~3 of the 10 should be bar charts. If you're reaching for a 4th bar, pick the more revealing chart instead — a box_plot, scatter, or line usually says more.
+- Prefer at most ~3 bar charts WHEN you have other good options — if you're reaching for a 4th bar and a box_plot, scatter, or line would say more, pick that instead. But this is a soft preference, not a hard cap: hitting ~10 charts matters more than avoiding bars. On a mostly-categorical dataset where richer chart types don't apply, additional bar/top-N charts beat a thin report — use them.
+- Extract charts from rich-but-messy columns. High-cardinality categorical columns (country, genre, names, tags) are still chartable as a top-N — frequency_bar_chart or treemap_chart will show the top values and roll the rest into "Other". Any date or year column is chartable as a trend over time (line_chart). So catalog/listing datasets (lots of text columns) should still yield a full ~10-chart report. The one thing to never chart is role="unusable" (free text, IDs) — but a categorical column is fair game even when its cardinality is high.
 - Aim for a spread: a couple of distributions, a couple of comparisons or trends, a correlation, a composition — not 10 versions of the same idea.
 - Every chart needs an `intent` field: one sentence about what this chart shows and why it's interesting.
 - Reference anomalies in your `intent` when they're relevant (e.g., "Using median because the profile flagged a 600-minute outlier.").

@@ -18,6 +18,10 @@ from fallback import pick_fallback_charts
 
 MAX_CHARTS = 10
 MIN_CHARTS_FOR_NO_FALLBACK = 3
+# When pass-1 selection finishes (clean, no execution errors) with fewer than this
+# many charts, fire one extra "reach for more" round before falling back to
+# heuristics. Catalog/text-heavy datasets (e.g. Netflix) used to collapse to ~3.
+MIN_CHARTS_TARGET = 6
 
 # Deep analysis (iterative deepening): hard caps that bound cost + latency. The
 # loop also stops early when a round proposes 0 new charts (the AI's "done" signal).
@@ -93,6 +97,12 @@ class ReportGenerator:
         if errors:
             specs2, _ = self._call_selection_retry(response_content, errors)
             specs.extend(specs2)
+
+        # Clean under-selection: the model picked too few charts but hit no errors,
+        # so neither the error-retry nor the fallback floor (3) would fire. Push for
+        # more — but only when there's headroom; the fallback stays the last resort.
+        if not errors and len(specs) < MIN_CHARTS_TARGET and len(specs) < MAX_CHARTS:
+            specs.extend(self._call_selection_more(specs))
 
         if len(specs) < MIN_CHARTS_FOR_NO_FALLBACK:
             specs.extend(pick_fallback_charts(
@@ -320,6 +330,52 @@ class ReportGenerator:
             return None
         spec = specs[0]
         return ChartWithCaption(chart_id=uuid4().hex, spec=spec, caption=spec.intent)
+
+    @staticmethod
+    def _angle_key(spec: ChartSpec) -> tuple:
+        """Dedupe key for a chart: its kind + the set of columns it draws from.
+        Two charts with the same kind over the same columns are 'the same angle'."""
+        return (spec.kind, tuple(sorted(spec.source_columns)))
+
+    def _call_selection_more(self, existing_specs: list[ChartSpec]) -> list[ChartSpec]:
+        """One extra selection round when pass-1 under-selected (no errors). Asks for
+        ADDITIONAL, DIFFERENT charts toward MAX_CHARTS, explicitly green-lighting more
+        bar/top-N charts. Returns the NEW specs, deduped against existing by angle key
+        and capped to the remaining room. Modeled on a single deepen() round."""
+        summary = "\n".join(f"- [{c.kind}] {c.title} — {c.intent}" for c in existing_specs)
+        msg = (
+            f"{self.profile.to_text()}\n\n"
+            f"Charts already selected:\n{summary or '(none yet)'}\n\n"
+            f"You selected only {len(existing_specs)} charts — aim for about {MAX_CHARTS}. "
+            f"Propose ADDITIONAL, DIFFERENT charts that reveal something not already shown: "
+            f"top-N breakdowns of high-cardinality categories (frequency bar or treemap), "
+            f"trends over time from any date/year column, cross-tabs (grouped bars), and "
+            f"distributions you haven't used. Additional bar/top-N charts are fine here — a "
+            f"fuller report matters more than avoiding bars. Do not repeat charts already selected."
+            f"{self._focus_block()}"
+        )
+        response = self._call_claude(
+            model=self.model_selection,
+            max_tokens=4096,
+            system=SELECTION_SYSTEM,
+            tools=CHART_TOOLS,
+            messages=[{"role": "user", "content": msg}],
+            cache_static=True,
+        )
+        specs, _ = self._execute_tool_calls(response.content)
+
+        seen = {self._angle_key(s) for s in existing_specs}
+        room = MAX_CHARTS - len(existing_specs)
+        new_specs: list[ChartSpec] = []
+        for s in specs:
+            key = self._angle_key(s)
+            if key in seen:
+                continue
+            seen.add(key)
+            new_specs.append(s)
+            if len(new_specs) >= room:
+                break
+        return new_specs
 
     def deepen(self, seed_specs: list[ChartSpec]) -> list[ChartSpec]:
         """Iterative-deepening loop: add follow-up charts the AI thinks reveal more,

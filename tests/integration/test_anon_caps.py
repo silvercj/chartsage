@@ -43,6 +43,7 @@ def caps_client(sales):
     calls = [tool_use("frequency_bar_chart", {"column": "region", "title": "T", "intent": "i"}, id_="t0")]
     fake_claude = FakeClaude([
         {"tool_calls": calls},
+        {"tool_calls": []},  # reach-for-more (1 chart < target, no errors) proposes nothing
         {"tool_calls": [tool_use("submit_narrative", {"summary": "S.", "captions": ["c"], "data_quality": []})]},
     ])
     db = FakeDB(); storage = FakeStorage(); ph = FakePostHog()

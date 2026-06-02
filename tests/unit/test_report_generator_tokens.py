@@ -18,7 +18,12 @@ def _make_generator(df, fake):
 
 
 def _three_chart_response(usage_selection=None, usage_narrative=None):
-    """One selection call (no errors) + one narrative call, with custom usage."""
+    """One selection call (no errors) + one narrative call, with custom usage.
+
+    3 charts is under MIN_CHARTS_TARGET, so generate_charts() fires one reach-for-more
+    round between selection and narrative. We script it as an empty round with ZERO
+    usage so it adds no charts and does not perturb the token totals under assertion.
+    """
     return FakeClaude([
         {
             "tool_calls": [
@@ -31,6 +36,10 @@ def _three_chart_response(usage_selection=None, usage_narrative=None):
                           "agg": "mean", "title": "T3", "intent": "i3"}),
             ],
             "usage": usage_selection or {},
+        },
+        {
+            "tool_calls": [],
+            "usage": {"input_tokens": 0, "output_tokens": 0, "cache_read_input_tokens": 0},
         },
         {
             "tool_calls": [tool_use(
