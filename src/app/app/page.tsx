@@ -21,6 +21,7 @@ export default function Home() {
   const [showOutOfCredits, setShowOutOfCredits] = useState(false);
   const [focus, setFocus] = useState('');
   const [deep, setDeep] = useState(false);
+  const [isLargeFile, setIsLargeFile] = useState(false);
 
   // Parse state — the selected sheet's rows/columns and the user's column selection.
   const [sheetNames, setSheetNames] = useState<string[]>([]);
@@ -51,8 +52,8 @@ export default function Home() {
     (accepted: File[]) => {
       if (accepted.length === 0) return;
       const f = accepted[0];
-      if (f.size > 10 * 1024 * 1024) {
-        setError('File must be under 10MB.');
+      if (f.size > 50 * 1024 * 1024) {
+        setError('File must be under 50MB.');
         return;
       }
       if (!/\.(csv|xlsx)$/i.test(f.name)) {
@@ -61,6 +62,7 @@ export default function Home() {
       }
       setFile(f);
       setError(null);
+      setIsLargeFile(f.size > 10 * 1024 * 1024);
       // Reset any prior parse state.
       wbRef.current = null;
       setSheetNames([]);
@@ -200,8 +202,14 @@ export default function Home() {
             </svg>
           </span>
           <p className="text-ink font-medium mb-1">Drop a file, or click to choose.</p>
-          <p className="font-mono text-xs text-ink-3">.csv or .xlsx · up to 10 MB</p>
+          <p className="font-mono text-xs text-ink-3">.csv or .xlsx · up to 50 MB</p>
         </div>
+
+        {isLargeFile && !isProcessing && (
+          <p className="mt-4 font-mono text-xs text-ink-2">
+            Large file — we&apos;ll analyze a representative sample.
+          </p>
+        )}
 
         {error && (
           <div className="mt-4 p-4 card border-ember/40 text-ember text-sm rounded-xl">
