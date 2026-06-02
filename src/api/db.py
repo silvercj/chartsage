@@ -120,6 +120,14 @@ class SupabaseDB:
                                "p_reason": reason, "p_ref": ref}).execute()
         return int(res.data)
 
+    def process_stripe_purchase(self, event_id: str, user_id, credits: int, ref: str) -> dict:
+        """Atomic + idempotent (server-side fn). Returns {'granted': bool, 'balance': int}."""
+        res = self.client.rpc("process_stripe_purchase", {
+            "p_event": event_id, "p_user": str(user_id),
+            "p_credits": credits, "p_ref": ref,
+        }).execute()
+        return res.data
+
     def spend_credits(self, user_id, amount: int, reason: str, ref=None) -> int:
         try:
             res = self.client.rpc("spend_credits",

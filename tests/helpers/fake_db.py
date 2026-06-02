@@ -17,6 +17,7 @@ class FakeDB:
         self._intent: dict[str, str | None] = {}
         self._anon_log: list[dict] = []
         self._support_messages: list[dict] = []
+        self._stripe_events: set[str] = set()
 
     def save_report(
         self,
@@ -108,6 +109,15 @@ class FakeDB:
         self._profiles[uid] = self._profiles.get(uid, 0) + amount
         self._txns.append({"user_id": uid, "delta": amount, "reason": reason, "ref": ref})
         return self._profiles[uid]
+
+    def process_stripe_purchase(self, event_id, user_id, credits: int, ref) -> dict:
+        uid = str(user_id)
+        if event_id in self._stripe_events:                      # duplicate -> no grant
+            return {"granted": False, "balance": self._profiles.get(uid, 0)}
+        self._stripe_events.add(event_id)
+        self._profiles.setdefault(uid, 0)
+        balance = self.grant_credits(uid, credits, "stripe_purchase", ref)
+        return {"granted": True, "balance": balance}
 
     def spend_credits(self, user_id, amount: int, reason: str, ref=None) -> int:
         uid = str(user_id)
