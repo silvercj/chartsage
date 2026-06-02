@@ -17,13 +17,13 @@ export default function PrivacyPage() {
           <section><h2 className="font-display text-lg text-ink mb-2">3. Data handling &amp; retention</h2>
             <p>Your data is stored in our cloud infrastructure and retained while your account is active and as needed to operate the Service. Uploaded files and generated reports are kept so you can revisit your reports.</p></section>
           <section><h2 className="font-display text-lg text-ink mb-2">4. Deletion</h2>
-            <p>You can request deletion of your account and associated data by emailing us at <span className="font-mono">support@chartsage.app</span> (update with the real address). Self-serve deletion is coming.</p></section>
+            <p>You can request deletion of your account and associated data by <a href="/contact" className="text-accent underline">contacting us</a>. Self-serve deletion is coming.</p></section>
           <section><h2 className="font-display text-lg text-ink mb-2">5. Cookies &amp; analytics</h2>
             <p>We use cookies and a product-analytics tool to understand usage and improve the Service.</p></section>
           <section><h2 className="font-display text-lg text-ink mb-2">6. Changes</h2>
             <p>We may update this Policy; material changes will be reflected by the &ldquo;last updated&rdquo; date above.</p></section>
           <section><h2 className="font-display text-lg text-ink mb-2">7. Contact</h2>
-            <p>Questions about your privacy? Contact us at <span className="font-mono">support@chartsage.app</span> (update with your real support address).</p></section>
+            <p>Questions about your privacy? <a href="/contact" className="text-accent underline">Contact us</a>.</p></section>
         </div>
       </div>
     </main>

@@ -20,6 +20,7 @@ export default function MarketingFooter() {
           <a href="/login" className="hover:text-ink transition-colors">Sign in</a>
           <a href="/terms" className="hover:text-ink transition-colors">Terms</a>
           <a href="/privacy" className="hover:text-ink transition-colors">Privacy</a>
+          <a href="/contact" className="hover:text-ink transition-colors">Contact</a>
         </div>
         <small className="font-mono text-[11.5px] text-ink-3">© ChartSage</small>
       </div>

@@ -25,7 +25,7 @@ export default function TermsPage() {
           <section><h2 className="font-display text-lg text-ink mb-2">7. Changes</h2>
             <p>We may update these Terms; material changes will be reflected by the &ldquo;last updated&rdquo; date above.</p></section>
           <section><h2 className="font-display text-lg text-ink mb-2">8. Contact</h2>
-            <p>Questions about these Terms? Contact us at <span className="font-mono">support@chartsage.app</span> (update with your real support address).</p></section>
+            <p>Questions about these Terms? <a href="/contact" className="text-accent underline">Contact us</a>.</p></section>
         </div>
       </div>
     </main>
