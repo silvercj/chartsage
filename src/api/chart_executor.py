@@ -10,6 +10,7 @@ from typing import Any, Callable
 import numpy as np
 import pandas as pd
 from schemas import ChartSpec, KeyMetric, ToolError
+from multi_value import detect_multi_value, explode_multi_value
 
 
 MAX_CATEGORIES = 30
@@ -62,16 +63,21 @@ def execute_frequency_bar_chart(df: pd.DataFrame, params: dict) -> ChartSpec | T
         cats = _available_columns_by_role(df)["categorical"]
         return _err(f"'{column}' is not a column. Available categorical columns: {cats}")
 
-    series = df[column].dropna()
-    if len(series) == 0:
+    if df[column].dropna().empty:
         return _err(f"'{column}' has no non-null values.")
 
-    counts = series.value_counts()
-    if len(counts) > MAX_CATEGORIES:
-        return _err(
-            f"'{column}' has {len(counts)} unique values, more than the max ({MAX_CATEGORIES}). "
-            f"Use frequency charts on lower-cardinality columns; this column may be an identifier."
-        )
+    delim = detect_multi_value(df[column])
+    if delim is not None:
+        series = explode_multi_value(df[column], delim)
+        counts = series.value_counts().head(MAX_CATEGORIES)   # top-N atoms; no cardinality error
+    else:
+        series = df[column].dropna()
+        counts = series.value_counts()
+        if len(counts) > MAX_CATEGORIES:
+            return _err(
+                f"'{column}' has {len(counts)} unique values, more than the max ({MAX_CATEGORIES}). "
+                f"Use frequency charts on lower-cardinality columns; this column may be an identifier."
+            )
 
     x = [str(v) for v in counts.index.tolist()]
     y = [int(v) for v in counts.values.tolist()]
@@ -399,6 +405,18 @@ def execute_pie_chart(df: pd.DataFrame, params: dict) -> ChartSpec | ToolError:
 
     if len(work) == 0:
         return _err(f"No usable rows for pie chart on '{category_col}'.")
+
+    cat_delim = detect_multi_value(df[category_col])
+    if cat_delim is not None:
+        # Multi-value category: split each cell into atoms (one row per atom).
+        # The existing top-MAX_PIE_SLICES + "Other" rollup then runs on atom counts/values.
+        work = work.assign(
+            **{category_col: work[category_col].astype(str).str.split(cat_delim, regex=False)}
+        ).explode(category_col)
+        work[category_col] = work[category_col].str.strip()
+        work = work[work[category_col] != ""]
+        if len(work) == 0:
+            return _err(f"No usable rows for pie chart on '{category_col}'.")
 
     if agg == "count":
         s = work[category_col].value_counts()
@@ -774,11 +792,14 @@ def execute_treemap_chart(df: pd.DataFrame, params: dict) -> ChartSpec | ToolErr
         return _err(f"value_col='{value_col}' is not numeric (required when agg != 'count'). "
                     f"Available numeric columns: {avail['numeric']}")
 
-    categories = int(df[category_col].dropna().nunique())
-    if categories == 0:
+    if df[category_col].dropna().empty:
         return _err(f"category_col='{category_col}' has no non-null values.")
-    if categories > MAX_CATEGORIES:
-        return _err(f"category_col='{category_col}' has {categories} unique values, more than max ({MAX_CATEGORIES}).")
+
+    cat_delim = detect_multi_value(df[category_col])
+    if cat_delim is None:
+        categories = int(df[category_col].dropna().nunique())
+        if categories > MAX_CATEGORIES:
+            return _err(f"category_col='{category_col}' has {categories} unique values, more than max ({MAX_CATEGORIES}).")
 
     group_cols = [category_col] + ([subcategory_col] if subcategory_col else [])
     subset = group_cols + ([value_col] if agg != "count" else [])
@@ -788,10 +809,30 @@ def execute_treemap_chart(df: pd.DataFrame, params: dict) -> ChartSpec | ToolErr
     if len(work) == 0:
         return _err(f"No usable rows for treemap on '{category_col}'.")
 
+    if cat_delim is not None:
+        # Multi-value category: split each cell into atoms (one row per atom),
+        # then keep the top MAX_CATEGORIES atoms by aggregated value.
+        work = work.assign(
+            **{category_col: work[category_col].astype(str).str.split(cat_delim, regex=False)}
+        ).explode(category_col)
+        work[category_col] = work[category_col].str.strip()
+        work = work[work[category_col] != ""]
+        if len(work) == 0:
+            return _err(f"No usable rows for treemap on '{category_col}'.")
+
     def _agg(g: pd.DataFrame) -> float:
         if agg == "count":
             return float(len(g))
         return float(g[value_col].agg(agg))
+
+    if cat_delim is not None:
+        # Keep the top MAX_CATEGORIES atoms by their (top-level) aggregated value.
+        if agg == "count":
+            totals = work[category_col].value_counts()
+        else:
+            totals = work.groupby(category_col)[value_col].agg(agg).sort_values(ascending=False)
+        top_atoms = set(totals.head(MAX_CATEGORIES).index)
+        work = work[work[category_col].isin(top_atoms)]
 
     nodes: list[dict] = []
     if subcategory_col:
