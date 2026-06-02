@@ -21,7 +21,7 @@ from fastapi.responses import JSONResponse, StreamingResponse
 from alerting import report_alert
 from claude_client import ClaudeClient, RetryableBusy
 from credits import ADD_CHART_COST, DEEP_ANALYSIS_COST, GENERATE_MORE_COST, REPORT_COST, SIGNUP_GRANT, InsufficientCredits
-from billing import public_catalogue
+from billing import get_package, price_id_for, public_catalogue
 from db import SupabaseDB
 from deps import Identity, get_identity, require_admin
 from pydantic import BaseModel
@@ -1182,6 +1182,45 @@ async def export_html(
 async def billing_packages():
     """Public catalogue of purchasable credit packs (single source of truth)."""
     return public_catalogue()
+
+
+class CheckoutIn(BaseModel):
+    package_id: str
+
+
+@app.post("/billing/checkout")
+async def billing_checkout(
+    body: CheckoutIn,
+    identity: Identity = Depends(get_identity),
+    db: SupabaseDB = Depends(get_db),
+    posthog: PostHogServer = Depends(get_posthog),
+):
+    if not identity.is_authenticated:
+        raise HTTPException(status_code=401, detail={
+            "code": "AUTH_REQUIRED", "message": "Sign in to buy credits."})
+    pkg = get_package(body.package_id)
+    if pkg is None:
+        raise HTTPException(status_code=400, detail={
+            "code": "UNKNOWN_PACKAGE", "message": "Unknown credit pack."})
+    price_id = price_id_for(pkg)
+    if not price_id:
+        raise HTTPException(status_code=503, detail={
+            "code": "BILLING_UNAVAILABLE", "message": "Payments aren't configured yet."})
+    session = stripe.checkout.Session.create(
+        mode="payment",
+        line_items=[{"price": price_id, "quantity": 1}],
+        client_reference_id=str(identity.user_id),
+        metadata={
+            "user_id": str(identity.user_id),
+            "credits": str(pkg["credits"]),       # Stripe metadata values are strings
+            "package_id": body.package_id,
+        },
+        success_url=f"{_FRONTEND_BASE}/credits?purchase=success&session_id={{CHECKOUT_SESSION_ID}}",
+        cancel_url=f"{_FRONTEND_BASE}/credits?purchase=cancelled",
+    )
+    posthog.capture(identity.distinct_id, "checkout_started", {
+        "package_id": body.package_id, "credits": pkg["credits"]})
+    return {"url": session.url}
 
 
 class ContactIn(BaseModel):
