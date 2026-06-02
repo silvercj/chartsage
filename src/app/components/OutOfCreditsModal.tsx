@@ -17,7 +17,7 @@ export default function OutOfCreditsModal({ open, onClose }: { open: boolean; on
       <div className="card shadow-card-lg rounded-2xl p-6 w-full max-w-md" onClick={(e) => e.stopPropagation()}>
         <h2 className="font-display text-xl text-ember mb-1">You're out of credits</h2>
         <p className="text-sm text-ink-2 mb-5">
-          Top up to keep generating reports — credit packs start at £5.
+          Top up to keep generating reports — credit packs start at $5.
         </p>
         <button type="button" onClick={buy} className="btn btn-primary w-full">
           Buy credits
