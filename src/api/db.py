@@ -142,6 +142,62 @@ class SupabaseDB:
          .upsert({"user_id": str(user_id), "email": email}, on_conflict="user_id")
          .execute())
 
+    # --- admin ---
+    def _list_auth_users(self, cap_pages: int = 20, per_page: int = 200) -> list:
+        """All auth users via the GoTrue admin API, paginated up to a cap."""
+        users: list = []
+        page = 1
+        while page <= cap_pages:
+            resp = self.client.auth.admin.list_users(page=page, per_page=per_page)
+            batch = resp if isinstance(resp, list) else getattr(resp, "users", []) or []
+            if not batch:
+                break
+            users.extend(batch)
+            if len(batch) < per_page:
+                break
+            page += 1
+        return users
+
+    def _all_balances(self) -> dict:
+        res = self.client.table("profiles").select("user_id, credits_balance").execute()
+        return {r["user_id"]: r["credits_balance"] for r in (res.data or [])}
+
+    def search_accounts(self, query: str, limit: int = 50) -> list[dict]:
+        q = (query or "").strip().lower()
+        balances = self._all_balances()
+        out: list[dict] = []
+        for u in self._list_auth_users():
+            email = getattr(u, "email", None) or ""
+            if q and q not in email.lower():
+                continue
+            uid = str(getattr(u, "id", "") or "")
+            created = getattr(u, "created_at", None)
+            out.append({
+                "user_id": uid,
+                "email": email,
+                "credits_balance": int(balances.get(uid, 0)),
+                "created_at": created.isoformat() if hasattr(created, "isoformat") else created,
+            })
+            if len(out) >= limit:
+                break
+        return out
+
+    def get_account_detail(self, user_id) -> dict | None:
+        uid = str(user_id)
+        try:
+            resp = self.client.auth.admin.get_user_by_id(uid)
+            user = getattr(resp, "user", None) or resp
+        except Exception:
+            user = None
+        if user is None or getattr(user, "id", None) is None:
+            return None
+        return {
+            "user_id": uid,
+            "email": getattr(user, "email", None),
+            "credits_balance": self.get_balance(uid),
+            "transactions": self.list_transactions(uid),
+        }
+
 
 def _summarize_report_row(row: dict) -> dict:
     charts = (row.get("report_json") or {}).get("charts", [])

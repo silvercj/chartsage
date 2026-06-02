@@ -11,6 +11,7 @@ class FakeDB:
         self._rows: dict[str, dict] = {}   # report_id -> row dict
         self._seq = 0
         self._profiles: dict[str, int] = {}   # user_id -> balance
+        self._users: list[dict] = []          # fake auth user directory
         self._txns: list[dict] = []           # ledger
         self._intent: dict[str, str | None] = {}
 
@@ -119,3 +120,37 @@ class FakeDB:
 
     def record_upgrade_intent(self, user_id, email) -> None:
         self._intent[str(user_id)] = email
+
+    # --- admin (fake user directory) ---
+    def add_user(self, user_id, email, created_at: str = "2026-01-01T00:00:00Z") -> None:
+        self._users.append({"id": str(user_id), "email": email, "created_at": created_at})
+
+    def _find_user(self, user_id):
+        return next((u for u in self._users if u["id"] == str(user_id)), None)
+
+    def search_accounts(self, query: str, limit: int = 50) -> list[dict]:
+        q = (query or "").strip().lower()
+        out = []
+        for u in self._users:
+            if q and q not in (u["email"] or "").lower():
+                continue
+            out.append({
+                "user_id": u["id"],
+                "email": u["email"],
+                "credits_balance": self.get_balance(u["id"]),
+                "created_at": u["created_at"],
+            })
+            if len(out) >= limit:
+                break
+        return out
+
+    def get_account_detail(self, user_id) -> dict | None:
+        u = self._find_user(user_id)
+        if u is None:
+            return None
+        return {
+            "user_id": u["id"],
+            "email": u["email"],
+            "credits_balance": self.get_balance(u["id"]),
+            "transactions": self.list_transactions(u["id"]),
+        }
