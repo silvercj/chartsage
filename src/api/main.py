@@ -20,6 +20,7 @@ from fastapi.responses import JSONResponse, StreamingResponse
 from alerting import report_alert
 from claude_client import ClaudeClient, RetryableBusy
 from credits import ADD_CHART_COST, DEEP_ANALYSIS_COST, GENERATE_MORE_COST, REPORT_COST, SIGNUP_GRANT, InsufficientCredits
+from billing import public_catalogue
 from db import SupabaseDB
 from deps import Identity, get_identity, require_admin
 from pydantic import BaseModel
@@ -1162,6 +1163,12 @@ async def export_html(
     posthog.capture(identity.distinct_id, "report_exported",
                     {"reportId": session_id, "format": "html"})
     return _export_response(payload, session_id, "html", "text/html")
+
+
+@app.get("/billing/packages")
+async def billing_packages():
+    """Public catalogue of purchasable credit packs (single source of truth)."""
+    return public_catalogue()
 
 
 class ContactIn(BaseModel):
