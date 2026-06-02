@@ -20,8 +20,8 @@ steps:
       - --concurrency=4
       - --timeout=120s
       - --service-account=chartsage-runner@$PROJECT_ID.iam.gserviceaccount.com
-      - --set-secrets=ANTHROPIC_API_KEY=anthropic-key:latest,SUPABASE_SERVICE_ROLE_KEY=supabase-srk:latest,POSTHOG_API_KEY=posthog-key:latest,ADMIN_API_TOKEN=admin-api-token:latest,SENTRY_DSN=sentry-dsn:latest
-      - --set-env-vars=SUPABASE_URL=$_SUPABASE_URL,FRONTEND_BASE_URL=$_FRONTEND_BASE_URL,CLAUDE_MODEL=haiku-4-5,ANON_REPORT_LIMIT=$_ANON_REPORT_LIMIT,UNLIMITED_ANON_IDS=$_UNLIMITED_ANON_IDS,ANON_IP_DAILY_CAP=$_ANON_IP_DAILY_CAP,ANON_GLOBAL_DAILY_CAP=$_ANON_GLOBAL_DAILY_CAP
+      - --set-secrets=ANTHROPIC_API_KEY=anthropic-key:latest,SUPABASE_SERVICE_ROLE_KEY=supabase-srk:latest,POSTHOG_API_KEY=posthog-key:latest,ADMIN_API_TOKEN=admin-api-token:latest,SENTRY_DSN=sentry-dsn:latest,STRIPE_SECRET_KEY=stripe-secret-key:latest,STRIPE_WEBHOOK_SECRET=stripe-webhook-secret:latest
+      - --set-env-vars=SUPABASE_URL=$_SUPABASE_URL,FRONTEND_BASE_URL=$_FRONTEND_BASE_URL,CLAUDE_MODEL=haiku-4-5,ANON_REPORT_LIMIT=$_ANON_REPORT_LIMIT,UNLIMITED_ANON_IDS=$_UNLIMITED_ANON_IDS,ANON_IP_DAILY_CAP=$_ANON_IP_DAILY_CAP,ANON_GLOBAL_DAILY_CAP=$_ANON_GLOBAL_DAILY_CAP,STRIPE_PRICE_STARTER=$_STRIPE_PRICE_STARTER,STRIPE_PRICE_STANDARD=$_STRIPE_PRICE_STANDARD,STRIPE_PRICE_PRO=$_STRIPE_PRICE_PRO
 
 # _TAG defaults to 'latest'; CI/manual runs can pass --substitutions=_TAG=<git-sha>.
 # (Built-in $SHORT_SHA is only populated for trigger-based builds, not `gcloud builds submit`.)
@@ -33,6 +33,9 @@ substitutions:
   _UNLIMITED_ANON_IDS: ''           # comma-separated anon IDs that bypass the cap (owner/QA); empty in git
   _ANON_IP_DAILY_CAP: '5'
   _ANON_GLOBAL_DAILY_CAP: '200'
+  _STRIPE_PRICE_STARTER: ''         # Stripe Price ID for the Starter pack (passed at deploy)
+  _STRIPE_PRICE_STANDARD: ''        # Stripe Price ID for the Standard pack
+  _STRIPE_PRICE_PRO: ''             # Stripe Price ID for the Pro pack
 
 images:
   - 'gcr.io/$PROJECT_ID/chartsage-backend:${_TAG}'
