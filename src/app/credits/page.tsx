@@ -80,6 +80,11 @@ function CreditsInner() {
     return () => timers.forEach(clearTimeout);
   }, [purchase, refetch, loadHistory, router]);
 
+  // Track checkout abandonment (returned from Stripe without paying).
+  useEffect(() => {
+    if (purchase === 'cancelled') posthog.capture?.('checkout_cancelled', {});
+  }, [purchase]);
+
   async function buy(pkgId: string) {
     setBuying(pkgId);
     posthog.capture?.('buy_pack_clicked', { package_id: pkgId });
