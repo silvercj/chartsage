@@ -20,6 +20,7 @@ export default function Toolbar({ sessionId, report, onReportUpdated }: Props) {
   const [deepening, setDeepening] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
   const [showUpsell, setShowUpsell] = useState(false);
   const [showOutOfCredits, setShowOutOfCredits] = useState(false);
   const [showAddChart, setShowAddChart] = useState(false);
@@ -28,6 +29,7 @@ export default function Toolbar({ sessionId, report, onReportUpdated }: Props) {
   async function handleGenerateMore() {
     setGenerating(true);
     setError(null);
+    setNotice(null);
     posthog.capture?.('generate_more_clicked', { reportId: sessionId });
     try {
       const res = await apiFetch(`/report/${sessionId}/generate-more`, { method: 'POST' });
@@ -56,6 +58,7 @@ export default function Toolbar({ sessionId, report, onReportUpdated }: Props) {
   async function handleDeepen() {
     setDeepening(true);
     setError(null);
+    setNotice(null);
     posthog.capture?.('deepen_clicked', { reportId: sessionId });
     try {
       const res = await apiFetch(`/report/${sessionId}/deepen`, { method: 'POST' });
@@ -71,9 +74,20 @@ export default function Toolbar({ sessionId, report, onReportUpdated }: Props) {
         return;
       }
       if (!res.ok) throw new Error(`Failed (${res.status})`);
+      const before = report.charts?.length ?? 0;
       const updated: Report = await res.json();
+      const added = (updated.charts?.length ?? 0) - before;
       onReportUpdated(updated);
-      refetch();   // balance changed
+      refetch();   // balance changed (only when charts were actually added)
+      // Deepen only adds charts; when it finds nothing new the backend returns the
+      // report unchanged AND skips the charge, so make that explicit instead of
+      // silently swapping in an identical report.
+      setNotice(
+        added > 0
+          ? `Deepened — added ${added} new chart${added === 1 ? '' : 's'}.`
+          : "No new angles found — your report already covers the data well. You weren't charged.",
+      );
+      setTimeout(() => setNotice(null), 8000);
     } catch (e: any) {
       setError(e.message || 'Failed to deepen this report.');
     } finally {
@@ -114,6 +128,7 @@ export default function Toolbar({ sessionId, report, onReportUpdated }: Props) {
     <>
       <div className="sticky top-0 z-10 -mx-4 sm:-mx-6 lg:-mx-8 px-4 sm:px-6 lg:px-8 py-3 mb-6 bg-canvas/90 backdrop-blur border-b border-line flex items-center justify-end gap-3">
         {error && <span className="text-sm text-ember mr-auto">{error}</span>}
+        {!error && notice && <span className="text-sm text-ink-2 mr-auto">{notice}</span>}
         <button
           type="button"
           onClick={() => setShowAddChart(true)}
