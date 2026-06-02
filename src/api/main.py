@@ -1242,8 +1242,24 @@ async def billing_webhook(
         if session.get("payment_status") == "paid":
             md = session.get("metadata") or {}
             user_id = md.get("user_id")
-            credits = int(md.get("credits", 0) or 0)
-            if user_id and credits > 0:
+            # Our own checkout always writes a clean int `credits` + a real UUID
+            # `user_id`, but a hand-crafted/edited Stripe event could be malformed.
+            # Validate in Python so a bad-but-verified event is skipped with a 200
+            # (no Stripe retry-storm) rather than 500ing on int() or the uuid-typed
+            # DB column. Genuine DB/infra errors are NOT caught here, so they still
+            # 500 and Stripe legitimately retries.
+            try:
+                credits = int(md.get("credits", 0) or 0)
+            except (TypeError, ValueError):
+                credits = 0
+            valid_user = False
+            if user_id:
+                try:
+                    UUID(str(user_id))
+                    valid_user = True
+                except (ValueError, AttributeError):
+                    valid_user = False
+            if valid_user and credits > 0:
                 result = db.process_stripe_purchase(
                     event["id"], user_id, credits, session.get("id"))
                 if result.get("granted"):
@@ -1253,6 +1269,10 @@ async def billing_webhook(
                         "amount_total": session.get("amount_total"),
                         "currency": session.get("currency"),
                     })
+            else:
+                logging.warning(
+                    "billing_webhook: skipping malformed verified event id=%s user_id=%r credits=%r",
+                    event.get("id"), user_id, md.get("credits"))
 
     return {"received": True}                             # 200 for all verified events
 

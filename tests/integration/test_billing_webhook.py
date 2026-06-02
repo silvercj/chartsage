@@ -72,3 +72,35 @@ def test_webhook_ignores_other_event_types(ctx, monkeypatch):
     r = tc.post("/billing/webhook", content=b"{}", headers={"stripe-signature": "x"})
     assert r.status_code == 200 and r.json()["received"] is True
     assert len(ph.find("credits_purchased")) == 0
+
+
+def test_webhook_unpaid_no_grant(ctx, monkeypatch):
+    tc, db, ph = ctx
+    user = str(uuid4())
+    ev = _completed_event("evt_unpaid", user, paid=False)
+    monkeypatch.setattr("stripe.Webhook.construct_event", lambda payload, sig, secret: ev)
+    r = tc.post("/billing/webhook", content=b"{}", headers={"stripe-signature": "x"})
+    assert r.status_code == 200 and r.json()["received"] is True
+    assert db.get_balance(user) == 0                     # unpaid -> never credited
+    assert len(ph.find("credits_purchased")) == 0
+
+
+def test_webhook_malformed_credits_no_grant_no_500(ctx, monkeypatch):
+    tc, db, ph = ctx
+    user = str(uuid4())
+    ev = _completed_event("evt_badcredits", user)
+    ev["data"]["object"]["metadata"]["credits"] = "not-a-number"
+    monkeypatch.setattr("stripe.Webhook.construct_event", lambda payload, sig, secret: ev)
+    r = tc.post("/billing/webhook", content=b"{}", headers={"stripe-signature": "x"})
+    assert r.status_code == 200 and r.json()["received"] is True   # not a 500
+    assert db.get_balance(user) == 0
+    assert len(ph.find("credits_purchased")) == 0
+
+
+def test_webhook_malformed_user_id_no_grant_no_500(ctx, monkeypatch):
+    tc, db, ph = ctx
+    ev = _completed_event("evt_baduser", "not-a-uuid")
+    monkeypatch.setattr("stripe.Webhook.construct_event", lambda payload, sig, secret: ev)
+    r = tc.post("/billing/webhook", content=b"{}", headers={"stripe-signature": "x"})
+    assert r.status_code == 200 and r.json()["received"] is True   # not a 500
+    assert len(ph.find("credits_purchased")) == 0
