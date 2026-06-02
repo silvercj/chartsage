@@ -79,6 +79,12 @@ export default function LoginPage() {
           </form>
         )}
 
+        <p className="text-xs text-ink-3 mt-6 text-center">
+          By continuing, you agree to our{' '}
+          <a href="/terms" className="text-accent underline">Terms</a> and{' '}
+          <a href="/privacy" className="text-accent underline">Privacy Policy</a>.
+        </p>
+
         <p className="mt-6 text-sm text-ink-2 text-center">
           <a href="/" className="hover:text-ink transition-colors">← Back to home</a>
         </p>
