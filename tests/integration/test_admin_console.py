@@ -57,6 +57,7 @@ def test_grant_happy_path(client_and_fakes):
     assert db.get_balance(UID) == 1300
     granted = ph.find("admin_credit_grant")
     assert len(granted) == 1
+    assert granted[0]["distinct_id"] == UID  # event attributed to the target account
     p = granted[0]["properties"]
     assert p["amount"] == 1000 and p["newBalance"] == 1300
     assert p["targetEmail"] == "alice@example.com" and p["source"] == "admin_console"
