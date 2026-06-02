@@ -4,6 +4,7 @@ The interface mirrors the FakeDB helper used in tests so we can swap
 between real and fake implementations through dependency injection.
 """
 import os
+from datetime import datetime, timezone
 from typing import Optional
 from uuid import UUID
 
@@ -141,6 +142,27 @@ class SupabaseDB:
         (self.client.table("upgrade_intent")
          .upsert({"user_id": str(user_id), "email": email}, on_conflict="user_id")
          .execute())
+
+    # --- anon abuse log (soft-launch) ---
+    def _utc_today_start_iso(self) -> str:
+        n = datetime.now(timezone.utc)
+        return n.replace(hour=0, minute=0, second=0, microsecond=0).isoformat()
+
+    def log_anon_report(self, anon_id, ip, fingerprint) -> None:
+        self.client.table("anon_report_log").insert({
+            "anon_id": str(anon_id) if anon_id else None,
+            "ip": ip, "fingerprint": fingerprint,
+        }).execute()
+
+    def count_anon_reports_today(self) -> int:
+        res = (self.client.table("anon_report_log").select("id", count="exact")
+               .gte("created_at", self._utc_today_start_iso()).execute())
+        return res.count or 0
+
+    def count_anon_reports_today_by_ip(self, ip) -> int:
+        res = (self.client.table("anon_report_log").select("id", count="exact")
+               .eq("ip", ip).gte("created_at", self._utc_today_start_iso()).execute())
+        return res.count or 0
 
     # --- admin ---
     def _list_auth_users(self, cap_pages: int = 20, per_page: int = 200) -> list:

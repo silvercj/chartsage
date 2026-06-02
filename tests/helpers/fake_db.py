@@ -1,5 +1,6 @@
 """In-memory db matching the db.py interface, for integration tests."""
 from copy import deepcopy
+from datetime import datetime, timezone
 from typing import Optional
 from uuid import UUID
 
@@ -14,6 +15,7 @@ class FakeDB:
         self._users: list[dict] = []          # fake auth user directory
         self._txns: list[dict] = []           # ledger
         self._intent: dict[str, str | None] = {}
+        self._anon_log: list[dict] = []
 
     def save_report(
         self,
@@ -120,6 +122,26 @@ class FakeDB:
 
     def record_upgrade_intent(self, user_id, email) -> None:
         self._intent[str(user_id)] = email
+
+    # --- anon abuse log (soft-launch) ---
+    def log_anon_report(self, anon_id, ip, fingerprint) -> None:
+        self._anon_log.append({
+            "anon_id": str(anon_id) if anon_id else None,
+            "ip": ip, "fingerprint": fingerprint,
+            "created_at": datetime.now(timezone.utc),
+        })
+
+    def _utc_today_start(self):
+        n = datetime.now(timezone.utc)
+        return n.replace(hour=0, minute=0, second=0, microsecond=0)
+
+    def count_anon_reports_today(self) -> int:
+        s = self._utc_today_start()
+        return sum(1 for r in self._anon_log if r["created_at"] >= s)
+
+    def count_anon_reports_today_by_ip(self, ip) -> int:
+        s = self._utc_today_start()
+        return sum(1 for r in self._anon_log if r["ip"] == ip and r["created_at"] >= s)
 
     # --- admin (fake user directory) ---
     def add_user(self, user_id, email, created_at: str = "2026-01-01T00:00:00Z") -> None:
