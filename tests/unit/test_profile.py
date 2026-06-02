@@ -108,3 +108,25 @@ def test_to_text_includes_columns(activities):
     text = profile.to_text()
     assert "activity_type" in text
     assert "duration_minutes" in text
+
+
+def test_multi_value_country_is_usable_categorical():
+    import pandas as pd, random
+    from profile import profile_dataframe
+    random.seed(1)
+    n = 400
+    countries = ["United States", "India", "United Kingdom", "Japan", "Canada", "France", "Spain", "Mexico"]
+    def multi(pool, lo, hi): return ", ".join(random.sample(pool, random.randint(lo, hi)))
+    df = pd.DataFrame({
+        "country": [multi(countries, 1, 3) for _ in range(n)],
+        "cast": [", ".join(f"Actor{random.randint(0,3000)}" for _ in range(4)) for _ in range(n)],
+        "description": [f"A unique, long sentence number {i} describing the title at length." for i in range(n)],
+        "rating": [random.choice(["TV-MA", "PG-13", "R", "TV-14"]) for _ in range(n)],
+    })
+    prof = profile_dataframe(df)
+    by = {c.name: c for c in prof.columns}
+    assert by["country"].role == "categorical" and by["country"].multi_value is True
+    assert by["country"].delimiter == ", "
+    assert by["cast"].role == "unusable"
+    assert by["description"].role == "unusable"
+    assert by["rating"].role == "categorical" and by["rating"].multi_value is False

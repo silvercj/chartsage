@@ -25,6 +25,8 @@ class ColumnInfo(BaseModel):
     min_date: Optional[str] = None
     max_date: Optional[str] = None
     unusable_reason: Optional[str] = None
+    multi_value: bool = False
+    delimiter: Optional[str] = None
 
 
 class DataProfile(BaseModel):
@@ -42,7 +44,10 @@ class DataProfile(BaseModel):
                 parts.append(f"  min={c.min}, max={c.max}, mean={c.mean}, median={c.median}, std={c.std}")
             elif c.role == "categorical" and c.top_values:
                 top = ", ".join(f"{v}={n}" for v, n in c.top_values[:5])
-                parts.append(f"  top: {top}")
+                if c.multi_value:
+                    parts.append(f"  multi-value (split on '{c.delimiter}') — top: {top}")
+                else:
+                    parts.append(f"  top: {top}")
             elif c.role == "date":
                 parts.append(f"  range: {c.min_date} → {c.max_date}")
             elif c.role == "unusable":

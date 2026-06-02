@@ -8,6 +8,7 @@ import re
 import numpy as np
 import pandas as pd
 from schemas import ColumnInfo, DataProfile
+from multi_value import detect_multi_value, explode_multi_value
 
 
 _IDENTIFIER_SUFFIXES = ("_id", "_code", "_uuid", "_key")
@@ -94,6 +95,24 @@ def _profile_column(name: str, series: pd.Series, row_count: int) -> ColumnInfo:
             name=name, dtype=dtype, role="categorical",
             cardinality=cardinality, null_count=null_count,
             top_values=[(k, int(v)) for k, v in top.items()],
+        )
+
+    # Multi-value / multi-label column ("United States, India" or "Drama|Comedy"):
+    # split into atoms and treat as a usable categorical (charted top-N of the atoms).
+    # Run BEFORE the high-cardinality branch: a delimited column whose raw combinations
+    # happen to fall under the cardinality ceiling must still be FLAGGED multi_value, so
+    # the chart executors explode it into atoms rather than charting whole combinations.
+    # detect_multi_value() is itself conservative (atom count/length/ratio guards), so
+    # free text like a `cast` list of thousands of distinct actors stays unusable below.
+    delim = detect_multi_value(series)
+    if delim is not None:
+        atoms = explode_multi_value(series, delim)
+        top = atoms.value_counts().head(5)
+        return ColumnInfo(
+            name=name, dtype=dtype, role="categorical",
+            cardinality=int(atoms.nunique()), null_count=null_count,
+            top_values=[(k, int(v)) for k, v in top.items()],
+            multi_value=True, delimiter=delim,
         )
 
     # High-cardinality but its values REPEAT (distinct count well below the row count):
