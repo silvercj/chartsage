@@ -10,7 +10,8 @@ _MV_MAX_ATOMS = 50
 _MV_MAX_ATOM_LEN = 30
 _MV_MAX_ATOM_LEN_HARD = 60
 _MV_MIN_MULTI_FRAC = 0.6
-_MV_MAX_ATOM_RATIO = 0.5
+_MV_MAX_ATOM_RATIO = 0.45  # distinct atoms / total occurrences must be well below 1 (atoms repeat);
+                           # 0.45 leaves margin against comma'd free-text (legit tag cols sit ~0.01-0.1)
 _MV_MIN_ROWS = 10
 
 
