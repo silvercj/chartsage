@@ -1223,6 +1223,40 @@ async def billing_checkout(
     return {"url": session.url}
 
 
+@app.post("/billing/webhook")
+async def billing_webhook(
+    request: Request,
+    db: SupabaseDB = Depends(get_db),
+    posthog: PostHogServer = Depends(get_posthog),
+):
+    payload = await request.body()                       # raw bytes (signature is over these)
+    sig = request.headers.get("stripe-signature", "")
+    try:
+        event = stripe.Webhook.construct_event(payload, sig, STRIPE_WEBHOOK_SECRET)
+    except (ValueError, SignatureVerificationError):
+        raise HTTPException(status_code=400, detail={
+            "code": "INVALID_SIGNATURE", "message": "Invalid webhook signature."})
+
+    if event["type"] == "checkout.session.completed":
+        session = event["data"]["object"]
+        if session.get("payment_status") == "paid":
+            md = session.get("metadata") or {}
+            user_id = md.get("user_id")
+            credits = int(md.get("credits", 0) or 0)
+            if user_id and credits > 0:
+                result = db.process_stripe_purchase(
+                    event["id"], user_id, credits, session.get("id"))
+                if result.get("granted"):
+                    posthog.capture(str(user_id), "credits_purchased", {
+                        "package_id": md.get("package_id"),
+                        "credits": credits,
+                        "amount_total": session.get("amount_total"),
+                        "currency": session.get("currency"),
+                    })
+
+    return {"received": True}                             # 200 for all verified events
+
+
 class ContactIn(BaseModel):
     message: str
     email: str | None = None
