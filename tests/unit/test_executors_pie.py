@@ -49,3 +49,16 @@ def test_value_col_required_for_non_count():
     result = execute_pie_chart(df, _params(category_col="cat", agg="sum"))
     assert isinstance(result, ToolError)
     assert "value_col" in result.reason.lower()
+
+
+def test_same_category_and_value_col_rejected():
+    # The model occasionally picks the SAME column for both roles. df[[col, col]]
+    # then has duplicate labels and groupby(col) raises the pandas
+    # "Grouper for X not 1-dimensional" ValueError (a production 500 on generate-more).
+    # The executor must reject it cleanly as a ToolError instead.
+    df = pd.DataFrame({"global_sales": [1.0, 2.0, 3.0, 4.0]})
+    result = execute_pie_chart(
+        df, _params(category_col="global_sales", value_col="global_sales", agg="sum")
+    )
+    assert isinstance(result, ToolError)
+    assert "global_sales" in result.reason

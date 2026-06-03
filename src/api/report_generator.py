@@ -181,7 +181,14 @@ class ReportGenerator:
             if executor is None:
                 errors.append({"id": block.id, "reason": f"unknown tool '{block.name}'"})
                 continue
-            result = executor(self.df, block.input)
+            try:
+                result = executor(self.df, block.input)
+            except Exception as exc:  # noqa: BLE001 - one bad spec must never 500 the whole report
+                logging.warning(
+                    "[GEN] tool '%s' raised %s: %s", block.name, type(exc).__name__, exc
+                )
+                errors.append({"id": block.id, "reason": f"{block.name} failed: {exc}"})
+                continue
             if isinstance(result, ToolError):
                 errors.append({"id": block.id, "reason": result.reason})
                 logging.warning("[GEN] tool '%s' error: %s", block.name, result.reason)

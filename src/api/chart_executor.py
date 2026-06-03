@@ -397,6 +397,10 @@ def execute_pie_chart(df: pd.DataFrame, params: dict) -> ChartSpec | ToolError:
             return _err(f"value_col='{value_col}' is not a column.")
         if not pd.api.types.is_numeric_dtype(df[value_col]):
             return _err(f"value_col='{value_col}' is not numeric.")
+        if value_col == category_col:
+            return _err(
+                f"category_col and value_col must be different columns (both are '{category_col}')."
+            )
 
     cols = [category_col] + ([value_col] if agg != "count" else [])
     work = df[cols].dropna(subset=[category_col])
