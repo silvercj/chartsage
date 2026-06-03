@@ -8,6 +8,7 @@ import { CreditsProvider } from './lib/useCredits'
 import './globals.css'
 
 export const metadata: Metadata = {
+  metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL || 'https://chartsage.app'),
   title: 'ChartSage - AI-Powered Data Visualization',
   description: 'Turn any spreadsheet into a beautiful, interactive report with AI-generated insights in seconds.',
 }
