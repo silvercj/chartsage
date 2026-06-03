@@ -79,6 +79,25 @@ def get_identity(
     )
 
 
+def get_identity_optional(
+    authorization: str | None = Header(None),
+    x_anon_id: str | None = Header(None),
+) -> Identity:
+    """Like get_identity but NEVER raises — for public endpoints that may be
+    called with no auth (e.g. Next's server-side generateMetadata). A valid
+    Bearer yields the user; anything else yields an anonymous Identity."""
+    if authorization and authorization.lower().startswith("bearer "):
+        user_id = verify_token(authorization[7:].strip())
+        if user_id is not None:
+            return Identity(user_id=user_id)
+    if x_anon_id:
+        try:
+            return Identity(anon_id=UUID(x_anon_id))
+        except (ValueError, AttributeError):
+            pass
+    return Identity()
+
+
 def require_admin(x_admin_token: str | None = Header(None)) -> None:
     """Gate admin endpoints on a shared secret.
 
