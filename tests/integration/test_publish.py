@@ -3,6 +3,7 @@ from uuid import uuid4
 from fastapi.testclient import TestClient
 from tests.helpers.fake_db import FakeDB
 from tests.helpers.fake_posthog import FakePostHog
+from tests.helpers.fake_storage import FakeStorage
 from tests.helpers.fake_auth import auth_identity, anon_identity
 
 
@@ -15,11 +16,18 @@ class _Holder:
 def ctx(monkeypatch):
     monkeypatch.setenv("FRONTEND_BASE_URL", "https://chartsage.app")
     monkeypatch.setenv("SUPABASE_URL", "https://proj.supabase.co")
+    # Default OG renderer to a fast no-op so publish tests never launch real Chromium.
+    # OG-specific tests re-patch render_og_image after this fixture runs.
+    import pdf_export
+    async def _fake_render(session_id):
+        return b"\x89PNG"
+    monkeypatch.setattr(pdf_export, "render_og_image", _fake_render)
     db, ph = FakeDB(), FakePostHog()
     holder = _Holder()
-    from main import app, get_db, get_posthog, get_identity, get_identity_optional
+    from main import app, get_db, get_posthog, get_storage, get_identity, get_identity_optional
     app.dependency_overrides[get_db] = lambda: db
     app.dependency_overrides[get_posthog] = lambda: ph
+    app.dependency_overrides[get_storage] = lambda: FakeStorage()
     app.dependency_overrides[get_identity] = holder
     app.dependency_overrides[get_identity_optional] = holder
     yield TestClient(app), db, ph, holder
@@ -101,3 +109,32 @@ def test_reports_public_lists_only_public(ctx):
     db.set_report_visibility(pub, True)
     ids = {r["id"] for r in tc.get("/reports/public").json()}
     assert pub in ids and priv not in ids
+
+
+def test_publish_generates_og(ctx, monkeypatch):
+    tc, db, ph, holder = ctx
+    user = str(uuid4()); rid = _save(db, user); holder.current = auth_identity(user)
+    calls = {}
+    async def fake_render(session_id):
+        calls["rendered"] = session_id
+        return b"\x89PNG-bytes"
+    import pdf_export
+    monkeypatch.setattr(pdf_export, "render_og_image", fake_render)
+    from main import app, get_storage
+    class FakeStorage:
+        def upload_public_image(self, key, png): calls["key"] = key; return key
+    app.dependency_overrides[get_storage] = lambda: FakeStorage()
+    r = tc.post(f"/report/{rid}/publish")
+    assert r.status_code == 200
+    assert calls["rendered"] == rid and calls["key"] == f"{rid}.png"
+    assert db.get_report(rid)["og_image_key"] == f"{rid}.png"
+
+
+def test_publish_survives_og_failure(ctx, monkeypatch):
+    tc, db, ph, holder = ctx
+    user = str(uuid4()); rid = _save(db, user); holder.current = auth_identity(user)
+    import pdf_export
+    async def boom(session_id): raise RuntimeError("render failed")
+    monkeypatch.setattr(pdf_export, "render_og_image", boom)
+    r = tc.post(f"/report/{rid}/publish")
+    assert r.status_code == 200 and db.get_report(rid)["is_public"] is True

@@ -227,7 +227,7 @@ def _public_urls(session_id: str, row: dict) -> dict:
     og = None
     key = row.get("og_image_key")
     if key:
-        og = f"{os.environ.get('SUPABASE_URL', '')}/storage/v1/object/public/og-images/{key}"
+        og = f"{os.environ.get('SUPABASE_URL', '').rstrip('/')}/storage/v1/object/public/og-images/{key}"
     return {
         "public_url": f"{_FRONTEND_BASE}/report/{session_id}",
         "embed_url": f"{_FRONTEND_BASE}/report/{session_id}/embed",
@@ -484,9 +484,17 @@ async def publish_report(
     identity: Identity = Depends(get_identity),
     db: SupabaseDB = Depends(get_db),
     posthog: PostHogServer = Depends(get_posthog),
+    storage: SupabaseStorage = Depends(get_storage),
 ):
     _require_report_owner(db, identity, session_id)
     db.set_report_visibility(session_id, True, published_at="now()")
+    try:
+        from pdf_export import render_og_image
+        png = await render_og_image(session_id)
+        og_key = storage.upload_public_image(f"{session_id}.png", png)
+        db.set_report_visibility(session_id, True, og_image_key=og_key)
+    except Exception:
+        logging.exception("OG image generation failed; publishing without a custom preview")
     posthog.capture(identity.distinct_id, "report_published", {"reportId": session_id})
     return _public_urls(session_id, db.get_report(session_id))
 
