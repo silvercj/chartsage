@@ -72,6 +72,22 @@ class SupabaseDB:
         report_json["layout"] = layout
         return self.update_report_json(report_id, report_json)
 
+    def set_report_visibility(self, report_id: str, is_public: bool,
+                              og_image_key: str | None = None,
+                              published_at: str | None = None) -> bool:
+        patch: dict = {"is_public": is_public}
+        if og_image_key is not None:
+            patch["og_image_key"] = og_image_key
+        if published_at is not None:
+            patch["published_at"] = published_at
+        res = self.client.table("reports").update(patch).eq("id", report_id).execute()
+        return len(res.data) > 0
+
+    def list_public_reports(self, limit: int = 5000) -> list[dict]:
+        res = (self.client.table("reports").select("id, updated_at")
+               .eq("is_public", True).order("updated_at", desc=True).limit(limit).execute())
+        return res.data or []
+
     def count_anon_reports(self, anon_id: UUID) -> int:
         res = (self.client.table("reports")
                .select("id", count="exact")
