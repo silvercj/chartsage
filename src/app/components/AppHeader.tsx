@@ -9,8 +9,9 @@ export default function AppHeader() {
   const { session } = useCredits();
   const email = session?.user?.email ?? null;
 
-  // Never render on the PDF print route — it must stay chrome-free.
-  if (pathname?.startsWith('/report/') && pathname.endsWith('/print')) return null;
+  // Never render on the chrome-free report routes: the PDF/OG print route and
+  // the public embed route both render bare so an iframe/screenshot has no header.
+  if (pathname && (pathname.endsWith('/embed') || pathname.endsWith('/print'))) return null;
 
   // Marketing landing has its own nav; app header is for app routes only.
   if (pathname === '/') return null;
