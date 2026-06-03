@@ -77,3 +77,12 @@ logs/
 # design scratch / local preview
 design/
 .claude/launch.json
+
+# Evidence BI (bi/) — deps & build artifacts (committed: sources, pages, configs).
+# bi/ also has its own .gitignore; this is belt-and-braces.
+bi/node_modules/
+bi/.evidence/
+bi/build/
+bi/.svelte-kit/
+bi/static/data/
+bi/.env

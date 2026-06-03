@@ -1,0 +1,13 @@
+name: supabase
+type: postgres
+# Secrets (host, user, password) come from bi/.env via EVIDENCE_SOURCE__supabase__*.
+# Only non-secret connection settings live here (this file IS committed).
+options:
+  port: 5432            # Session pooler / direct — NOT 6543 (transaction pooler has no cursors)
+  database: postgres
+  schema: public
+  # Supabase requires SSL. rejectUnauthorized:false = encrypt without verifying the CA chain,
+  # which is what works for Supabase out of the box. If you've installed Supabase's CA and want
+  # strict verification, replace the two lines below with:  ssl: true
+  ssl:
+    rejectUnauthorized: false
