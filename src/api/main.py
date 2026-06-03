@@ -23,7 +23,7 @@ from claude_client import ClaudeClient, RetryableBusy
 from credits import ADD_CHART_COST, DEEP_ANALYSIS_COST, GENERATE_MORE_COST, REPORT_COST, SIGNUP_GRANT, InsufficientCredits
 from billing import get_package, price_id_for, public_catalogue
 from db import SupabaseDB
-from deps import Identity, get_identity, require_admin
+from deps import Identity, get_identity, get_identity_optional, require_admin
 from pydantic import BaseModel
 from llm_config import MODEL_NARRATIVE, MODEL_SELECTION, estimate_cost_usd
 from posthog_server import PostHogServer
@@ -233,6 +233,14 @@ def _public_urls(session_id: str, row: dict) -> dict:
         "embed_url": f"{_FRONTEND_BASE}/report/{session_id}/embed",
         "og_image_url": og,
     }
+
+
+def _report_title_desc(report_json: dict) -> tuple[str, str]:
+    title = (report_json.get("title") or "ChartSage report").strip()[:120]
+    narrative = report_json.get("narrative")
+    summary = narrative.get("summary") if isinstance(narrative, dict) else (narrative if isinstance(narrative, str) else None)
+    desc = (summary or "An AI-generated report — charts and insights from a spreadsheet.").strip()[:200]
+    return title, desc
 
 
 # ---- Endpoints -------------------------------------------------------------
@@ -494,6 +502,30 @@ async def unpublish_report(
     db.set_report_visibility(session_id, False)
     posthog.capture(identity.distinct_id, "report_unpublished", {"reportId": session_id})
     return {"ok": True}
+
+
+@app.get("/report/{session_id}/meta")
+async def report_meta(
+    session_id: str,
+    identity: Identity = Depends(get_identity_optional),
+    db: SupabaseDB = Depends(get_db),
+):
+    row = db.get_report(session_id)
+    if not row:
+        raise HTTPException(status_code=404, detail={"code": "NOT_FOUND", "message": "Report not found."})
+    title, desc = _report_title_desc(row.get("report_json") or {})
+    owned = bool(identity.is_authenticated and row.get("user_id") == str(identity.user_id))
+    return {
+        "is_public": bool(row.get("is_public")),
+        "title": title, "description": desc,
+        "og_image_url": _public_urls(session_id, row)["og_image_url"],
+        "owned": owned,
+    }
+
+
+@app.get("/reports/public")
+async def reports_public(db: SupabaseDB = Depends(get_db)):
+    return db.list_public_reports()
 
 
 @app.patch("/report/{session_id}/layout", status_code=204)

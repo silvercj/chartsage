@@ -17,10 +17,11 @@ def ctx(monkeypatch):
     monkeypatch.setenv("SUPABASE_URL", "https://proj.supabase.co")
     db, ph = FakeDB(), FakePostHog()
     holder = _Holder()
-    from main import app, get_db, get_posthog, get_identity
+    from main import app, get_db, get_posthog, get_identity, get_identity_optional
     app.dependency_overrides[get_db] = lambda: db
     app.dependency_overrides[get_posthog] = lambda: ph
     app.dependency_overrides[get_identity] = holder
+    app.dependency_overrides[get_identity_optional] = holder
     yield TestClient(app), db, ph, holder
     app.dependency_overrides.clear()
 
@@ -72,3 +73,31 @@ def test_unpublish_owner_flips(ctx):
     assert r.status_code == 200 and r.json()["ok"] is True
     assert db.get_report(rid)["is_public"] is False
     assert len(ph.find("report_unpublished")) == 1
+
+
+def test_meta_owner_vs_anon(ctx):
+    tc, db, ph, holder = ctx
+    user = str(uuid4()); rid = _save(db, user)
+    holder.current = auth_identity(user)
+    m = tc.get(f"/report/{rid}/meta").json()
+    assert m["is_public"] is False and m["owned"] is True and m["title"] == "Sales"
+    holder.current = anon_identity(str(uuid4()))
+    assert tc.get(f"/report/{rid}/meta").json()["owned"] is False
+
+
+def test_meta_works_without_auth_headers(ctx):
+    tc, db, ph, holder = ctx
+    rid = _save(db, str(uuid4()))
+    from main import app, get_identity, get_identity_optional
+    app.dependency_overrides.pop(get_identity, None)
+    app.dependency_overrides.pop(get_identity_optional, None)
+    r = tc.get(f"/report/{rid}/meta")
+    assert r.status_code == 200 and r.json()["owned"] is False
+
+
+def test_reports_public_lists_only_public(ctx):
+    tc, db, ph, holder = ctx
+    pub = _save(db, str(uuid4())); priv = _save(db, str(uuid4()))
+    db.set_report_visibility(pub, True)
+    ids = {r["id"] for r in tc.get("/reports/public").json()}
+    assert pub in ids and priv not in ids
