@@ -73,6 +73,18 @@ make test         # unit + integration (~4s, no API calls)
 make test-e2e     # real Claude smoke tests (~60s, ~$0.06)
 ```
 
+## Internal BI (analytics)
+
+Local, free Evidence.dev dashboards over ChartSage's own data — signups, reports, revenue/credits,
+free→paid conversion, plus PostHog product funnels. Lives in [`bi/`](bi/):
+
+```bash
+cd bi && npm install && npm run sources && npm run dev -- --port 4000   # → http://localhost:4000
+```
+
+See [bi/README.md](bi/README.md) for one-time setup (the read-only DB role), refreshing data, and
+how to add new charts and pages.
+
 ## Architecture
 
 See [docs/superpowers/specs/2026-05-23-chartsage-rebuild-design.md](docs/superpowers/specs/2026-05-23-chartsage-rebuild-design.md).
