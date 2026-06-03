@@ -57,15 +57,23 @@ async def render_report_pdf(session_id: str) -> bytes:
 
 
 async def render_og_image(session_id: str) -> bytes:
-    """Screenshot the embed view at 1200x630 and return PNG bytes (for OG previews)."""
+    """Screenshot the chart-forward OG card at 1200x630 and return PNG bytes (for social
+    previews). Targets the dedicated /og route (hero chart) rather than /embed, whose
+    top-of-page is the narrative summary, and waits for ECharts to actually paint."""
     browser = await _ensure_browser()
     page = await browser.new_page(viewport={"width": 1200, "height": 630})
     try:
         await page.goto(
-            f"{_FRONTEND_BASE}/report/{session_id}/embed",
+            f"{_FRONTEND_BASE}/report/{session_id}/og",
             wait_until="networkidle",
             timeout=30_000,
         )
+        try:
+            await page.wait_for_selector(
+                'body[data-charts-ready="true"]', timeout=_CHARTS_READY_TIMEOUT_MS
+            )
+        except Exception:
+            logging.warning("[OG] charts-ready flag not seen — proceeding")
         return await page.screenshot(
             type="png", clip={"x": 0, "y": 0, "width": 1200, "height": 630}
         )
