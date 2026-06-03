@@ -23,7 +23,7 @@ from claude_client import ClaudeClient, RetryableBusy
 from credits import ADD_CHART_COST, DEEP_ANALYSIS_COST, GENERATE_MORE_COST, REPORT_COST, SIGNUP_GRANT, InsufficientCredits
 from billing import get_package, price_id_for, public_catalogue
 from db import SupabaseDB
-from deps import Identity, get_identity, require_admin
+from deps import Identity, get_identity, get_identity_optional, require_admin
 from pydantic import BaseModel
 from llm_config import MODEL_NARRATIVE, MODEL_SELECTION, estimate_cost_usd
 from posthog_server import PostHogServer
@@ -210,6 +210,37 @@ def _ensure_profile_tracked(db: SupabaseDB, posthog: PostHogServer, identity: Id
         posthog.capture(identity.distinct_id, "credits_granted",
                         {"amount": SIGNUP_GRANT, "balance": balance})
     return balance
+
+
+def _require_report_owner(db, identity, session_id: str) -> dict:
+    row = db.get_report(session_id)
+    if not row:
+        raise HTTPException(status_code=404, detail={"code": "NOT_FOUND", "message": "Report not found."})
+    if not identity.is_authenticated:
+        raise HTTPException(status_code=401, detail={"code": "AUTH_REQUIRED", "message": "Sign in to manage this report."})
+    if row.get("user_id") != str(identity.user_id):
+        raise HTTPException(status_code=403, detail={"code": "NOT_OWNER", "message": "You don't own this report."})
+    return row
+
+
+def _public_urls(session_id: str, row: dict) -> dict:
+    og = None
+    key = row.get("og_image_key")
+    if key:
+        og = f"{os.environ.get('SUPABASE_URL', '').rstrip('/')}/storage/v1/object/public/og-images/{key}"
+    return {
+        "public_url": f"{_FRONTEND_BASE}/report/{session_id}",
+        "embed_url": f"{_FRONTEND_BASE}/report/{session_id}/embed",
+        "og_image_url": og,
+    }
+
+
+def _report_title_desc(report_json: dict) -> tuple[str, str]:
+    title = (report_json.get("title") or "ChartSage report").strip()[:120]
+    narrative = report_json.get("narrative")
+    summary = narrative.get("summary") if isinstance(narrative, dict) else (narrative if isinstance(narrative, str) else None)
+    desc = (summary or "An AI-generated report — charts and insights from a spreadsheet.").strip()[:200]
+    return title, desc
 
 
 # ---- Endpoints -------------------------------------------------------------
@@ -445,6 +476,64 @@ async def get_report(
     if not row:
         raise HTTPException(status_code=404, detail="Report not found or expired.")
     return JSONResponse(content=row["report_json"])
+
+
+@app.post("/report/{session_id}/publish")
+async def publish_report(
+    session_id: str,
+    identity: Identity = Depends(get_identity),
+    db: SupabaseDB = Depends(get_db),
+    posthog: PostHogServer = Depends(get_posthog),
+    storage: SupabaseStorage = Depends(get_storage),
+):
+    _require_report_owner(db, identity, session_id)
+    db.set_report_visibility(session_id, True, published_at="now()")
+    try:
+        from pdf_export import render_og_image
+        png = await render_og_image(session_id)
+        og_key = storage.upload_public_image(f"{session_id}.png", png)
+        db.set_report_visibility(session_id, True, og_image_key=og_key)
+    except Exception:
+        logging.exception("OG image generation failed; publishing without a custom preview")
+    posthog.capture(identity.distinct_id, "report_published", {"reportId": session_id})
+    return _public_urls(session_id, db.get_report(session_id))
+
+
+@app.post("/report/{session_id}/unpublish")
+async def unpublish_report(
+    session_id: str,
+    identity: Identity = Depends(get_identity),
+    db: SupabaseDB = Depends(get_db),
+    posthog: PostHogServer = Depends(get_posthog),
+):
+    _require_report_owner(db, identity, session_id)
+    db.set_report_visibility(session_id, False)
+    posthog.capture(identity.distinct_id, "report_unpublished", {"reportId": session_id})
+    return {"ok": True}
+
+
+@app.get("/report/{session_id}/meta")
+async def report_meta(
+    session_id: str,
+    identity: Identity = Depends(get_identity_optional),
+    db: SupabaseDB = Depends(get_db),
+):
+    row = db.get_report(session_id)
+    if not row:
+        raise HTTPException(status_code=404, detail={"code": "NOT_FOUND", "message": "Report not found."})
+    title, desc = _report_title_desc(row.get("report_json") or {})
+    owned = bool(identity.is_authenticated and row.get("user_id") == str(identity.user_id))
+    return {
+        "is_public": bool(row.get("is_public")),
+        "title": title, "description": desc,
+        "og_image_url": _public_urls(session_id, row)["og_image_url"],
+        "owned": owned,
+    }
+
+
+@app.get("/reports/public")
+async def reports_public(db: SupabaseDB = Depends(get_db)):
+    return db.list_public_reports()
 
 
 @app.patch("/report/{session_id}/layout", status_code=204)

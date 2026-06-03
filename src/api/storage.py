@@ -8,6 +8,7 @@ from supabase import create_client, Client
 
 
 BUCKET = "csv-inputs"
+OG_BUCKET = "og-images"
 
 
 class StorageError(Exception):
@@ -36,6 +37,17 @@ class SupabaseStorage:
             )
         except Exception as e:
             raise StorageError(f"upload failed: {e}") from e
+        return key
+
+    def upload_public_image(self, key: str, png_bytes: bytes) -> str:
+        """Upload to the public og-images bucket; returns the storage key."""
+        try:
+            self.client.storage.from_(OG_BUCKET).upload(
+                path=key, file=png_bytes,
+                file_options={"content-type": "image/png", "upsert": "true"},
+            )
+        except Exception as e:
+            raise StorageError(f"og upload failed: {e}") from e
         return key
 
     def download_by_key(self, key: str) -> bytes:

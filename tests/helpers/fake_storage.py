@@ -19,6 +19,13 @@ class FakeStorage:
         self._objects[key] = csv_bytes
         return key
 
+    def upload_public_image(self, key: str, png_bytes: bytes) -> str:
+        if self._fail_next_upload:
+            self._fail_next_upload = False
+            raise StorageError("simulated upload failure")
+        self._objects[key] = png_bytes
+        return key
+
     def download_by_key(self, key: str) -> bytes:
         if key not in self._objects:
             raise StorageError(f"missing object: {key}")

@@ -56,6 +56,23 @@ async def render_report_pdf(session_id: str) -> bytes:
         await page.close()
 
 
+async def render_og_image(session_id: str) -> bytes:
+    """Screenshot the embed view at 1200x630 and return PNG bytes (for OG previews)."""
+    browser = await _ensure_browser()
+    page = await browser.new_page(viewport={"width": 1200, "height": 630})
+    try:
+        await page.goto(
+            f"{_FRONTEND_BASE}/report/{session_id}/embed",
+            wait_until="networkidle",
+            timeout=30_000,
+        )
+        return await page.screenshot(
+            type="png", clip={"x": 0, "y": 0, "width": 1200, "height": 630}
+        )
+    finally:
+        await page.close()
+
+
 async def render_chart_images(session_id: str) -> list[dict]:
     """Return [{"chart_id": str, "png": bytes}, ...] for every chart, in DOM order."""
     browser = await _ensure_browser()

@@ -36,6 +36,8 @@ class FakeDB:
             "report_json": deepcopy(report_json),
             "csv_storage_key": csv_storage_key,
             "title": title,
+            "is_public": False,
+            "og_image_key": None,
             "_seq": self._seq,
         }
 
@@ -89,6 +91,20 @@ class FakeDB:
                 "createdAt": r.get("_seq"),
             })
         return out
+
+    def set_report_visibility(self, report_id, is_public, og_image_key=None, published_at=None) -> bool:
+        row = self._rows.get(report_id)
+        if not row:
+            return False
+        row["is_public"] = is_public
+        if og_image_key is not None:
+            row["og_image_key"] = og_image_key
+        return True
+
+    def list_public_reports(self, limit: int = 5000) -> list[dict]:
+        rows = [r for r in self._rows.values() if r.get("is_public")]
+        rows.sort(key=lambda r: r.get("_seq", 0), reverse=True)
+        return [{"id": r["id"], "updated_at": r.get("_seq")} for r in rows[:limit]]
 
     # --- credits (SP3) ---
     def ensure_profile(self, user_id, grant_amount: int) -> int:
