@@ -1,11 +1,12 @@
 'use client';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { apiFetch } from '../../lib/api';
 import { posthog } from '../../lib/posthog';
 import type { Report } from './useReportLayout';
 import UpsellModal from '../../components/UpsellModal';
 import OutOfCreditsModal from '../../components/OutOfCreditsModal';
 import AddChartModal from './AddChartModal';
+import ShareModal from './ShareModal';
 import { useCredits } from '../../lib/useCredits';
 import { GENERATE_MORE_COST, DEEP_ANALYSIS_COST } from '../../lib/credits';
 
@@ -24,7 +25,22 @@ export default function Toolbar({ sessionId, report, onReportUpdated }: Props) {
   const [showUpsell, setShowUpsell] = useState(false);
   const [showOutOfCredits, setShowOutOfCredits] = useState(false);
   const [showAddChart, setShowAddChart] = useState(false);
+  const [owned, setOwned] = useState(false);
+  const [isPublic, setIsPublic] = useState(false);
+  const [showShare, setShowShare] = useState(false);
   const { refetch } = useCredits();
+
+  useEffect(() => {
+    apiFetch(`/report/${sessionId}/meta`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((m) => {
+        if (m) {
+          setOwned(!!m.owned);
+          setIsPublic(!!m.is_public);
+        }
+      })
+      .catch(() => {});
+  }, [sessionId]);
 
   async function handleGenerateMore() {
     setGenerating(true);
@@ -168,6 +184,15 @@ export default function Toolbar({ sessionId, report, onReportUpdated }: Props) {
             `Generate 5 more · ${GENERATE_MORE_COST}`
           )}
         </button>
+        {owned && (
+          <button
+            type="button"
+            onClick={() => setShowShare(true)}
+            className="btn btn-ghost"
+          >
+            Share
+          </button>
+        )}
         <details className="relative group">
           <summary
             className="btn btn-primary list-none cursor-pointer select-none [&::-webkit-details-marker]:hidden aria-disabled:opacity-50 aria-disabled:cursor-not-allowed"
@@ -213,6 +238,13 @@ export default function Toolbar({ sessionId, report, onReportUpdated }: Props) {
       />
       <UpsellModal open={showUpsell} onClose={() => setShowUpsell(false)} />
       <OutOfCreditsModal open={showOutOfCredits} onClose={() => setShowOutOfCredits(false)} />
+      <ShareModal
+        key={`share-${isPublic}`}
+        open={showShare}
+        onClose={() => setShowShare(false)}
+        sessionId={sessionId}
+        initialIsPublic={isPublic}
+      />
     </>
   );
 }
