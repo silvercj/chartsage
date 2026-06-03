@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import dynamic from 'next/dynamic';
 import { apiFetch } from '../../../lib/api';
+import { posthog } from '../../../lib/posthog';
 import type { Report, ChartWithCaption } from '../useReportLayout';
 
 // Reuse the exact same chart components the interactive report uses.
@@ -63,6 +64,9 @@ export default function EmbedClient({ id }: { id: string }) {
         if (cancelled) return;
         setReport(data);
         setStatus('ready');
+        // A public report actually rendered inside an iframe — the backlink/embed
+        // signal the marketing strategy tracks. ($pageview already fires app-wide.)
+        posthog.capture?.('embed_viewed', { reportId: id });
       } catch {
         if (!cancelled) setStatus('private');
       }
