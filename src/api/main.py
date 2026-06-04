@@ -199,17 +199,6 @@ def _ensure_profile_tracked(db: SupabaseDB, posthog: PostHogServer, identity: Id
     return balance
 
 
-def _require_report_owner(db, identity, session_id: str) -> dict:
-    row = db.get_report(session_id)
-    if not row:
-        raise HTTPException(status_code=404, detail={"code": "NOT_FOUND", "message": "Report not found."})
-    if not identity.is_authenticated:
-        raise HTTPException(status_code=401, detail={"code": "AUTH_REQUIRED", "message": "Sign in to manage this report."})
-    if row.get("user_id") != str(identity.user_id):
-        raise HTTPException(status_code=403, detail={"code": "NOT_OWNER", "message": "You don't own this report."})
-    return row
-
-
 def _is_owner(row: dict, identity) -> bool:
     """True if `identity` owns this report — authed `user_id` match OR anon `anon_id` match."""
     if identity.user_id and row.get("user_id") == str(identity.user_id):
@@ -498,7 +487,7 @@ async def publish_report(
     posthog: PostHogServer = Depends(get_posthog),
     storage: SupabaseStorage = Depends(get_storage),
 ):
-    _require_report_owner(db, identity, session_id)
+    _resolve_report_access(db, identity, session_id, require_owner=True)
     db.set_report_visibility(session_id, True, published_at="now()")
     try:
         from pdf_export import render_og_image
@@ -518,7 +507,7 @@ async def unpublish_report(
     db: SupabaseDB = Depends(get_db),
     posthog: PostHogServer = Depends(get_posthog),
 ):
-    _require_report_owner(db, identity, session_id)
+    _resolve_report_access(db, identity, session_id, require_owner=True)
     db.set_report_visibility(session_id, False)
     posthog.capture(identity.distinct_id, "report_unpublished", {"reportId": session_id})
     return {"ok": True}
@@ -533,10 +522,16 @@ async def report_meta(
     row = db.get_report(session_id)
     if not row:
         raise HTTPException(status_code=404, detail={"code": "NOT_FOUND", "message": "Report not found."})
+    owned = _is_owner(row, identity)
+    is_public = bool(row.get("is_public"))
+    # A private report's title/description must not leak to a non-owner — the server-side
+    # generateMetadata fetch is always anonymous, so return a placeholder for that case.
+    if not is_public and not owned:
+        return {"is_public": False, "owned": False,
+                "title": "Private report", "description": "", "og_image_url": None}
     title, desc = _report_title_desc(row.get("report_json") or {})
-    owned = bool(identity.is_authenticated and row.get("user_id") == str(identity.user_id))
     return {
-        "is_public": bool(row.get("is_public")),
+        "is_public": is_public,
         "title": title, "description": desc,
         "og_image_url": _public_urls(session_id, row)["og_image_url"],
         "owned": owned,

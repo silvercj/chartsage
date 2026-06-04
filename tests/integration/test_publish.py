@@ -53,18 +53,22 @@ def test_publish_owner_ok(ctx):
     assert len(ph.find("report_published")) == 1
 
 
-def test_publish_non_owner_403(ctx):
+def test_publish_non_owner_404(ctx):
+    # True-private: a private report is hidden from non-owners, so managing it 404s
+    # (was 403 NOT_OWNER before true-private reports).
     tc, db, ph, holder = ctx
     rid = _save(db, str(uuid4())); holder.current = auth_identity(str(uuid4()))
     r = tc.post(f"/report/{rid}/publish")
-    assert r.status_code == 403 and r.json()["detail"]["code"] == "NOT_OWNER"
+    assert r.status_code == 404 and r.json()["detail"]["code"] == "NOT_FOUND"
     assert db.get_report(rid)["is_public"] is False
 
 
-def test_publish_anon_401(ctx):
+def test_publish_anon_non_owner_404(ctx):
+    # A non-owner anon can't publish someone else's private report (404 hides it).
+    # Anon OWNERS publishing their OWN report is allowed now — covered in test_report_privacy.py.
     tc, db, ph, holder = ctx
     rid = _save(db, str(uuid4())); holder.current = anon_identity(str(uuid4()))
-    assert tc.post(f"/report/{rid}/publish").status_code == 401
+    assert tc.post(f"/report/{rid}/publish").status_code == 404
 
 
 def test_publish_missing_404(ctx):

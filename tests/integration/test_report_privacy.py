@@ -7,6 +7,8 @@ import main
 from deps import Identity
 from tests.helpers.fake_db import FakeDB
 from tests.helpers.fake_auth import auth_identity, anon_identity
+from tests.helpers.fake_storage import FakeStorage
+from tests.helpers.fake_posthog import FakePostHog
 
 OWNER = "11111111-1111-1111-1111-111111111111"
 OTHER = "22222222-2222-2222-2222-222222222222"
@@ -19,6 +21,8 @@ def _client(db, identity=None):
     main.app.dependency_overrides[main.get_db] = lambda: db
     main.app.dependency_overrides[main.get_identity] = lambda: ident
     main.app.dependency_overrides[main.get_identity_optional] = lambda: ident
+    main.app.dependency_overrides[main.get_storage] = lambda: FakeStorage()
+    main.app.dependency_overrides[main.get_posthog] = lambda: FakePostHog()
     return TestClient(main.app)
 
 
@@ -80,3 +84,38 @@ def test_missing_report_404():
     db = FakeDB()
     r = _client(db, auth_identity(OWNER)).get(f"/report/{uuid.uuid4().hex}")
     assert r.status_code == 404
+
+
+# ---- Task 2: anon-aware publish + /meta privacy -----------------------------
+
+def test_anon_owner_can_publish(monkeypatch):
+    async def _noop_og(_sid):
+        return b""
+    monkeypatch.setattr("pdf_export.render_og_image", _noop_og)
+    db = FakeDB(); rid = _seed(db, anon_id=ANON)
+    r = _client(db, anon_identity(ANON)).post(f"/report/{rid}/publish")
+    assert r.status_code == 200
+    assert db.get_report(rid)["is_public"] is True
+
+
+def test_non_owner_cannot_publish_private_404():
+    db = FakeDB(); rid = _seed(db, user_id=OWNER)
+    r = _client(db, auth_identity(OTHER)).post(f"/report/{rid}/publish")
+    assert r.status_code == 404
+
+
+def test_meta_hides_title_of_private_report_from_non_owner():
+    db = FakeDB(); rid = _seed(db, user_id=OWNER)
+    r = _client(db, None).get(f"/report/{rid}/meta")
+    assert r.status_code == 200
+    body = r.json()
+    assert body["is_public"] is False
+    assert body["owned"] is False
+    assert body["title"] == "Private report"   # real title not leaked to a non-owner
+
+
+def test_meta_owner_sees_full_for_private():
+    db = FakeDB(); rid = _seed(db, user_id=OWNER)
+    body = _client(db, auth_identity(OWNER)).get(f"/report/{rid}/meta").json()
+    assert body["owned"] is True
+    assert body["title"] != "Private report"   # owner gets the real meta
