@@ -137,3 +137,21 @@ def test_mutations_blocked_for_non_owner(path, method, body):
     kw = {} if body is None else {"json": body}
     r = getattr(client, method)(f"/report/{rid}{path}", **kw)
     assert r.status_code == 404
+
+
+# ---- Task 4: exports enforce visibility ------------------------------------
+
+@pytest.mark.parametrize("ext", ["pdf", "pptx", "xlsx", "zip", "md", "html"])
+def test_export_private_blocked_for_non_owner(ext):
+    db = FakeDB(); rid = _seed(db, user_id=OWNER)   # private, owned by OWNER
+    r = _client(db, auth_identity(OTHER)).get(f"/report/{rid}/export.{ext}")
+    assert r.status_code == 404
+
+
+def test_export_md_owner_ok(monkeypatch):
+    async def _noop_imgs(_sid):
+        return []
+    monkeypatch.setattr("pdf_export.render_chart_images", _noop_imgs)
+    db = FakeDB(); rid = _seed(db, user_id=OWNER)
+    r = _client(db, auth_identity(OWNER)).get(f"/report/{rid}/export.md")
+    assert r.status_code == 200

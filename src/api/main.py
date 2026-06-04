@@ -1092,8 +1092,7 @@ async def export_pdf(
     posthog: PostHogServer = Depends(get_posthog),
 ):
     started = time.perf_counter()
-    if not db.get_report(session_id):
-        raise HTTPException(status_code=404, detail="Report not found.")
+    _resolve_report_access(db, identity, session_id)
 
     import pdf_export
     cold_start = pdf_export._browser is None
@@ -1142,9 +1141,7 @@ async def export_pptx(
     db: SupabaseDB = Depends(get_db),
     posthog: PostHogServer = Depends(get_posthog),
 ):
-    row = db.get_report(session_id)
-    if not row:
-        raise HTTPException(status_code=404, detail="Report not found.")
+    row, _ = _resolve_report_access(db, identity, session_id)
     report = Report.model_validate(row["report_json"])
 
     import pdf_export
@@ -1171,9 +1168,7 @@ async def export_xlsx(
     storage: SupabaseStorage = Depends(get_storage),
     posthog: PostHogServer = Depends(get_posthog),
 ):
-    row = db.get_report(session_id)
-    if not row:
-        raise HTTPException(status_code=404, detail="Report not found.")
+    row, _ = _resolve_report_access(db, identity, session_id)
     report = Report.model_validate(row["report_json"])
 
     csv_key = row.get("csv_storage_key")
@@ -1211,9 +1206,7 @@ async def export_zip(
     db: SupabaseDB = Depends(get_db),
     posthog: PostHogServer = Depends(get_posthog),
 ):
-    row = db.get_report(session_id)
-    if not row:
-        raise HTTPException(status_code=404, detail="Report not found.")
+    row, _ = _resolve_report_access(db, identity, session_id)
     report = Report.model_validate(row["report_json"])
 
     import pdf_export
@@ -1236,9 +1229,7 @@ async def export_md(
     db: SupabaseDB = Depends(get_db),
     posthog: PostHogServer = Depends(get_posthog),
 ):
-    row = db.get_report(session_id)
-    if not row:
-        raise HTTPException(status_code=404, detail="Report not found.")
+    row, _ = _resolve_report_access(db, identity, session_id)
     report = Report.model_validate(row["report_json"])
 
     import pdf_export
@@ -1261,9 +1252,7 @@ async def export_html(
     db: SupabaseDB = Depends(get_db),
     posthog: PostHogServer = Depends(get_posthog),
 ):
-    row = db.get_report(session_id)
-    if not row:
-        raise HTTPException(status_code=404, detail="Report not found.")
+    row, _ = _resolve_report_access(db, identity, session_id)
     report = Report.model_validate(row["report_json"])
 
     import pdf_export
