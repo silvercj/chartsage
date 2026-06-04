@@ -19,7 +19,7 @@ export default function PrivacyPage() {
           <section><h2 className="font-display text-lg text-ink mb-2">4. Deletion</h2>
             <p>You can request deletion of your account and associated data by <a href="/contact" className="text-accent underline">contacting us</a>. Self-serve deletion is coming.</p></section>
           <section><h2 className="font-display text-lg text-ink mb-2">5. Cookies &amp; analytics</h2>
-            <p>We use cookies and a product-analytics tool to understand usage and improve the Service.</p></section>
+            <p>We use cookies and a product-analytics tool to understand usage and improve the Service. We also use an advertising pixel (X/Twitter) to measure the performance of our ads and reach relevant audiences; you can opt out of ad personalisation in your X account settings.</p></section>
           <section><h2 className="font-display text-lg text-ink mb-2">6. Changes</h2>
             <p>We may update this Policy; material changes will be reflected by the &ldquo;last updated&rdquo; date above.</p></section>
           <section><h2 className="font-display text-lg text-ink mb-2">7. Contact</h2>

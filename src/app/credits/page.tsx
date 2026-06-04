@@ -5,6 +5,7 @@ import { apiFetch } from '../lib/api';
 import { useCredits } from '../lib/useCredits';
 import { REPORT_COST, GENERATE_MORE_COST } from '../lib/credits';
 import { posthog } from '../lib/posthog';
+import { xtwqEvent, X_EVENTS } from '../lib/xpixel';
 
 interface Txn { delta: number; reason: string; ref: string | null; created_at: string | number | null; }
 interface Pack { id: string; label: string; credits: number; price_display: string; }
@@ -63,6 +64,7 @@ function CreditsInner() {
   useEffect(() => {
     if (purchase !== 'success') return;
     setShowSuccess(true);
+    xtwqEvent(X_EVENTS.purchase);   // X ads conversion (advertising pixel)
     let n = 0;
     const timers: ReturnType<typeof setTimeout>[] = [];
     const tick = () => {

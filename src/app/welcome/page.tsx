@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { posthog } from '../lib/posthog';
+import { xtwqEvent, X_EVENTS } from '../lib/xpixel';
 
 const FLAG = 'chartsage_onboarded';
 
@@ -53,6 +54,7 @@ export default function WelcomePage() {
       return;
     }
     posthog.capture?.('onboarding_viewed', {});
+    xtwqEvent(X_EVENTS.signup);   // X ads conversion (new signup)
     setReady(true);
   }, [router]);
 

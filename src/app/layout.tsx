@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import { GeistSans, GeistMono, fraunces } from './lib/fonts'
 import PostHogInit from './PostHogInit'
+import XPixelInit from './XPixelInit'
 import SentryInit from './components/SentryInit'
 import SessionWatcher from './components/SessionWatcher'
 import AppHeader from './components/AppHeader'
@@ -20,6 +21,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <div className="h-[3px] bg-[linear-gradient(90deg,rgb(var(--accent))_0%,rgb(var(--accent))_62%,rgb(var(--ember))_62%,rgb(var(--ember))_100%)]" />
         <SentryInit />
         <PostHogInit />
+        <XPixelInit />
         <SessionWatcher />
         <CreditsProvider>
           <AppHeader />
