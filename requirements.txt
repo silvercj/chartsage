@@ -29,3 +29,4 @@ sentry-sdk[fastapi]    # error tracking; no-op unless SENTRY_DSN is set
 # Tests (dev; harmless in image)
 pytest==8.0.0
 pytest-asyncio==0.23.5
+pytest-timeout==2.3.1  # hard per-test timeout so a hung network call can't stall a run
