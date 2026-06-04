@@ -1,4 +1,4 @@
-.PHONY: dev test test-e2e test-pdf smoke clean
+.PHONY: dev test test-e2e test-pdf smoke clean qa
 
 # Backend dev server (run from project root)
 dev:
@@ -27,3 +27,8 @@ test-pdf:
 clean:
 	rm -rf src/api/__pycache__ src/api/logs/*.log
 	find . -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true
+
+# QA / Eval Harness — run the corpus through the real pipeline + validators + judge.
+# Flags pass through, e.g.: make qa ARGS="--only synthetic --no-judge --limit 3"
+qa:
+	venv/bin/python qa/run_eval.py $(ARGS)
