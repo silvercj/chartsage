@@ -63,6 +63,7 @@ class RunResult:
     was_sampled: bool
     original_rows: int
     profile_text: str = ""   # the to_text() of the profile the report was built from (for the judge)
+    analyzed_df: Optional[pd.DataFrame] = None  # post-sample/lowercase frame the charts were built from
 
 
 def _build_claude() -> ClaudeClient:
@@ -113,7 +114,7 @@ def run_report(df: pd.DataFrame, custom_prompt: str | None = None, name: str = "
             name=name, report=report_dict, error=None, elapsed_ms=elapsed_ms,
             rows_analyzed=int(df.shape[0]), cols_analyzed=int(df.shape[1]),
             was_sampled=was_sampled, original_rows=total_rows,
-            profile_text=profile_text,
+            profile_text=profile_text, analyzed_df=df,
         )
     except Exception as e:
         elapsed_ms = int((time.perf_counter() - started) * 1000)

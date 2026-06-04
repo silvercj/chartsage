@@ -62,3 +62,23 @@ A running list of deferred work and hardening ideas. Not committed plans — cap
 
 - **Profiler ↔ executor cardinality mismatch.** The profiler now keeps a repeating object column `categorical` up to 200 distinct (ratio ≤ 0.5), but most chart executors cap at `MAX_CATEGORIES = 30` — only `pie_chart` renders past that (top-8 + "Other"). A borderline short-text column (31–200 repeating values) can therefore yield one weak pie. Harmless (never a crash), and partly intentional (top-N is desired), but worth aligning: either lower the profiler ceiling toward ~50–60, or add a mean-string-length heuristic to separate "tags/cities" from "sentences."
 - **`key_metrics` could be recomputed on the reach-for-more / deepen round.** `_execute_tool_calls` overwrites `self._key_metrics` if a later selection round emits a `key_metrics` call (the system prompt still says "call key_metrics first"). Idempotent in practice (recomputed from the same data), but cleaner to strip the `key_metrics` tool from the reach-for-more and deepen tool lists, or skip the overwrite when metrics already exist.
+
+---
+
+## 2026-06-04 — QA / eval harness baseline findings
+
+*The new `qa/` harness (`make qa`) ran its first full baseline: 16 synthetic edge-case datasets through the real generation pipeline + the Haiku judge → **PASS 4 · WARN 7 · FAIL 5**. The harness is dev tooling (not deployed); these are the issues it surfaced. Triage below.*
+
+**Real product bug (worth a dedicated fix):**
+- **Crash on duplicate / case-colliding column names.** The `duplicate_columns` case (headers `Value`, `label`, `value`) crashed generation: `AttributeError: 'DataFrame' object has no attribute 'dtype'`. After the endpoint lower-cases headers (`df.columns = [str(c).lower() ...]` in `main.py`), `Value`/`value` collide, so `df["value"]` returns a *DataFrame* (not a Series) and the profiler/executors then call `.dtype`/`.dropna()` on it. A real upload with colliding headers (common in Excel exports, or `Date`/`date`) would return a 500. **Fix:** de-duplicate column names right after lower-casing (e.g. suffix collisions → `value`, `value.1`) in `_load_dataframe` / before `profile_dataframe`. Add a `qa` generator + an integration test once fixed.
+
+**Harness fix already applied (in the baseline-triage commit):**
+- **Sampling false-positive in chart-data consistency.** `tall_100k` (120k rows) is analyzed on a deterministic 50k sample, but the validator recomputed counts/sums from the *full* df → false `chart_data_mismatch`. Fixed: `run_report` now returns the analyzed (post-sample/lower-case) frame and the runner validates against it. `tall_100k` → PASS after the fix.
+
+**Calibration notes (tune later; not bugs):**
+- **Judge `makes_sense=false` → hard FAIL may be too strict.** Several FAILs (`single_row_tiny`, `boolean_ish`, `id_like_bigints`) came from the judge flagging *weak-but-not-broken* charts (a 2-row histogram, balanced 50/50 medians, a narrative overstating "consistency") as `makes_sense=false` with `severity="warn"`. Per the spec any `makes_sense=false` is a FAIL. Consider mapping FAIL to the judge's own `severity=="fail"` and treating `makes_sense=false`+`warn` as WARN, to reserve FAIL for genuine regressions.
+- **`all-identical-y` warns on legitimately balanced data.** Equal category counts (a 50/50 Yes/No split → both bars = 120) trip the all-identical-y warn. Valid data, mild noise. Consider scoping it (skip pure count-bars, or require >2 categories).
+- **Tiny datasets yield weak charts.** `single_row_tiny` (2 rows) produced a histogram (2 points across 5 bins) + a trivial distribution — the judge rightly flagged both. The product could skip histograms/distributions below a small row threshold.
+- **Narrative can overstate.** `id_like_bigints`: the narrative claimed regional medians were "remarkably consistent" while they ranged 220–264 (~20%); the judge's narrative-vs-charts check caught it. Worth a prompt nudge toward hedged language. (The id column itself was correctly treated as an identifier, not charted as a measure — the exact thing that dataset was built to verify.)
+
+These are logged, not yet scheduled; each can become its own brainstorm → fix when picked up.

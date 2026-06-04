@@ -53,6 +53,8 @@ def test_run_report_returns_prod_report_shape(monkeypatch):
     # Layout: first 5 main / rest sidebar (here all 3 are main).
     assert all(e["position"] == "main" for e in rep["layout"])
     assert result.elapsed_ms >= 0
+    # The analyzed frame the charts were built from is returned for validation fidelity.
+    assert result.analyzed_df is not None and result.analyzed_df.shape[0] == 15
 
 
 def test_run_report_captures_exception(monkeypatch):

@@ -101,7 +101,11 @@ def main(argv: list[str] | None = None) -> int:
     for name, df in datasets:
         print(f"[qa] running {name} ({df.shape[0]} rows x {df.shape[1]} cols) ...", flush=True)
         result = run_report(df, name=name)
-        det_issues = validate(df, result.report)   # validate() handles report=None
+        # Validate against the EXACT frame the charts were built from (post-sample/
+        # lowercase). For big sampled datasets, recomputing counts/sums from the raw df
+        # would falsely mismatch the chart values (which came from the 50k sample).
+        check_df = result.analyzed_df if result.analyzed_df is not None else df
+        det_issues = validate(check_df, result.report)   # validate() handles report=None
         verdict = None
         if judge_report is not None and result.report is not None and result.profile_text:
             try:
