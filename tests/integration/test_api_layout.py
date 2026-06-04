@@ -113,9 +113,11 @@ def test_generate_more_appends_charts(client_with_report, sales):
 
     from main import app, get_claude_client, get_identity
     from deps import Identity
-    from uuid import uuid4 as _uuid4
+    from uuid import uuid4 as _uuid4, UUID as _UUID
+    user_id = _uuid4()
+    db.claim_anon_reports(_UUID(anon), user_id)   # simulate signup+claim: the user now owns the anon report
     app.dependency_overrides[get_claude_client] = lambda: MagicMock(messages_create=new_fake)
-    app.dependency_overrides[get_identity] = lambda: Identity(user_id=_uuid4())
+    app.dependency_overrides[get_identity] = lambda: Identity(user_id=user_id)
 
     initial_count = len(report["charts"])
     initial_sidebar = sum(1 for e in report["layout"] if e["position"] == "sidebar")

@@ -547,8 +547,10 @@ async def reports_public(db: SupabaseDB = Depends(get_db)):
 async def patch_report_layout(
     session_id: str,
     new_layout: list[ChartLayoutEntry],
+    identity: Identity = Depends(get_identity_optional),
     db: SupabaseDB = Depends(get_db),
 ):
+    _resolve_report_access(db, identity, session_id, require_owner=True)
     row = db.get_report(session_id)
     if not row:
         raise HTTPException(status_code=404, detail="Report not found or expired.")
@@ -657,6 +659,7 @@ async def generate_more(
     storage: SupabaseStorage = Depends(get_storage),
     posthog: PostHogServer = Depends(get_posthog),
 ):
+    _resolve_report_access(db, identity, session_id, require_owner=True)
     if not identity.is_authenticated:
         raise HTTPException(
             status_code=402,
@@ -789,6 +792,7 @@ async def add_chart(
     storage: SupabaseStorage = Depends(get_storage),
     posthog: PostHogServer = Depends(get_posthog),
 ):
+    _resolve_report_access(db, identity, session_id, require_owner=True)
     if not identity.is_authenticated:
         raise HTTPException(
             status_code=402,
@@ -922,6 +926,7 @@ async def deepen_report(
     Mirrors generate_more's gate -> work -> append -> debit-after-save pattern.
     Paid feature: auth required, costs DEEP_ANALYSIS_COST, debited only on success.
     """
+    _resolve_report_access(db, identity, session_id, require_owner=True)
     if not identity.is_authenticated:
         raise HTTPException(
             status_code=402,

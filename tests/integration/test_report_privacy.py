@@ -2,6 +2,7 @@
 import uuid
 import pytest
 from fastapi.testclient import TestClient
+from unittest.mock import MagicMock
 
 import main
 from deps import Identity
@@ -23,6 +24,7 @@ def _client(db, identity=None):
     main.app.dependency_overrides[main.get_identity_optional] = lambda: ident
     main.app.dependency_overrides[main.get_storage] = lambda: FakeStorage()
     main.app.dependency_overrides[main.get_posthog] = lambda: FakePostHog()
+    main.app.dependency_overrides[main.get_claude_client] = lambda: MagicMock()
     return TestClient(main.app)
 
 
@@ -119,3 +121,19 @@ def test_meta_owner_sees_full_for_private():
     body = _client(db, auth_identity(OWNER)).get(f"/report/{rid}/meta").json()
     assert body["owned"] is True
     assert body["title"] != "Private report"   # owner gets the real meta
+
+
+# ---- Task 3: mutations require ownership ------------------------------------
+
+@pytest.mark.parametrize("path,method,body", [
+    ("/layout", "patch", []),
+    ("/generate-more", "post", None),
+    ("/add-chart", "post", {"mode": "describe", "prompt": "x"}),
+    ("/deepen", "post", None),
+])
+def test_mutations_blocked_for_non_owner(path, method, body):
+    db = FakeDB(); rid = _seed(db, user_id=OWNER)   # private, owned by OWNER
+    client = _client(db, auth_identity(OTHER))
+    kw = {} if body is None else {"json": body}
+    r = getattr(client, method)(f"/report/{rid}{path}", **kw)
+    assert r.status_code == 404
