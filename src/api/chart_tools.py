@@ -25,7 +25,12 @@ CHART_TOOLS: list[dict] = [
         "key_metrics",
         "Headline numbers shown as a stat band at the top of the report. Call this ONCE with the "
         "3–5 most important figures a reader wants first (a total, an average, a key rate, a notable count). "
-        "You choose the label/column/agg; the value is computed from the data.",
+        "You choose the label/column/agg; the value is computed from the data over ALL rows by default. "
+        "To describe ONE group instead (e.g. the win rate for host nations only, or sales in one region), "
+        "add the optional `filter` {column, value} — the value is then computed only over rows where that "
+        "column equals that value. IMPORTANT: without a filter the metric covers every row, so never write a "
+        "label implying a subset (e.g. 'Host-nation win rate') unless you set the matching filter — otherwise "
+        "the number contradicts its label. To compare two groups, emit two metrics with different filters.",
         {
             "metrics": {
                 "type": "array",
@@ -37,6 +42,17 @@ CHART_TOOLS: list[dict] = [
                         "column": {"type": "string"},
                         "agg": {"type": "string", "enum": ["sum", "mean", "median", "min", "max", "count", "nunique"]},
                         "format": {"type": "string", "enum": ["number", "currency", "percent"]},
+                        "filter": {
+                            "type": "object",
+                            "description": "Optional. Compute the metric over only the rows where `column` == `value` "
+                                           "(e.g. {\"column\": \"venue\", \"value\": \"Host nation\"}). Omit for an all-rows metric.",
+                            "properties": {
+                                "column": {"type": "string"},
+                                "value": {"type": "string"},
+                            },
+                            "required": ["column", "value"],
+                            "additionalProperties": False,
+                        },
                     },
                     "required": ["label", "column", "agg"],
                     "additionalProperties": False,

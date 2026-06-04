@@ -900,7 +900,19 @@ def execute_key_metrics(df: pd.DataFrame, params: dict) -> list[KeyMetric] | Too
         label, fmt = m.get("label") or col, m.get("format", "number")
         if col not in df.columns:
             continue
-        s = df[col]
+        # Optional row filter so a metric can describe ONE group (e.g. win rate
+        # where venue=='Host nation') instead of the whole column. Compared as
+        # strings so an LLM-supplied value ("2022") matches an int/float column.
+        work = df
+        filt = m.get("filter")
+        if isinstance(filt, dict) and filt.get("column"):
+            fcol = filt.get("column")
+            if fcol not in df.columns:
+                continue   # filter references a missing column -> drop the metric
+            work = df[df[fcol].astype(str) == str(filt.get("value"))]
+            if work.empty:
+                continue   # nothing matched -> drop, don't show a misleading 0/NaN
+        s = work[col]
         try:
             if agg == "count":
                 val = float(s.dropna().shape[0])
