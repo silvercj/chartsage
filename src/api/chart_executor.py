@@ -281,6 +281,15 @@ _GRANULARITIES = {
 
 
 def _to_datetime(series: pd.Series) -> pd.Series:
+    # A 4-digit integer/float YEAR column (e.g. 1930, 2022) must be parsed as a calendar
+    # year. pd.to_datetime() otherwise reads bare integers as nanoseconds-since-epoch,
+    # collapsing every value to ~1970-01-01 and degenerating the line to a single point.
+    # Detect an all-integer numeric column whose values are plausible years and parse those.
+    if pd.api.types.is_numeric_dtype(series):
+        nums = pd.to_numeric(series, errors="coerce")
+        nonnull = nums.dropna()
+        if len(nonnull) and (nonnull % 1 == 0).all() and nonnull.between(1500, 2200).all():
+            return pd.to_datetime(nums.astype("Int64").astype("string"), format="%Y", errors="coerce")
     return pd.to_datetime(series, errors="coerce")
 
 

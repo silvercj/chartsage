@@ -73,3 +73,17 @@ def test_area_flag_sets_spec_area(activities):
     result = execute_line_chart(activities, params)
     assert isinstance(result, ChartSpec)
     assert result.area is True
+
+
+def test_integer_year_column_parsed_as_years():
+    # Regression: a 4-digit integer year column must be treated as calendar years,
+    # not nanoseconds-since-epoch (which collapsed every row to ~1970 -> a 1-point line).
+    df = pd.DataFrame({
+        "year": [1990, 1994, 1998, 2002, 2006, 2010, 2014, 2018, 2022],
+        "goals": [2.2, 2.7, 2.7, 2.5, 2.3, 2.3, 2.7, 2.6, 2.7],
+    })
+    result = execute_line_chart(
+        df, _params(date_col="year", value_col="goals", agg="mean", granularity="year"))
+    assert isinstance(result, ChartSpec)
+    assert len(result.x) == 9
+    assert result.x[0] == "1990" and result.x[-1] == "2022"
