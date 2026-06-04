@@ -1,5 +1,5 @@
 import pandas as pd
-from main import sample_for_analysis, MAX_ANALYSIS_ROWS
+from sampling import sample_for_analysis, MAX_ANALYSIS_ROWS
 
 
 def test_large_frame_sampled_deterministically():
