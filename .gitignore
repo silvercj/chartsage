@@ -86,3 +86,7 @@ bi/build/
 bi/.svelte-kit/
 bi/static/data/
 bi/.env
+
+# QA harness run outputs (keep the folder, ignore the runs)
+qa/results/*
+!qa/results/.gitkeep
