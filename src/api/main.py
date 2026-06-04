@@ -210,6 +210,32 @@ def _require_report_owner(db, identity, session_id: str) -> dict:
     return row
 
 
+def _is_owner(row: dict, identity) -> bool:
+    """True if `identity` owns this report — authed `user_id` match OR anon `anon_id` match."""
+    if identity.user_id and row.get("user_id") == str(identity.user_id):
+        return True
+    if identity.anon_id and row.get("anon_id") == str(identity.anon_id):
+        return True
+    return False
+
+
+def _resolve_report_access(db, identity, session_id: str, *, require_owner: bool = False):
+    """Load a report and enforce visibility/ownership. Returns (row, is_owner).
+
+    Fail-closed: a private (is_public falsy) report seen by a non-owner -> 404
+    (hides its existence). require_owner + non-owner of a public report -> 403.
+    """
+    row = db.get_report(session_id)
+    if not row:
+        raise HTTPException(status_code=404, detail={"code": "NOT_FOUND", "message": "Report not found."})
+    is_owner = _is_owner(row, identity)
+    if not row.get("is_public") and not is_owner:
+        raise HTTPException(status_code=404, detail={"code": "NOT_FOUND", "message": "Report not found."})
+    if require_owner and not is_owner:
+        raise HTTPException(status_code=403, detail={"code": "NOT_OWNER", "message": "You don't own this report."})
+    return row, is_owner
+
+
 def _public_urls(session_id: str, row: dict) -> dict:
     og = None
     key = row.get("og_image_key")
@@ -457,11 +483,10 @@ async def generate_report(
 @app.get("/report/{session_id}")
 async def get_report(
     session_id: str,
+    identity: Identity = Depends(get_identity_optional),
     db: SupabaseDB = Depends(get_db),
 ):
-    row = db.get_report(session_id)
-    if not row:
-        raise HTTPException(status_code=404, detail="Report not found or expired.")
+    row, _ = _resolve_report_access(db, identity, session_id)
     return JSONResponse(content=row["report_json"])
 
 
