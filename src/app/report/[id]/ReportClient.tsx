@@ -36,15 +36,28 @@ function Loading() {
   );
 }
 
-function ErrorView({ message }: { message: string }) {
+function ErrorView({ message, code }: { message: string; code?: string }) {
+  const isPrivate = code === 'PRIVATE';
   return (
     <div className="theme-light flex flex-col items-center justify-center min-h-screen bg-canvas text-ink">
-      <div className="text-center">
-        <h2 className="font-display text-2xl font-medium text-ink">Could not load report</h2>
+      <div className="text-center max-w-md px-6">
+        <h2 className="font-display text-2xl font-medium text-ink">
+          {isPrivate ? 'This report is private' : 'Could not load report'}
+        </h2>
         <p className="mt-2 text-ink-2">{message}</p>
-        <a href="/app" className="btn btn-primary mt-6">
-          Back to upload
-        </a>
+        {isPrivate && (
+          <p className="mt-2 text-ink-3 text-sm">If it’s yours, sign in on the device that created it.</p>
+        )}
+        <div className="mt-6 flex gap-3 justify-center">
+          {isPrivate && (
+            <a href="/login" className="btn btn-ghost">
+              Sign in
+            </a>
+          )}
+          <a href="/app" className="btn btn-primary">
+            {isPrivate ? 'New report' : 'Back to upload'}
+          </a>
+        </div>
       </div>
     </div>
   );
@@ -53,19 +66,27 @@ function ErrorView({ message }: { message: string }) {
 export default function ReportClient({ params }: { params: { id: string } }) {
   const [initial, setInitial] = useState<Report | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [errCode, setErrCode] = useState<string | undefined>();
 
   useEffect(() => {
     apiFetch(`/report/${params.id}`)
       .then(async (r) => {
-        if (r.status === 404) throw new Error('This report has expired. Generate a new one.');
+        if (r.status === 404 || r.status === 403) {
+          const e = new Error('This report is private, or it doesn’t exist.') as Error & { code?: string };
+          e.code = 'PRIVATE';
+          throw e;
+        }
         if (!r.ok) throw new Error('Failed to load report');
         return r.json();
       })
       .then(setInitial)
-      .catch((e) => setError(e.message));
+      .catch((e) => {
+        setError(e.message);
+        setErrCode((e as Error & { code?: string }).code);
+      });
   }, [params.id]);
 
-  if (error) return <ErrorView message={error} />;
+  if (error) return <ErrorView message={error} code={errCode} />;
   if (!initial) return <Loading />;
 
   return <ReportView sessionId={params.id} initialReport={initial} />;

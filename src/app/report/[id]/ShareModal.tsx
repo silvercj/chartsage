@@ -68,6 +68,9 @@ export default function ShareModal({ open, onClose, sessionId, initialIsPublic }
         {!isPublic ? (
           <>
             <h2 className="font-display text-xl text-ink mb-1">Share this report</h2>
+            <p className="text-sm text-ink-2 mb-2">
+              This report is <span className="font-medium text-ink">private</span> — only you can see it.
+            </p>
             <p className="text-sm text-ink-2 mb-5">
               Publishing makes this report and its charts public and indexable by search engines. Your uploaded file is
               never shared. You can make it private again anytime.
