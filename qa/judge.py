@@ -16,8 +16,15 @@ _API_DIR = Path(__file__).resolve().parent.parent / "src" / "api"
 if str(_API_DIR) not in sys.path:
     sys.path.insert(0, str(_API_DIR))
 
-load_dotenv(Path(__file__).resolve().parent.parent / ".env")
-load_dotenv()
+# override=True: the harness shell injects an empty ANTHROPIC_API_KEY; without
+# override the empty value would shadow the real key in .env.
+load_dotenv(Path(__file__).resolve().parent.parent / ".env", override=True)
+load_dotenv(override=True)
+
+# Drop the harness-injected Anthropic SDK vars that would hijack the client (proxy
+# ANTHROPIC_BASE_URL, blank ANTHROPIC_AUTH_TOKEN -> "Bearer " with no token).
+for _v in ("ANTHROPIC_AUTH_TOKEN", "ANTHROPIC_BASE_URL", "ANTHROPIC_CUSTOM_HEADERS"):
+    os.environ.pop(_v, None)
 
 from claude_client import ClaudeClient            # noqa: E402
 from llm_config import MODEL_NARRATIVE            # noqa: E402  (cheap Haiku alias)

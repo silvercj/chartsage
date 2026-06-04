@@ -26,12 +26,20 @@ _API_DIR = _REPO_ROOT / "src" / "api"
 if str(_API_DIR) not in sys.path:
     sys.path.insert(0, str(_API_DIR))
 
-# Same intent as main.py:38 (pull ANTHROPIC_API_KEY etc. from .env). We point at
-# the repo-root .env explicitly: bare load_dotenv()'s caller-frame walk is
-# unreliable when this module is imported transitively, so an explicit path keeps
-# the key load deterministic regardless of how the harness is launched.
-load_dotenv(_REPO_ROOT / ".env")
-load_dotenv()  # fallback: also honor any .env discovered from CWD / process env
+# Pull ANTHROPIC_API_KEY etc. from the repo-root .env. override=True is ESSENTIAL:
+# the harness shell injects an EMPTY ANTHROPIC_API_KEY into the environment, and
+# load_dotenv defaults to override=False — so without it the empty value wins and
+# the real key never loads. Explicit path first (deterministic under transitive
+# import), then a CWD-walk fallback.
+load_dotenv(_REPO_ROOT / ".env", override=True)
+load_dotenv(override=True)
+
+# The Claude Code harness also injects Anthropic SDK env vars that hijack the client:
+# a proxy ANTHROPIC_BASE_URL and a blank ANTHROPIC_AUTH_TOKEN (which makes the SDK send
+# "Authorization: Bearer " with no token). None are set in .env, so drop them and let
+# the real .env api_key talk to api.anthropic.com directly.
+for _v in ("ANTHROPIC_AUTH_TOKEN", "ANTHROPIC_BASE_URL", "ANTHROPIC_CUSTOM_HEADERS"):
+    os.environ.pop(_v, None)
 
 from claude_client import ClaudeClient                       # noqa: E402
 from llm_config import MODEL_NARRATIVE, MODEL_SELECTION      # noqa: E402
