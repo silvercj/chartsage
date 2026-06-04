@@ -46,6 +46,7 @@ from llm_config import MODEL_NARRATIVE, MODEL_SELECTION      # noqa: E402
 # Sampling lives in its own lean module (NOT main.py): importing main would drag in
 # the whole FastAPI/stripe/supabase web stack — slow and unnecessary for the harness.
 from sampling import MAX_ANALYSIS_ROWS, sample_for_analysis  # noqa: E402  (the real prod sampling)
+from column_utils import normalize_columns                   # noqa: E402  (lower-case + de-dupe headers)
 from profile import profile_dataframe                        # noqa: E402
 from report_generator import ReportGenerator                 # noqa: E402
 
@@ -84,8 +85,7 @@ def run_report(df: pd.DataFrame, custom_prompt: str | None = None, name: str = "
     started = time.perf_counter()
     original_rows = int(df.shape[0])
     try:
-        df = df.copy()
-        df.columns = [str(c).lower() for c in df.columns]          # main.py:337
+        df = normalize_columns(df)   # copy + lower-case + de-dupe colliding headers (main.py:324)
         df, was_sampled, total_rows = sample_for_analysis(df)       # main.py:339
 
         if df.shape[1] < 2:

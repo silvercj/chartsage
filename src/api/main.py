@@ -30,6 +30,7 @@ from posthog_server import PostHogServer
 from profile import profile_dataframe
 from render_token import make_render_token
 from sampling import MAX_ANALYSIS_ROWS, sample_for_analysis
+from column_utils import normalize_columns
 import report_export
 from report_generator import ReportGenerator
 from chart_tools import CHART_TOOLS
@@ -337,7 +338,7 @@ async def generate_report(
     except Exception as e:
         raise HTTPException(status_code=422, detail=f"Could not parse file: {e}")
 
-    df.columns = [str(c).lower() for c in df.columns]
+    df = normalize_columns(df)   # lower-case + de-dupe colliding headers (else df[name] can be a DataFrame)
 
     df, was_sampled, total_rows = sample_for_analysis(df)
     if was_sampled:
@@ -714,7 +715,7 @@ async def generate_more(
         })
 
     df = pd.read_csv(io.StringIO(csv_bytes.decode("utf-8")))
-    df.columns = [str(c).lower() for c in df.columns]
+    df = normalize_columns(df)   # lower-case + de-dupe colliding headers (else df[name] can be a DataFrame)
 
     posthog.capture(identity.distinct_id, "generate_more_started", {
         "reportId": session_id,
@@ -852,7 +853,7 @@ async def add_chart(
         })
 
     df = pd.read_csv(io.StringIO(csv_bytes.decode("utf-8")))
-    df.columns = [str(c).lower() for c in df.columns]
+    df = normalize_columns(df)   # lower-case + de-dupe colliding headers (else df[name] can be a DataFrame)
 
     posthog.capture(identity.distinct_id, "add_chart_started", {
         "reportId": session_id, "mode": body.mode,
@@ -981,7 +982,7 @@ async def deepen_report(
         })
 
     df = pd.read_csv(io.StringIO(csv_bytes.decode("utf-8")))
-    df.columns = [str(c).lower() for c in df.columns]
+    df = normalize_columns(df)   # lower-case + de-dupe colliding headers (else df[name] can be a DataFrame)
 
     posthog.capture(identity.distinct_id, "deepen_started", {
         "reportId": session_id,
