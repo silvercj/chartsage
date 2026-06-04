@@ -34,6 +34,15 @@ from tests.helpers.fake_storage import FakeStorage
 from tests.helpers.fake_posthog import FakePostHog
 
 
+@pytest.fixture(autouse=True)
+def _no_live_alerting(monkeypatch):
+    """Offline-safe: the cap-hit paths call alerting.report_alert, which routes to
+    sentry_sdk.capture_message. With the sentry_sdk package installed that call can
+    block for many seconds (and hung the full suite with no timeout), so stub it out.
+    Patched at the main module's reference since the endpoint imports the name directly."""
+    monkeypatch.setattr(main_module, "report_alert", lambda *a, **k: None)
+
+
 def _csv(df):
     b = io.StringIO(); df.to_csv(b, index=False); return b.getvalue().encode("utf-8")
 

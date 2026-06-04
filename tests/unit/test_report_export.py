@@ -1,4 +1,9 @@
 import io, zipfile
+# Import the heavy optional deps (lxml-backed) at module scope so their one-time,
+# multi-second import cost is paid during collection — which pytest-timeout does NOT
+# wrap — rather than inside a test where it can trip the per-test timeout under load.
+from pptx import Presentation
+from openpyxl import load_workbook
 from schemas import Report, ChartWithCaption, ChartSpec, ChartLayoutEntry, KeyMetric
 import report_export as rx
 
@@ -12,13 +17,11 @@ def _report():
 IMAGES = [{"chart_id": "c1", "png": b"\x89PNG\r\n\x1a\n" + b"0"*64}]  # not a real PNG; builders just embed bytes
 
 def test_pptx_opens_with_slides():
-    from pptx import Presentation
     data = rx.build_pptx(_report(), IMAGES)
     prs = Presentation(io.BytesIO(data))
     assert len(prs.slides) >= 1 + 1 + len(IMAGES)   # title + summary/kpi + one per chart (exact count per impl)
 
 def test_xlsx_has_data_and_summary_sheets():
-    from openpyxl import load_workbook
     wb = load_workbook(io.BytesIO(rx.build_xlsx(_report(), b"region,sales\nW,2\nE,1\n")))
     assert set(wb.sheetnames) >= {"Data", "Summary"}
 
