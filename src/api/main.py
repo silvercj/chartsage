@@ -28,6 +28,7 @@ from pydantic import BaseModel
 from llm_config import MODEL_NARRATIVE, MODEL_SELECTION, estimate_cost_usd
 from posthog_server import PostHogServer
 from profile import profile_dataframe
+from sampling import MAX_ANALYSIS_ROWS, sample_for_analysis
 import report_export
 from report_generator import ReportGenerator
 from chart_tools import CHART_TOOLS
@@ -39,11 +40,7 @@ load_dotenv()
 
 
 MAX_UPLOAD_BYTES = 50 * 1024 * 1024
-# Above this row count we analyze a deterministic random sample (the analysis is
-# column-driven, so a representative sample is statistically faithful while keeping
-# memory/latency bounded). Env-overridable.
-MAX_ANALYSIS_ROWS = int(os.environ.get("MAX_ANALYSIS_ROWS", "50000"))
-ALLOWED_EXTENSIONS = (".csv", ".xlsx")
+ALLOWED_EXTENSIONS = (".csv", ".xlsx")  # MAX_ANALYSIS_ROWS + sample_for_analysis live in sampling.py
 # Free reports per anonymous visitor (env-overridable).
 ANON_REPORT_LIMIT = int(os.environ.get("ANON_REPORT_LIMIT", "1"))
 # Anon IDs that bypass the limit entirely (comma-separated) — for owner/QA testing.
@@ -170,16 +167,6 @@ def _load_dataframe(filename: str, content: bytes) -> pd.DataFrame:
     if filename.lower().endswith(".xlsx"):
         return pd.read_excel(io.BytesIO(content))
     raise ValueError(f"Unsupported extension: {filename}")
-
-
-def sample_for_analysis(df: pd.DataFrame) -> tuple[pd.DataFrame, bool, int]:
-    """Bound rows for analysis. Returns (frame, was_sampled, original_row_count).
-    Deterministic (fixed seed) so generate-more / deepen — which re-read the stored
-    CSV — analyze the same rows."""
-    total = len(df)
-    if total > MAX_ANALYSIS_ROWS:
-        return df.sample(n=MAX_ANALYSIS_ROWS, random_state=0).reset_index(drop=True), True, total
-    return df, False, total
 
 
 def _title_from_summary(summary: str) -> str:
