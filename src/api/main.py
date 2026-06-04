@@ -28,6 +28,7 @@ from pydantic import BaseModel
 from llm_config import MODEL_NARRATIVE, MODEL_SELECTION, estimate_cost_usd
 from posthog_server import PostHogServer
 from profile import profile_dataframe
+from render_token import make_render_token
 from sampling import MAX_ANALYSIS_ROWS, sample_for_analysis
 import report_export
 from report_generator import ReportGenerator
@@ -472,9 +473,19 @@ async def generate_report(
 @app.get("/report/{session_id}")
 async def get_report(
     session_id: str,
+    request: Request,
     identity: Identity = Depends(get_identity_optional),
     db: SupabaseDB = Depends(get_db),
 ):
+    # Server-side render path (Playwright print/og): a valid, report-scoped render
+    # token authorizes reading a PRIVATE report for one owner-initiated export.
+    rt = request.query_params.get("rt") or request.headers.get("x-render-token")
+    if rt:
+        from render_token import verify_render_token
+        if verify_render_token(rt, session_id):
+            row = db.get_report(session_id)
+            if row:
+                return JSONResponse(content=row["report_json"])
     row, _ = _resolve_report_access(db, identity, session_id)
     return JSONResponse(content=row["report_json"])
 
@@ -1101,7 +1112,7 @@ async def export_pdf(
     })
 
     try:
-        pdf_bytes = await pdf_export.render_report_pdf(session_id)
+        pdf_bytes = await pdf_export.render_report_pdf(session_id, render_token=make_render_token(session_id))
     except Exception as e:
         logging.exception("PDF export failed")
         posthog.capture(identity.distinct_id, "pdf_export_failed", {
@@ -1146,7 +1157,7 @@ async def export_pptx(
 
     import pdf_export
     try:
-        images = await pdf_export.render_chart_images(session_id)
+        images = await pdf_export.render_chart_images(session_id, render_token=make_render_token(session_id))
         payload = report_export.build_pptx(report, images)
     except Exception as e:
         logging.exception("PPTX export failed")
@@ -1211,7 +1222,7 @@ async def export_zip(
 
     import pdf_export
     try:
-        images = await pdf_export.render_chart_images(session_id)
+        images = await pdf_export.render_chart_images(session_id, render_token=make_render_token(session_id))
         payload = report_export.build_png_zip(images, report)
     except Exception as e:
         logging.exception("PNG zip export failed")
@@ -1234,7 +1245,7 @@ async def export_md(
 
     import pdf_export
     try:
-        images = await pdf_export.render_chart_images(session_id)
+        images = await pdf_export.render_chart_images(session_id, render_token=make_render_token(session_id))
         payload = report_export.build_markdown(report, images).encode("utf-8")
     except Exception as e:
         logging.exception("Markdown export failed")
@@ -1257,7 +1268,7 @@ async def export_html(
 
     import pdf_export
     try:
-        images = await pdf_export.render_chart_images(session_id)
+        images = await pdf_export.render_chart_images(session_id, render_token=make_render_token(session_id))
         payload = report_export.build_html(report, images)
     except Exception as e:
         logging.exception("HTML export failed")

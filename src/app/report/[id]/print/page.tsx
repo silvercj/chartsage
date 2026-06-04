@@ -31,7 +31,10 @@ export default function PrintReportPage({ params }: { params: { id: string } }) 
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    fetch(`${process.env.NEXT_PUBLIC_API_URL}/report/${params.id}`)
+    // Forward a render token (server-side export of a PRIVATE report) if present.
+    const rt = typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('rt') : null;
+    const qs = rt ? `?rt=${encodeURIComponent(rt)}` : '';
+    fetch(`${process.env.NEXT_PUBLIC_API_URL}/report/${params.id}${qs}`)
       .then(async (r) => {
         if (!r.ok) throw new Error('Failed to load report');
         return r.json();

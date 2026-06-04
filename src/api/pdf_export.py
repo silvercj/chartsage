@@ -31,12 +31,14 @@ async def _ensure_browser():
     return _browser
 
 
-async def render_report_pdf(session_id: str) -> bytes:
+async def render_report_pdf(session_id: str, render_token: str | None = None) -> bytes:
     """Render the /report/{session_id}/print route as an A4 PDF and return bytes."""
     browser = await _ensure_browser()
     page = await browser.new_page(viewport={"width": 1240, "height": 1754})
     try:
         url = f"{_FRONTEND_BASE}/report/{session_id}/print"
+        if render_token:
+            url += f"?rt={render_token}"
         await page.goto(url, wait_until="networkidle", timeout=30_000)
         # Wait for the print page to signal "all charts mounted"
         try:
@@ -81,12 +83,15 @@ async def render_og_image(session_id: str) -> bytes:
         await page.close()
 
 
-async def render_chart_images(session_id: str) -> list[dict]:
+async def render_chart_images(session_id: str, render_token: str | None = None) -> list[dict]:
     """Return [{"chart_id": str, "png": bytes}, ...] for every chart, in DOM order."""
     browser = await _ensure_browser()
     page = await browser.new_page(viewport={"width": 1240, "height": 1754}, device_scale_factor=2)
     try:
-        await page.goto(f"{_FRONTEND_BASE}/report/{session_id}/print", wait_until="networkidle", timeout=30_000)
+        _url = f"{_FRONTEND_BASE}/report/{session_id}/print"
+        if render_token:
+            _url += f"?rt={render_token}"
+        await page.goto(_url, wait_until="networkidle", timeout=30_000)
         try:
             await page.wait_for_selector('body[data-charts-ready="true"]', timeout=_CHARTS_READY_TIMEOUT_MS)
         except Exception:

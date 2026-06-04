@@ -149,9 +149,23 @@ def test_export_private_blocked_for_non_owner(ext):
 
 
 def test_export_md_owner_ok(monkeypatch):
-    async def _noop_imgs(_sid):
+    async def _noop_imgs(_sid, render_token=None):
         return []
     monkeypatch.setattr("pdf_export.render_chart_images", _noop_imgs)
     db = FakeDB(); rid = _seed(db, user_id=OWNER)
     r = _client(db, auth_identity(OWNER)).get(f"/report/{rid}/export.md")
     assert r.status_code == 200
+
+
+# ---- Task 5: render token lets the server-side render read a private report --
+
+def test_get_report_with_valid_render_token():
+    from render_token import make_render_token
+    db = FakeDB(); rid = _seed(db, user_id=OWNER)   # private
+    r = _client(db, None).get(f"/report/{rid}?rt={make_render_token(rid)}")  # no identity
+    assert r.status_code == 200 and r.json()["summary"] == "s"
+
+
+def test_get_report_with_bad_render_token_404():
+    db = FakeDB(); rid = _seed(db, user_id=OWNER)
+    assert _client(db, None).get(f"/report/{rid}?rt=bad.token").status_code == 404

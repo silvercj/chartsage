@@ -59,6 +59,7 @@ var/
 
 # Virtual Environment
 venv/
+venv
 ENV/
 
 # IDE
