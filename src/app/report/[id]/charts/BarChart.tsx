@@ -2,16 +2,22 @@
 import ReactECharts from 'echarts-for-react';
 import { getFormatter } from '../../../lib/format';
 import { chartBase, catAxis, valAxis, CHART_TEAL, CHART_INK, CHART_INK_MUTED } from './chartTheme';
+import { isWideChart } from './isWideChart';
 
-export default function BarChart({ spec }: { spec: any }) {
+const COLLAPSED_LIMIT = 12;
+
+export default function BarChart({ spec, collapsed = false }: { spec: any; collapsed?: boolean }) {
   const fmtY = getFormatter(spec.y_display_type);
-  const xData: any[] = spec.x ?? [];
-  const yData: any[] = spec.y ?? [];
 
-  // Many categories → horizontal ranked leaderboard. Vertical bars cram the
-  // x-axis labels and pile value-labels on top of each other past ~a dozen bars;
-  // horizontal puts names on readable rows and one value at each bar's end.
-  const horizontal = xData.length > 12;
+  // Wide (many-category) bar charts are horizontal rankings. Collapsed trims to
+  // the top-12 in a standard-height card; expanded shows them all, full-width.
+  const wide = isWideChart(spec);
+  const horizontal = wide;
+  const truncated = wide && collapsed;
+  const allX: any[] = spec.x ?? [];
+  const allY: any[] = spec.y ?? [];
+  const xData = truncated ? allX.slice(0, COLLAPSED_LIMIT) : allX;
+  const yData = truncated ? allY.slice(0, COLLAPSED_LIMIT) : allY;
 
   const valueAxis = valAxis({
     name: spec.y_label,
@@ -63,7 +69,10 @@ export default function BarChart({ spec }: { spec: any }) {
     }],
   };
 
-  // Horizontal charts need height proportional to the number of rows.
-  const height = horizontal ? Math.max(360, xData.length * 24 + 48) : 320;
+  // Expanded ranking grows with row count (full-width, own row, bounded);
+  // collapsed top-12 and normal charts stay the standard 320px.
+  const height = (horizontal && !truncated)
+    ? Math.min(760, Math.max(360, xData.length * 24 + 48))
+    : 320;
   return <ReactECharts option={option} style={{ width: '100%', height }} />;
 }

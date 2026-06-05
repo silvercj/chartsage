@@ -93,7 +93,7 @@ export default function ReportClient({ params }: { params: { id: string } }) {
 }
 
 function ReportView({ sessionId, initialReport }: { sessionId: string; initialReport: Report }) {
-  const { report, mainCharts, sidebarCharts, reorder, move, replaceReport, saveError } =
+  const { report, mainCharts, sidebarCharts, reorder, move, toggleCollapse, replaceReport, saveError } =
     useReportLayout(initialReport, sessionId);
 
   const sensors = useSensors(
@@ -166,6 +166,8 @@ function ReportView({ sessionId, initialReport }: { sessionId: string; initialRe
                       index={idx + 1}
                       spec={c.spec}
                       caption={c.caption}
+                      collapsed={c.collapsed}
+                      onToggleCollapse={toggleCollapse}
                       onHide={(id) => move(id, 'sidebar')}
                     />
                   ))}

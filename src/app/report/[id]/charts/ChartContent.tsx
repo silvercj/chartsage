@@ -12,9 +12,9 @@ const BoxPlot = dynamic(() => import('./BoxPlot'), { ssr: false });
 const Heatmap = dynamic(() => import('./Heatmap'), { ssr: false });
 const Treemap = dynamic(() => import('./Treemap'), { ssr: false });
 
-export default function ChartContent({ spec }: { spec: any }) {
+export default function ChartContent({ spec, collapsed }: { spec: any; collapsed?: boolean }) {
   switch (spec.kind) {
-    case 'bar': return <BarChart spec={spec} />;
+    case 'bar': return <BarChart spec={spec} collapsed={collapsed} />;
     case 'grouped_bar': return <GroupedBarChart spec={spec} />;
     case 'dual_axis': return <DualAxisChart spec={spec} />;
     case 'histogram': return <HistogramChart spec={spec} />;

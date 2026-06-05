@@ -100,6 +100,7 @@ class ChartLayoutEntry(BaseModel):
     chart_id: str
     position: LayoutPosition
     order: int
+    collapsed: bool = False   # wide bar charts: owner-collapsed to the compact top-N view
 
 
 class ChartWithCaption(BaseModel):

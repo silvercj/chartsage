@@ -6,6 +6,7 @@ export interface ChartLayoutEntry {
   chart_id: string;
   position: 'main' | 'sidebar';
   order: number;
+  collapsed?: boolean;
 }
 
 export interface ChartWithCaption {
@@ -121,6 +122,17 @@ export function useReportLayout(initial: Report, sessionId: string) {
     });
   }, [queuePatch]);
 
+  /** Collapse/expand a wide chart; persisted with the layout. */
+  const toggleCollapse = useCallback((chartId: string) => {
+    setReport((r) => {
+      const next = r.layout.map((e) =>
+        e.chart_id === chartId ? { ...e, collapsed: !e.collapsed } : e,
+      );
+      queuePatch(next);
+      return { ...r, layout: next };
+    });
+  }, [queuePatch]);
+
   /** Replace the report wholesale (used after generate-more). */
   const replaceReport = useCallback((newReport: Report) => {
     if (patchTimerRef.current) clearTimeout(patchTimerRef.current);
@@ -131,17 +143,20 @@ export function useReportLayout(initial: Report, sessionId: string) {
   }, []);
 
   // Partition for the UI
-  const mainCharts = report.layout
-    .filter((e) => e.position === 'main')
-    .sort((a, b) => a.order - b.order)
-    .map((e) => report.charts.find((c) => c.chart_id === e.chart_id))
-    .filter((c): c is ChartWithCaption => !!c);
+  // Merge each chart with its layout entry's collapsed flag for the UI.
+  type LaidOutChart = ChartWithCaption & { collapsed: boolean };
+  const partition = (position: 'main' | 'sidebar'): LaidOutChart[] =>
+    report.layout
+      .filter((e) => e.position === position)
+      .sort((a, b) => a.order - b.order)
+      .map((e) => {
+        const c = report.charts.find((c) => c.chart_id === e.chart_id);
+        return c ? { ...c, collapsed: e.collapsed ?? false } : null;
+      })
+      .filter((c): c is LaidOutChart => !!c);
 
-  const sidebarCharts = report.layout
-    .filter((e) => e.position === 'sidebar')
-    .sort((a, b) => a.order - b.order)
-    .map((e) => report.charts.find((c) => c.chart_id === e.chart_id))
-    .filter((c): c is ChartWithCaption => !!c);
+  const mainCharts = partition('main');
+  const sidebarCharts = partition('sidebar');
 
   return {
     report,
@@ -149,6 +164,7 @@ export function useReportLayout(initial: Report, sessionId: string) {
     sidebarCharts,
     reorder,
     move,
+    toggleCollapse,
     replaceReport,
     saveError,
   };

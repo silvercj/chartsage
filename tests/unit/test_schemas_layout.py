@@ -50,3 +50,18 @@ def test_report_round_trips_with_layout():
     r2 = Report.model_validate_json(payload)
     assert r2.layout[0].chart_id == "c1"
     assert r2.charts[0].chart_id == "c1"
+
+
+def test_layout_entry_collapsed_defaults_false():
+    e = ChartLayoutEntry(chart_id="abc", position="main", order=0)
+    assert e.collapsed is False
+
+
+def test_layout_entry_collapsed_persists_through_model_dump():
+    # PATCH /report/{id}/layout saves entry.model_dump(); the collapsed flag
+    # must survive that round-trip so the choice persists with the report.
+    e = ChartLayoutEntry(chart_id="abc", position="main", order=0, collapsed=True)
+    assert e.collapsed is True
+    dumped = e.model_dump()
+    assert dumped["collapsed"] is True
+    assert ChartLayoutEntry(**dumped).collapsed is True
