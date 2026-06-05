@@ -26,7 +26,8 @@ export function formatCount(value: number): string {
 
 export function formatPercentage(value: number): string {
   if (value == null || isNaN(value)) return '0%';
-  return (value * 100).toFixed(1) + '%';
+  // One decimal, but drop a trailing ".0" so ticks read "80%", not "80.0%".
+  return (value * 100).toFixed(1).replace(/\.0$/, '') + '%';
 }
 
 export type YDisplayType = 'count' | 'currency' | 'percentage' | 'number';
