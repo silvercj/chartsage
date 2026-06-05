@@ -63,7 +63,8 @@ CHART_TOOLS: list[dict] = [
     ),
     _t(
         "frequency_bar_chart",
-        "Bar chart of counts per category. Use for: 'how many rows fall in each category'.",
+        "Bar chart of counts per category. Use for: 'how many rows fall in each category'. "
+        "With many categories it shows the top ones by count.",
         {
             "column": {"type": "string", "description": "Categorical column to count by."},
             **_TITLE_INTENT,
@@ -72,8 +73,11 @@ CHART_TOOLS: list[dict] = [
     ),
     _t(
         "aggregation_bar_chart",
-        "Bar chart of an aggregation of a numeric column grouped by a categorical column. "
-        "Use for: 'sum/mean/median/min/max of X by Y'. Does NOT support count — use frequency_bar_chart instead.",
+        "Bar chart of a numeric column aggregated by a categorical column — and the tool to RANK "
+        "categories/entities by a value (e.g. 'mean score by team', 'total sales by product', "
+        "'win rate by circuit'). Works even when there is one row per entity (use agg='mean' or 'sum'). "
+        "With many categories it shows the top ones by value. Use for 'sum/mean/median/min/max of X by Y' "
+        "and 'which Y has the highest/lowest X'. Does NOT support count — use frequency_bar_chart instead.",
         {
             "value_col": {"type": "string", "description": "Numeric column to aggregate."},
             "group_col": {"type": "string", "description": "Categorical column to group by."},

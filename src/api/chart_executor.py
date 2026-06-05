@@ -72,12 +72,7 @@ def execute_frequency_bar_chart(df: pd.DataFrame, params: dict) -> ChartSpec | T
         counts = series.value_counts().head(MAX_CATEGORIES)   # top-N atoms; no cardinality error
     else:
         series = df[column].dropna()
-        counts = series.value_counts()
-        if len(counts) > MAX_CATEGORIES:
-            return _err(
-                f"'{column}' has {len(counts)} unique values, more than the max ({MAX_CATEGORIES}). "
-                f"Use frequency charts on lower-cardinality columns; this column may be an identifier."
-            )
+        counts = series.value_counts().head(MAX_CATEGORIES)   # top-N by count; no cardinality error
 
     x = [str(v) for v in counts.index.tolist()]
     y = [int(v) for v in counts.values.tolist()]
@@ -124,15 +119,17 @@ def execute_aggregation_bar_chart(df: pd.DataFrame, params: dict) -> ChartSpec |
         return _err(f"'{value_col}' is not numeric. Available numeric columns: {avail['numeric']}")
 
     groups = df[group_col].dropna().nunique()
-    if groups > MAX_CATEGORIES:
-        return _err(f"'{group_col}' has {groups} unique values, more than max ({MAX_CATEGORIES}).")
-
     if groups == 0:
         return _err(f"'{group_col}' has no non-null values.")
 
     work = df[[group_col, value_col]].dropna()
     grouped = work.groupby(group_col)[value_col].agg(agg)
     grouped = grouped.sort_values(ascending=False)
+    # Rank by value: with many groups, show the top N rather than erroring — this
+    # is the "rank entities by a metric" bar (e.g. win-rate by circuit), and it
+    # also covers one-row-per-entity data (agg of a single value = that value).
+    if len(grouped) > MAX_CATEGORIES:
+        grouped = grouped.head(MAX_CATEGORIES)
 
     return ChartSpec(
         kind="bar",

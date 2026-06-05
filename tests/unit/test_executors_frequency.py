@@ -43,11 +43,14 @@ def test_missing_column_returns_error(activities):
     assert "activity_type" in result.reason  # offers alternatives
 
 
-def test_too_many_categories_returns_error():
+def test_too_many_categories_ranks_top_n():
+    """Many categories -> top-N bar (ranked by count), not an error."""
+    from chart_executor import MAX_CATEGORIES
+    from schemas import ChartSpec
     df = pd.DataFrame({"high_card": [f"v{i}" for i in range(40)]})
     result = execute_frequency_bar_chart(df, _params(column="high_card"))
-    assert isinstance(result, ToolError)
-    assert "40" in result.reason or "too many" in result.reason.lower()
+    assert isinstance(result, ChartSpec)
+    assert len(result.x) == MAX_CATEGORIES
 
 
 def test_all_null_returns_error():
@@ -63,3 +66,18 @@ def test_chartspec_metadata_populated():
     assert result.source_columns == ["activity_type"]
     assert result.data_point_count == 3
     assert result.y_display_type == "count"
+
+
+def test_frequency_many_categories_ranks_top_n():
+    """Many categories -> show the top N by count, not an error."""
+    import pandas as pd
+    from chart_executor import execute_frequency_bar_chart, MAX_CATEGORIES
+    from schemas import ChartSpec
+    rows = []
+    for i in range(50):
+        rows += [f"c{i}"] * (50 - i)   # c0 most frequent ... c49 least
+    df = pd.DataFrame({"cat": rows})
+    r = execute_frequency_bar_chart(df, {"column": "cat", "title": "t", "intent": "i"})
+    assert isinstance(r, ChartSpec)
+    assert len(r.x) == MAX_CATEGORIES
+    assert r.x[0] == "c0"   # most frequent first
