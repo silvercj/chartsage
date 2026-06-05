@@ -9,37 +9,15 @@ const COLLAPSED_LIMIT = 12;
 export default function BarChart({ spec, collapsed = false }: { spec: any; collapsed?: boolean }) {
   const fmtY = getFormatter(spec.y_display_type);
 
-  // Wide (many-category) bar charts are horizontal rankings. Collapsed trims to
-  // the top-12 in a standard-height card; expanded shows them all, full-width.
+  // Bars stay vertical at a fixed height — never tall. A wide chart grows
+  // SIDEWAYS instead: expanded it spans both columns (handled by the card) so
+  // all bars get horizontal room; collapsed it trims to the top-12 in a normal
+  // card. Per-bar value labels collide past ~a dozen, so only show them then.
   const wide = isWideChart(spec);
-  const horizontal = wide;
-  const truncated = wide && collapsed;
-  const allX: any[] = spec.x ?? [];
-  const allY: any[] = spec.y ?? [];
-  const xData = truncated ? allX.slice(0, COLLAPSED_LIMIT) : allX;
-  const yData = truncated ? allY.slice(0, COLLAPSED_LIMIT) : allY;
-
-  const valueAxis = valAxis({
-    name: spec.y_label,
-    nameLocation: 'middle',
-    nameGap: horizontal ? 30 : 56,
-    nameTextStyle: { color: CHART_INK_MUTED, fontSize: 11 },
-    axisLabel: { formatter: fmtY },
-  });
-
-  const categoryAxis = catAxis({
-    data: xData,
-    inverse: horizontal,                       // highest-ranked bar at the top
-    name: horizontal ? undefined : spec.x_label,
-    nameLocation: 'middle',
-    nameGap: xData.length > 10 ? 60 : 40,
-    nameTextStyle: { color: CHART_INK_MUTED, fontSize: 11 },
-    axisLabel: {
-      interval: 0,
-      rotate: horizontal ? 0 : (xData.length > 10 ? 30 : 0),
-      fontSize: xData.length > 15 ? 10 : 11,
-    },
-  });
+  const limited = wide && collapsed;
+  const xData: any[] = limited ? (spec.x ?? []).slice(0, COLLAPSED_LIMIT) : (spec.x ?? []);
+  const yData: any[] = limited ? (spec.y ?? []).slice(0, COLLAPSED_LIMIT) : (spec.y ?? []);
+  const n = xData.length;
 
   const option = {
     ...chartBase(),
@@ -48,31 +26,40 @@ export default function BarChart({ spec, collapsed = false }: { spec: any; colla
       trigger: 'item',
       formatter: (p: any) => `<strong>${p.name}</strong><br/>${fmtY(p.value)}`,
     },
-    grid: horizontal
-      ? { left: 8, right: 56, top: 8, bottom: 28, containLabel: true }
-      : { left: 8, right: 18, top: 24, bottom: xData.length > 10 ? 24 : 8, containLabel: true },
-    xAxis: horizontal ? valueAxis : categoryAxis,
-    yAxis: horizontal ? categoryAxis : valueAxis,
+    grid: { left: 8, right: 18, top: 24, bottom: n > 10 ? 24 : 8, containLabel: true },
+    xAxis: catAxis({
+      data: xData,
+      name: spec.x_label,
+      nameLocation: 'middle',
+      nameGap: n > 10 ? 60 : 40,
+      nameTextStyle: { color: CHART_INK_MUTED, fontSize: 11 },
+      axisLabel: {
+        interval: 0,
+        rotate: n > 10 ? 30 : 0,
+        fontSize: n > 15 ? 10 : 11,
+      },
+    }),
+    yAxis: valAxis({
+      name: spec.y_label,
+      nameLocation: 'middle',
+      nameGap: 56,
+      nameTextStyle: { color: CHART_INK_MUTED, fontSize: 11 },
+      axisLabel: { formatter: fmtY },
+    }),
     series: [{
       type: 'bar',
       data: yData,
-      itemStyle: { color: CHART_TEAL, borderRadius: horizontal ? [0, 5, 5, 0] : [5, 5, 0, 0] },
+      itemStyle: { color: CHART_TEAL, borderRadius: [5, 5, 0, 0] },
       barWidth: '62%',
       emphasis: { itemStyle: { color: '#0A4A42' } },
       label: {
-        show: true,
-        position: horizontal ? 'right' : 'top',
+        show: n <= 12,                 // value labels collide past ~a dozen bars
+        position: 'top',
         formatter: (p: any) => fmtY(p.value),
         color: CHART_INK,
         fontSize: 11,
       },
     }],
   };
-
-  // Expanded ranking grows with row count (full-width, own row, bounded);
-  // collapsed top-12 and normal charts stay the standard 320px.
-  const height = (horizontal && !truncated)
-    ? Math.min(760, Math.max(360, xData.length * 24 + 48))
-    : 320;
-  return <ReactECharts option={option} style={{ width: '100%', height }} />;
+  return <ReactECharts option={option} style={{ width: '100%', height: 320 }} />;
 }
