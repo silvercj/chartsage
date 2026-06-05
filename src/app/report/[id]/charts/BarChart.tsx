@@ -53,12 +53,16 @@ export default function BarChart({ spec, collapsed = false }: { spec: any; colla
       barWidth: '62%',
       emphasis: { itemStyle: { color: '#0A4A42' } },
       label: {
-        show: n <= 12,                 // value labels collide past ~a dozen bars
+        show: true,
         position: 'top',
         formatter: (p: any) => fmtY(p.value),
         color: CHART_INK,
         fontSize: 11,
       },
+      // Keep value labels, but let ECharts drop only the ones that would
+      // overlap: a full-width chart has room to show them; a dense/small one
+      // hides the colliders instead of smearing.
+      labelLayout: { hideOverlap: true },
     }],
   };
   return <ReactECharts option={option} style={{ width: '100%', height: 320 }} />;
