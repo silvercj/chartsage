@@ -82,3 +82,51 @@ def test_fewer_than_5_charts_all_main(activities):
     report = gen.build_report()
     assert all(e.position == "main" for e in report.layout)
     assert len(report.layout) == 3
+
+
+def test_generate_charts_rescales_percentage_to_fractions():
+    # A percentage-typed column already on the 0–100 scale must leave the
+    # generator as 0–1 fractions, so the ×100 display layer renders 35%, not 3500%.
+    df = pd.DataFrame({
+        "region": ["north", "north", "south", "south"],
+        "margin": [30.0, 40.0, 60.0, 80.0],
+    })
+    fake = FakeClaude([
+        {"tool_calls": [
+            tool_use("aggregation_bar_chart",
+                     {"value_col": "margin", "group_col": "region", "agg": "mean",
+                      "title": "Avg margin", "intent": "i"}),
+            tool_use("aggregation_bar_chart",
+                     {"value_col": "margin", "group_col": "region", "agg": "max",
+                      "title": "Max margin", "intent": "i"}),
+            tool_use("frequency_bar_chart",
+                     {"column": "region", "title": "By region", "intent": "i"}),
+        ]},
+        {"tool_calls": []},  # reach-for-more proposes nothing
+    ])
+    gen = _make_generator(df, fake)
+    specs = gen.generate_charts()
+    margin = next(s for s in specs if s.title == "Avg margin")
+    assert margin.y_display_type == "percentage"
+    assert sorted(margin.y) == pytest.approx([0.35, 0.70])
+
+
+def test_add_chart_rescales_percentage_to_fractions():
+    # Charts added later (request-a-chart) bypass generate_charts() but must be
+    # normalized too — every spec-producing path funnels through _execute_tool_calls.
+    df = pd.DataFrame({
+        "region": ["north", "north", "south", "south"],
+        "margin": [30.0, 40.0, 60.0, 80.0],
+    })
+    fake = FakeClaude([
+        {"tool_calls": [tool_use(
+            "aggregation_bar_chart",
+            {"value_col": "margin", "group_col": "region", "agg": "mean",
+             "title": "Avg margin", "intent": "i"},
+        )]},
+    ])
+    gen = _make_generator(df, fake)
+    cwc = gen.add_chart(mode="describe", chart_type=None, prompt="margin by region")
+    assert cwc is not None
+    assert cwc.spec.y_display_type == "percentage"
+    assert sorted(cwc.spec.y) == pytest.approx([0.35, 0.70])

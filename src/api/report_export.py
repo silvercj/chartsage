@@ -80,7 +80,9 @@ def _format_value(metric: KeyMetric) -> str:
     if metric.format == "currency":
         return f"${value:,.2f}"
     if metric.format == "percent":
-        return f"{value:,.1f}%"
+        # Stored percent values are 0–1 fractions (see normalize_percentage_spec /
+        # execute_key_metrics); scale to a human percentage like the frontend does.
+        return f"{value * 100:,.1f}%"
     # number: drop a trailing ".0" so integers read cleanly
     if value == int(value):
         return f"{int(value):,}"

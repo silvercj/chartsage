@@ -54,6 +54,91 @@ def _infer_display_type(col_name: str, agg: str = None) -> str:
     return "number"
 
 
+def _to_fraction(value: float) -> float:
+    """A percentage value on the 0–100 scale -> a 0–1 fraction.
+
+    The display layer (frontend formatter, exporters) renders percentages by
+    multiplying by 100, so stored percentage values must be fractions. Values
+    already within [-1, 1] are assumed to be fractions and left unchanged.
+    (Single-value heuristic: a genuine rate > 100% expressed as a fraction like
+    1.5 is rare and indistinguishable from a 0–100 value here.)
+    """
+    if value is None or abs(value) <= 1:
+        return value
+    return value / 100.0
+
+
+def normalize_percentage_spec(spec: ChartSpec) -> ChartSpec:
+    """Rescale a percentage spec's values to the 0–1 fraction scale, in place.
+
+    Percentage display type is inferred from a column name (e.g. 'margin',
+    'rate'), so the values arrive in whatever scale the source data used. The
+    display layer renders them by multiplying by 100, so values already on a
+    0–100 scale would read as e.g. 3520%. When the spec's percentage values
+    exceed 1 in magnitude we treat them as 0–100 and divide by 100; genuine
+    fractions (max |v| ≤ 1) and non-percentage specs are left untouched. A
+    dual-axis secondary series (yAxisIndex != 0) carries an independent scale
+    and is excluded.
+    """
+    if spec.y_display_type != "percentage":
+        return spec
+
+    def _is_num(v) -> bool:
+        return isinstance(v, (int, float)) and not isinstance(v, bool)
+
+    def _on_primary_axis(s: dict) -> bool:
+        return s.get("yAxisIndex", 0) in (0, None)
+
+    list_keys = ("data", "y", "outliers")     # numeric value lists (never "x")
+    scalar_keys = ("value", "min", "q1", "median", "q3", "max")
+
+    def _node_values(nodes) -> list:
+        out: list = []
+        for n in nodes or []:
+            if _is_num(n.get("value")):
+                out.append(n["value"])
+            out += _node_values(n.get("children"))
+        return out
+
+    # 1) Collect every numeric value that shares the percentage scale.
+    nums: list = [v for v in (spec.y or []) if _is_num(v)]
+    for s in (spec.series or []):
+        if not _on_primary_axis(s):
+            continue
+        for k in list_keys:
+            if isinstance(s.get(k), list):
+                nums += [v for v in s[k] if _is_num(v)]
+        nums += [s[k] for k in scalar_keys if _is_num(s.get(k))]
+    nums += _node_values(spec.nodes)
+
+    if not nums or max(abs(v) for v in nums) <= 1:
+        return spec
+
+    # 2) Values are on a 0–100 scale -> divide all of them by 100.
+    def _scale(v):
+        return v / 100.0 if _is_num(v) else v
+
+    def _scale_nodes(nodes) -> None:
+        for n in nodes or []:
+            if _is_num(n.get("value")):
+                n["value"] = n["value"] / 100.0
+            _scale_nodes(n.get("children"))
+
+    if spec.y:
+        spec.y = [_scale(v) for v in spec.y]
+    for s in (spec.series or []):
+        if not _on_primary_axis(s):
+            continue
+        for k in list_keys:
+            if isinstance(s.get(k), list):
+                s[k] = [_scale(v) for v in s[k]]
+        for k in scalar_keys:
+            if _is_num(s.get(k)):
+                s[k] = s[k] / 100.0
+    _scale_nodes(spec.nodes)
+    return spec
+
+
 def execute_frequency_bar_chart(df: pd.DataFrame, params: dict) -> ChartSpec | ToolError:
     column = params["column"]
     title = params["title"]
@@ -924,6 +1009,8 @@ def execute_key_metrics(df: pd.DataFrame, params: dict) -> list[KeyMetric] | Too
             continue
         if fmt not in ("number", "currency", "percent"):
             fmt = "number"
+        if fmt == "percent":
+            val = _to_fraction(val)
         out.append(KeyMetric(label=str(label)[:60], value=val, format=fmt))
     if not out:
         return _err("no valid metrics could be computed")

@@ -32,3 +32,8 @@ def test_png_zip_has_one_entry_per_chart():
 def test_markdown_contains_summary_and_kpis():
     md = rx.build_markdown(_report(), IMAGES)
     assert "Sales summary." in md and "Total" in md and "data:image/png;base64," in md
+
+def test_format_value_percent_scales_fraction_to_percent():
+    # KPI percent values are stored as 0–1 fractions (the frontend formatter ×100s);
+    # the exporters must do the same so DOCX/Markdown KPIs read 70.6%, not 0.7%.
+    assert rx._format_value(KeyMetric(label="Win rate", value=0.706, format="percent")) == "70.6%"

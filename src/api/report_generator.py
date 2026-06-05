@@ -12,7 +12,7 @@ from typing import Any
 import pandas as pd
 from schemas import ChartSpec, Report, ChartWithCaption, ReportNarrative, ToolError, DataProfile
 from chart_tools import CHART_TOOLS, NARRATIVE_TOOL
-from chart_executor import TOOL_EXECUTORS, execute_key_metrics
+from chart_executor import TOOL_EXECUTORS, execute_key_metrics, normalize_percentage_spec
 from fallback import pick_fallback_charts
 
 
@@ -105,9 +105,14 @@ class ReportGenerator:
             specs.extend(self._call_selection_more(specs))
 
         if len(specs) < MIN_CHARTS_FOR_NO_FALLBACK:
-            specs.extend(pick_fallback_charts(
-                self.profile, self.df, max_charts=MAX_CHARTS - len(specs),
-            ))
+            # Fallback specs are built deterministically (not via _execute_tool_calls),
+            # so their percentage scale is normalized here instead.
+            specs.extend(
+                normalize_percentage_spec(s)
+                for s in pick_fallback_charts(
+                    self.profile, self.df, max_charts=MAX_CHARTS - len(specs),
+                )
+            )
 
         return specs[:MAX_CHARTS]
 
@@ -193,7 +198,7 @@ class ReportGenerator:
                 errors.append({"id": block.id, "reason": result.reason})
                 logging.warning("[GEN] tool '%s' error: %s", block.name, result.reason)
             else:
-                specs.append(result)
+                specs.append(normalize_percentage_spec(result))
                 if len(specs) >= MAX_CHARTS:
                     break
         return specs, errors

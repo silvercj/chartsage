@@ -89,3 +89,24 @@ def test_key_metrics_filter_missing_column_dropped():
     by = {m.label: m.value for m in res}
     assert "Bad filter" not in by
     assert by["Overall"] == 0.5
+
+
+def test_key_metrics_percent_already_scaled_is_normalized_to_fraction():
+    # A 'percent' metric whose source column already holds 0–100 values
+    # (e.g. a 35% margin) must be stored as a 0–1 fraction, so the ×100 display
+    # formatter renders "35.0%", not "3500%".
+    df = pd.DataFrame({"margin": [30.0, 35.0, 40.0]})
+    res = execute_key_metrics(df, {"metrics": [
+        {"label": "Avg margin", "column": "margin", "agg": "mean", "format": "percent"},
+    ]})
+    assert round(res[0].value, 6) == 0.35
+
+
+def test_key_metrics_percent_fraction_left_unchanged():
+    # A rate already on the 0–1 scale must NOT be rescaled (guards against
+    # double-dividing genuine fractions).
+    df = pd.DataFrame({"home_win": [1, 1, 0]})
+    res = execute_key_metrics(df, {"metrics": [
+        {"label": "Win rate", "column": "home_win", "agg": "mean", "format": "percent"},
+    ]})
+    assert round(res[0].value, 3) == 0.667

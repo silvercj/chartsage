@@ -56,7 +56,7 @@ export default function ChartCard({ index, spec, caption, chartId, onHide, print
           <span className="font-mono text-xs text-ink-3 tabular-nums shrink-0">
             {String(index).padStart(2, '0')}
           </span>
-          <h2 className="font-display text-lg text-ink leading-snug truncate">
+          <h2 className="font-display text-lg text-ink leading-snug line-clamp-2">
             {spec.title}
           </h2>
         </div>
