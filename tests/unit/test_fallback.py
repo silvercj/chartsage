@@ -85,3 +85,36 @@ def test_unique_label_table_charts_metric_not_frequency():
     assert lead.kind == "bar"
     assert len(set(lead.y)) > 1, f"lead bar is a degenerate frequency chart: y={lead.y}"
     assert max(lead.y) == pytest.approx(4.33), f"lead bar charts counts, not the metric: y={lead.y}"
+
+
+def test_chart_composition_and_fallback_detection():
+    """The analytics helper that powers the fallback-rate event: counts model vs.
+    fallback charts and the kind mix off the spec `intent` marker."""
+    from fallback import is_fallback_spec, chart_composition, FALLBACK_INTENT
+
+    class _Spec:
+        def __init__(self, kind, intent):
+            self.kind, self.intent = kind, intent
+
+    class _Chart:
+        def __init__(self, spec):
+            self.spec = spec
+
+    charts = [
+        _Chart(_Spec("bar", "Ranking circuits by win rate")),     # model-selected
+        _Chart(_Spec("histogram", FALLBACK_INTENT)),              # fallback
+        _Chart(_Spec("scatter", FALLBACK_INTENT)),                # fallback
+    ]
+    assert is_fallback_spec(charts[0].spec) is False
+    assert is_fallback_spec(charts[1].spec) is True
+
+    comp = chart_composition(charts)
+    assert comp["chartCount"] == 3
+    assert comp["fallbackChartCount"] == 2
+    assert comp["modelChartCount"] == 1
+    assert comp["usedFallback"] is True
+    assert comp["allFallback"] is False
+    assert comp["fallbackRatio"] == round(2 / 3, 3)
+    assert comp["chartKinds"] == ["bar", "histogram", "scatter"]
+    # all-fallback case (the hurricanes report)
+    assert chart_composition(charts[1:])["allFallback"] is True

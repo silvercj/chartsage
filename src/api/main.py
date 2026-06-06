@@ -27,6 +27,7 @@ from deps import Identity, get_identity, get_identity_optional, require_admin
 from pydantic import BaseModel
 from llm_config import MODEL_NARRATIVE, MODEL_SELECTION, estimate_cost_usd
 from posthog_server import PostHogServer
+from fallback import chart_composition
 from profile import profile_dataframe
 from render_token import make_render_token
 from sampling import MAX_ANALYSIS_ROWS, sample_for_analysis
@@ -446,12 +447,15 @@ async def generate_report(
     in_tok = report.metadata.get("input_tokens_total", 0) if isinstance(report.metadata, dict) else 0
     out_tok = report.metadata.get("output_tokens_total", 0) if isinstance(report.metadata, dict) else 0
     cache_tok = report.metadata.get("cache_read_input_tokens_total", 0) if isinstance(report.metadata, dict) else 0
+    comp = chart_composition(report.charts)   # model- vs fallback-selected, chart-kind mix
 
     posthog.capture(identity.distinct_id, "report_generation_succeeded", {
         "reportId": report_id,
         "rowCount": int(df.shape[0]),
         "columnCount": int(df.shape[1]),
-        "chartCount": len(report.charts),
+        "chartCount": comp["chartCount"],
+        "usedFallback": comp["usedFallback"],
+        "fallbackChartCount": comp["fallbackChartCount"],
         "modelSelection": MODEL_SELECTION,
         "modelNarrative": MODEL_NARRATIVE,
         "inputTokens": int(in_tok),
@@ -461,6 +465,20 @@ async def generate_report(
         "elapsedMs": elapsed_ms,
         "deep": deep,
         "customPrompt": bool(custom_prompt),
+    })
+
+    # Model-output quality, separate from the business event above: what chart-selection
+    # produced vs. the heuristic fallback, the kind mix, and the inputs that shape it.
+    # Primary signal for the fallback rate (usedFallback / allFallback / fallbackRatio).
+    posthog.capture(identity.distinct_id, "report_charts_composed", {
+        "reportId": report_id,
+        **comp,
+        "keyMetricsCount": len(report.key_metrics or []),
+        "modelSelection": MODEL_SELECTION,
+        "deep": deep,
+        "customPrompt": bool(custom_prompt),
+        "rowCount": int(df.shape[0]),
+        "columnCount": int(df.shape[1]),
     })
 
     logging.info(
@@ -774,6 +792,7 @@ async def generate_more(
     posthog.capture(identity.distinct_id, "generate_more_succeeded", {
         "reportId": session_id,
         "newChartCount": len(new_charts),
+        "chartKinds": [c.spec.kind for c in new_charts],
         "inputTokens": 0,    # tokens from sub-Claude call aren't surfaced through gen yet
         "outputTokens": 0,
         "estCostUsd": 0.005, # rough — 1 selection pass on Haiku

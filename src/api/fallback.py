@@ -15,6 +15,33 @@ from chart_executor import (
 )
 
 
+# Marker on the `intent` of any spec this heuristic safety net produced (vs. a chart
+# the model selected). Analytics + tests key off this to compute the fallback rate.
+FALLBACK_INTENT = "fallback: Claude pass #1 didn't pick this; chosen by heuristic."
+
+
+def is_fallback_spec(spec) -> bool:
+    """True when a chart came from the heuristic fallback rather than model selection."""
+    return (getattr(spec, "intent", "") or "").lower().startswith("fallback")
+
+
+def chart_composition(charts) -> dict:
+    """Model-output composition for analytics, from a report's charts (each having a
+    ``.spec``): how many charts the model picked vs. the heuristic fallback, plus the
+    chart-kind mix. Lets us track the fallback rate and what the model actually makes."""
+    n = len(charts)
+    fb = sum(1 for c in charts if is_fallback_spec(c.spec))
+    return {
+        "chartCount": n,
+        "fallbackChartCount": fb,
+        "modelChartCount": n - fb,
+        "usedFallback": fb > 0,
+        "allFallback": n > 0 and fb == n,
+        "fallbackRatio": round(fb / n, 3) if n else 0.0,
+        "chartKinds": [c.spec.kind for c in charts],
+    }
+
+
 def pick_fallback_charts(profile: DataProfile, df: pd.DataFrame, max_charts: int = 5) -> list[ChartSpec]:
     """Pure heuristic chart selection, biased toward VARIETY rather than bars.
 
@@ -25,7 +52,7 @@ def pick_fallback_charts(profile: DataProfile, df: pd.DataFrame, max_charts: int
     4. scatter_chart for the strongest |correlation| ≥ 0.3 pair (or any numeric pair)
     """
     specs: list[ChartSpec] = []
-    intent = "fallback: Claude pass #1 didn't pick this; chosen by heuristic."
+    intent = FALLBACK_INTENT
 
     cats = [c for c in profile.columns if c.role == "categorical" and 2 <= c.cardinality <= 30]
     nums = [c for c in profile.columns if c.role == "numeric"]
