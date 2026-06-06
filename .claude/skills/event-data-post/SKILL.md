@@ -19,9 +19,10 @@ description: >-
 
 # Event-data social post
 
-Turn an upcoming event into a ChartSage data-showcase post: a dataset that says
-something **surprising** about the event → one screenshot-worthy chart → a short
-X thread, posted while the event peaks. The interactive report *is* the demo.
+Turn an upcoming event into a ChartSage data-showcase post: a dataset you
+**analyse** into a surprising finding about the event → one screenshot-worthy
+chart → a short X thread, posted while the event peaks. The interactive report
+*is* the demo, and the analysis *is* the post.
 
 This is the execution layer for `docs/marketing-social-playbook.md` (Track A),
 optimised per `docs/marketing-x-algorithm.md`. Canonical reference with more
@@ -42,14 +43,22 @@ launches, anniversaries, seasonal moments. Web-search what's coming up if you're
 unsure of the calendar. Pick one where data can say something non-obvious — the
 post lives or dies on the *surprise*.
 
-**2. Pitch datasets — _you → user_.** Propose 1–3 specific datasets, each with a
-*surprising angle*, and where to get them (Kaggle, Ergast/Jolpica F1, data.gov,
-Our World in Data, FiveThirtyEight, official stats). You usually can't pull
-gated/large/login-walled sources, so ask the user to fetch the raw file and drop
-it in `~/Downloads` (or paste a link). Let them pick the one that excites them.
+**2. Pitch datasets — _you → user_.** Propose 1–3 specific *datasets you can do
+real analysis on*, each framed as a **question the raw rows answer** — a rate to
+compute, a ranking, a trend over time, a correlation — not a headline number to
+re-plot. (Monaco worked because pole→win % was *computed per circuit from race
+results*; "worth $10B, last title 1973" is a graphic, not an analysis.) Say where
+to get each (Kaggle, Ergast/Jolpica F1, data.gov, Our World in Data,
+FiveThirtyEight, official stats); pull public tables yourself, and for
+gated/large/login-walled sources ask the user to drop the raw file in
+`~/Downloads` (or paste a link). Pitch your expected finding as a *hypothesis* —
+the real hook is whatever Step 3 surfaces. Let them pick the one that excites them.
 
-**3. Clean + find the story — _you_.** Profile the data, then:
-- Find the **surprising, screenshot-worthy** finding — that's the hook.
+**3. Analyse + find the story — _you_.** Actually work the raw data — aggregate,
+rank, compute the rate, look across time — and let the finding *emerge*:
+- The hook is the **surprising, screenshot-worthy finding the analysis surfaces**
+  (often *not* your Step-2 hunch). The ChartSage report you'll brief in Step 5 is
+  literally this analysis, rendered — so the dataset has to be worth analysing.
 - **Clean** it: re-encode ASCII-safe (accented names like `Nürburgring` store as
   mojibake otherwise), drop junk columns, keep what tells the story, and **name
   columns so ChartSage types them right** — a `pct`/`rate`/`share`/`margin`/
@@ -102,6 +111,10 @@ rather than inventing one. (`docs/marketing-x-algorithm.md` §0.6 / §4.)
 
 ## Things that bite (learned the hard way)
 
+- **It's analysis, not a factoid.** Every post comes from *working a real dataset*
+  (compute a rate, rank, trend, correlation — like F1 pole→win % per circuit), not
+  from plotting one or two numbers you already knew. If you can't name the analysis
+  step, you don't have a post yet — keep digging.
 - **ASCII-clean the CSV**, or accented names become mojibake in the stored report.
 - **The custom prompt is essential** — without it ChartSage may lead with a
   generic distribution chart instead of your angle.
