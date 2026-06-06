@@ -220,6 +220,81 @@ resource "posthog_insight" "model_spend_daily" {
   dashboard_ids = [posthog_dashboard.chartsage.id]
 }
 
+# ── Acquisition & conversion ──────────────────────────────────────────────────
+
+resource "posthog_insight" "unique_visitors_daily" {
+  name = "Unique visitors & pageviews per day"
+  query_json = jsonencode({
+    "kind" : "DataVisualizationNode",
+    "source" : { "kind" : "HogQLQuery", "query" : "SELECT toDate(timestamp) AS day, count(DISTINCT person_id) AS unique_visitors, count() AS pageviews FROM events WHERE event = '$pageview' GROUP BY day ORDER BY day" },
+    "display" : "ActionsLineGraph",
+    "chartSettings" : {
+      "xAxis" : { "column" : "day" },
+      "yAxis" : [
+        { "column" : "unique_visitors", "settings" : { "formatting" : { "decimalPlaces" : 0 }, "display" : { "label" : "Unique visitors", "color" : local.c_primary } } },
+        { "column" : "pageviews", "settings" : { "formatting" : { "decimalPlaces" : 0 }, "display" : { "label" : "Pageviews", "color" : local.c_accent } } }
+      ],
+      "showLegend" : true
+    }
+  })
+  tags          = ["managed-by:terraform"]
+  dashboard_ids = [posthog_dashboard.chartsage.id]
+}
+
+resource "posthog_insight" "activation_funnel" {
+  name = "Activation funnel — visit -> generate -> publish (90d)"
+  query_json = jsonencode({
+    "kind" : "InsightVizNode",
+    "source" : {
+      "kind" : "FunnelsQuery",
+      "series" : [
+        { "kind" : "EventsNode", "event" : "$pageview", "name" : "Visited" },
+        { "kind" : "EventsNode", "event" : "report_generation_succeeded", "name" : "Generated a report" },
+        { "kind" : "EventsNode", "event" : "report_published", "name" : "Published" }
+      ],
+      "funnelsFilter" : { "funnelVizType" : "steps", "funnelOrderType" : "ordered" },
+      "dateRange" : { "date_from" : "-90d" }
+    }
+  })
+  tags          = ["managed-by:terraform"]
+  dashboard_ids = [posthog_dashboard.chartsage.id]
+}
+
+resource "posthog_insight" "traffic_by_utm_source" {
+  name = "Traffic by UTM source"
+  query_json = jsonencode({
+    "kind" : "DataVisualizationNode",
+    "source" : { "kind" : "HogQLQuery", "query" : "SELECT coalesce(properties.utm_source, '(direct / none)') AS source, count(DISTINCT person_id) AS visitors, count() AS pageviews FROM events WHERE event = '$pageview' GROUP BY source ORDER BY visitors DESC LIMIT 15" },
+    "display" : "ActionsBar",
+    "chartSettings" : {
+      "xAxis" : { "column" : "source" },
+      "yAxis" : [
+        { "column" : "visitors", "settings" : { "formatting" : { "decimalPlaces" : 0 }, "display" : { "label" : "Visitors", "color" : local.c_primary } } },
+        { "column" : "pageviews", "settings" : { "formatting" : { "decimalPlaces" : 0 }, "display" : { "label" : "Pageviews", "color" : local.c_accent } } }
+      ],
+      "showLegend" : true
+    }
+  })
+  tags          = ["managed-by:terraform"]
+  dashboard_ids = [posthog_dashboard.chartsage.id]
+}
+
+resource "posthog_insight" "x_posts_by_campaign" {
+  name = "X posts - traffic by campaign (utm_source = x)"
+  query_json = jsonencode({
+    "kind" : "DataVisualizationNode",
+    "source" : { "kind" : "HogQLQuery", "query" : "SELECT coalesce(properties.utm_campaign, '(none)') AS campaign, count(DISTINCT person_id) AS visitors, count() AS pageviews FROM events WHERE event = '$pageview' AND properties.utm_source = 'x' GROUP BY campaign ORDER BY visitors DESC" },
+    "display" : "ActionsBar",
+    "chartSettings" : {
+      "xAxis" : { "column" : "campaign" },
+      "yAxis" : [{ "column" : "visitors", "settings" : { "formatting" : { "decimalPlaces" : 0 }, "display" : { "label" : "Visitors", "color" : local.c_violet } } }],
+      "showValuesOnSeries" : true
+    }
+  })
+  tags          = ["managed-by:terraform"]
+  dashboard_ids = [posthog_dashboard.chartsage.id]
+}
+
 # ── Engagement ────────────────────────────────────────────────────────────────
 
 resource "posthog_insight" "reports_published_daily" {
@@ -366,6 +441,10 @@ resource "posthog_dashboard_layout" "chartsage" {
     { insight_id = posthog_insight.generation_outcomes.id },
     { insight_id = posthog_insight.generation_latency.id },
     { insight_id = posthog_insight.model_spend_daily.id },
+    { insight_id = posthog_insight.unique_visitors_daily.id },
+    { insight_id = posthog_insight.activation_funnel.id },
+    { insight_id = posthog_insight.traffic_by_utm_source.id },
+    { insight_id = posthog_insight.x_posts_by_campaign.id },
     { insight_id = posthog_insight.reports_published_daily.id },
     { insight_id = posthog_insight.post_gen_actions.id },
     { insight_id = posthog_insight.exports_by_format.id },
