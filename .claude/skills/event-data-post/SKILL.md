@@ -37,22 +37,24 @@ Everything else (research, cleaning, the image, the copy) is yours.
 
 ## The loop
 
-**1. Spot the event — _you_.** Find events ~3–10 days out with a passionate
-audience and a timely hook: race weekends, finals/derbies, elections, awards,
-launches, anniversaries, seasonal moments. Web-search what's coming up if you're
-unsure of the calendar. Pick one where data can say something non-obvious — the
-post lives or dies on the *surprise*.
+**1. Spot the hook — _you_.** Usually an event ~3–10 days out with a passionate
+audience: race weekends, finals/derbies, elections, awards, launches,
+anniversaries, seasonal moments (hurricane-season opening, graduation, tax day).
+But it **doesn't have to be sports, or even an event** — any genuinely interesting
+*topical* angle works, and if nothing's on the calendar a timeless "huh, really?"
+dataset is fine too. Web-search what's coming up if unsure. Pick something where
+data can say something non-obvious — the post lives or dies on the *surprise*.
 
-**2. Pitch datasets — _you → user_.** Propose 1–3 specific *datasets you can do
-real analysis on*, each framed as a **question the raw rows answer** — a rate to
-compute, a ranking, a trend over time, a correlation — not a headline number to
-re-plot. (Monaco worked because pole→win % was *computed per circuit from race
-results*; "worth $10B, last title 1973" is a graphic, not an analysis.) Say where
-to get each (Kaggle, Ergast/Jolpica F1, data.gov, Our World in Data,
-FiveThirtyEight, official stats); pull public tables yourself, and for
-gated/large/login-walled sources ask the user to drop the raw file in
-`~/Downloads` (or paste a link). Pitch your expected finding as a *hypothesis* —
-the real hook is whatever Step 3 surfaces. Let them pick the one that excites them.
+**2. Find real datasets — _you → user_.** Find 1–3 *already-published* datasets — an
+actual Kaggle dataset, a NOAA / data.gov file, an Our World in Data / FiveThirtyEight
+/ Ergast CSV — and **verify each exists** (open the page, pull the file). You're
+*finding* a dataset, **not assembling one**: stitching scraped figures into a table
+("team value + titles + drought") is the trap — that's a graphic, not an analysis.
+Frame each as a **question the raw rows answer** — a rate to compute, a ranking, a
+trend, a correlation (Monaco worked because pole→win % was *computed per circuit*).
+Truly-public files you pull yourself (GitHub / NOAA / OWID, sometimes a Kaggle mirror
+on Hugging Face); for login-walled Kaggle the user grabs it. Pitch your expected
+finding as a *hypothesis* — the real hook is whatever Step 3 surfaces. Let them pick.
 
 **3. Analyse + find the story — _you_.** Actually work the raw data — aggregate,
 rank, compute the rate, look across time — and let the finding *emerge*:
@@ -70,15 +72,21 @@ rank, compute the rate, look across time — and let the finding *emerge*:
 with a clear name (e.g. `f1_pole_by_circuit_ascii.csv`) so they can upload as-is.
 
 **5. Generate + publish — _user_.** They upload it in the app (logged in → brand
-account) **with the custom prompt you give them**. The prompt is what steers
-ChartSage to the chart/angle you want — e.g. *"Lead with a bar chart ranking
-circuits by pole_to_win_pct, highest first; minimise generic count charts."*
-(keep it ≤280 chars). They review it, set the hero, **Publish** (Share in the
-toolbar — this makes the link resolve *and* generates the OG image), and send you
-the report URL.
+account) **with the custom prompt you give them**. The prompt steers ChartSage to
+your angle — e.g. *"Lead with a bar chart of pole_to_win_pct by circuit, ranked
+highest first."* (≤280 chars). **Name the hero chart, but don't over-constrain** —
+"make ONE chart / minimise others" backfires: chart-selection then picks too few and
+the heuristic fallback fills the report with generic distributions. Ask for the hero
+**plus a few supporting charts**. They review it, set the hero, **Publish** (Share in
+the toolbar — makes the link resolve *and* generates the OG image), and send you the
+report URL.
 
-**6. Make the chart image — _you_.** Render a clean image (title + chart only, no
-UI chrome) to `~/Downloads/` with the bundled script — it handles loading,
+**6. Check the report, then make the chart image — _you_.** **First open the
+published report and confirm the hero is the chart your analysis intended** — right
+columns, real values, not a flat/generic "<column> — distribution" fallback. If it's
+wrong, fix it *before* posting (re-shape the CSV, re-run with a clearer prompt) —
+never hand over a broken report. Once it's right, render a clean image (title + chart
+only, no UI chrome) to `~/Downloads/` with the bundled script — it handles loading,
 stripping the buttons/index/caption, and shooting the hero (first) card:
 
 ```bash
@@ -101,6 +109,10 @@ they can be present, drop Reply 1 right after, and reply to every genuine human
 reply in the first hour — the author-reply is the single biggest reach signal
 (~150× a like). Remind them of this; a scheduled-and-abandoned post underperforms.
 
+**9. Log it — _you_.** Append the post to **`analyses-log.md`** (this skill's dir):
+date, hook, event/topic, dataset + source, the report URL, and the hashtag. It's our
+running record — skim it first so we never repeat an angle.
+
 ## The one hashtag — research it, don't guess
 
 Use a **single event tag**: the tag that event's real audience uses *that week*
@@ -115,6 +127,16 @@ rather than inventing one. (`docs/marketing-x-algorithm.md` §0.6 / §4.)
   (compute a rate, rank, trend, correlation — like F1 pole→win % per circuit), not
   from plotting one or two numbers you already knew. If you can't name the analysis
   step, you don't have a post yet — keep digging.
+- **Find the dataset, don't build it.** Use a real published file (Kaggle / NOAA /
+  data.gov / OWID / FiveThirtyEight). Assembling a table from scraped figures is the
+  factoid trap in disguise. Confirm the source exists before pitching — and mind URLs
+  (NOAA's HURDAT2 lives on `www.nhc.noaa.gov`, not the ftp host).
+- **Verify the report before you post.** Chart-selection (Haiku) can under-pick on
+  small/odd tables and silently fall back to generic distribution charts — open the
+  published report and confirm the hero is *your* analysis first. (We track this as the
+  fallback rate in PostHog's `report_charts_composed`; see `docs/analytics-events.md`.)
+- **Don't over-constrain the upload prompt.** "ONE chart / minimise others" makes the
+  model under-select → fallback. Name the hero, allow a few supporting charts.
 - **ASCII-clean the CSV**, or accented names become mojibake in the stored report.
 - **The custom prompt is essential** — without it ChartSage may lead with a
   generic distribution chart instead of your angle.
