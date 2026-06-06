@@ -66,3 +66,22 @@ def test_specs_marked_as_fallback(activities):
     specs = pick_fallback_charts(profile, activities)
     if specs:
         assert all("fallback" in s.intent.lower() for s in specs)
+
+
+def test_unique_label_table_charts_metric_not_frequency():
+    """A 'label + metrics' table — one unique-label categorical + numeric(s) — must NOT
+    fall back to a frequency bar of the label. Every label appears once, so the counts
+    are all 1 and the bar renders flat/useless. The fallback must chart the metric BY
+    the label instead (the chart the data actually wants). Regression for the hurricanes
+    report that came out as a flat 'decade — distribution' bar of all 1s."""
+    df = pd.DataFrame({
+        "Decade": ["1990s", "2000s", "2010s", "2020s"],
+        "Major_per_year": [2.5, 3.6, 3.0, 4.33],
+    })
+    profile = profile_dataframe(df)
+    specs = pick_fallback_charts(profile, df)
+    assert specs, "fallback produced no charts"
+    lead = specs[0]
+    assert lead.kind == "bar"
+    assert len(set(lead.y)) > 1, f"lead bar is a degenerate frequency chart: y={lead.y}"
+    assert max(lead.y) == pytest.approx(4.33), f"lead bar charts counts, not the metric: y={lead.y}"

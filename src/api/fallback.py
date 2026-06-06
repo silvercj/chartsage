@@ -8,6 +8,7 @@ import pandas as pd
 from schemas import ChartSpec, DataProfile
 from chart_executor import (
     execute_frequency_bar_chart,
+    execute_aggregation_bar_chart,
     execute_histogram_chart,
     execute_scatter_chart,
     execute_box_plot,
@@ -35,13 +36,30 @@ def pick_fallback_charts(profile: DataProfile, df: pd.DataFrame, max_charts: int
             specs.append(result)
         return len(specs) >= max_charts
 
-    # 1. ONE frequency bar (top categorical) — capped at one to avoid a bar-heavy fallback.
+    # 1. ONE lead bar (top categorical) — capped at one to avoid a bar-heavy fallback.
     if cats:
-        if add(execute_frequency_bar_chart(df, {
-            "column": cats[0].name,
-            "title": f"{cats[0].name} — distribution",
-            "intent": intent,
-        })):
+        top_cat = cats[0]
+        # A categorical whose every value is unique is a row label/key (one row each),
+        # so a frequency bar of it is all 1s — a flat, useless chart (this is what made
+        # the hurricanes-by-decade report render as a flat "decade — distribution" bar).
+        # When numerics are present it's a "label + metrics" table, so chart the most
+        # prominent metric BY the label instead — for one row per label the agg of a
+        # single value is that value, giving the bar the data actually wants.
+        if nums and top_cat.cardinality >= profile.row_count:
+            lead = execute_aggregation_bar_chart(df, {
+                "value_col": nums[0].name,
+                "group_col": top_cat.name,
+                "agg": "sum",
+                "title": f"{nums[0].name} by {top_cat.name}",
+                "intent": intent,
+            })
+        else:
+            lead = execute_frequency_bar_chart(df, {
+                "column": top_cat.name,
+                "title": f"{top_cat.name} — distribution",
+                "intent": intent,
+            })
+        if add(lead):
             return specs
 
     # 2. A box plot — top numeric across the top categorical (a different way to read the data).
