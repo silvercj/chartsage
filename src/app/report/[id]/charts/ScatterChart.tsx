@@ -45,6 +45,7 @@ export default function ScatterChart({ spec }: { spec: any }) {
           : undefined,
         grid: { left: 8, right: 18, top: 24, bottom: hasSeries ? 40 : 8, containLabel: true },
         xAxis: valAxis({
+          scale: true,   // fit the data range; forcing 0 cramps year/large-value axes into a stripe
           name: spec.x_label,
           nameLocation: 'middle',
           nameGap: 32,
@@ -52,6 +53,7 @@ export default function ScatterChart({ spec }: { spec: any }) {
           axisLabel: { formatter: fmtX },
         }),
         yAxis: valAxis({
+          scale: true,   // a scatter is about the relationship — fit both axes to the data
           name: spec.y_label,
           nameLocation: 'middle',
           nameGap: 56,

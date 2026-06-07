@@ -4,6 +4,7 @@ Guidance for Claude Code sessions working on ChartSage.
 
 ## Project docs
 - **Architecture & how to add a chart kind:** [ChartSage.md](ChartSage.md)
+- **Report UX checklist (what to eyeball in a generated report):** [docs/report-ux-checklist.md](docs/report-ux-checklist.md)
 - **Design specs:** `docs/superpowers/specs/`
 - **Run / deploy:** [README.md](README.md) — frontend → Vercel on `git push origin main`; backend → Cloud Run, **manual**, via `gcloud builds submit --config cloudbuild.yaml --substitutions=...` (no auto-trigger).
 

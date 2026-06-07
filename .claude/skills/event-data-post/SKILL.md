@@ -86,7 +86,9 @@ report URL.
 
 **6. Check the report, then make the chart image — _you_.** **First open the
 published report and confirm the hero is the chart your analysis intended** — right
-columns, real values, not a flat/generic "<column> — distribution" fallback. If it's
+columns, real values, not a flat/generic "<column> — distribution" fallback — and run it
+past the **UX checklist** (`docs/report-ux-checklist.md`): axes fitting the data (not forced
+to 0), no empty/degenerate charts, % formatted right. If it's
 wrong, fix it *before* posting (re-shape the CSV, re-run with a clearer prompt) —
 never hand over a broken report. Once it's right, render a clean image (title + chart
 only, no UI chrome) to `~/Downloads/` with the bundled script — it handles loading,
