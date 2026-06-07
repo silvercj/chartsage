@@ -110,7 +110,7 @@ chart / minimise" — that under-selects into the fallback. ≤280 chars.)*
 QA report is clean: the user uploads the **same CSV + prompt** under the brand account, **Publishes**
 (Share in the toolbar — resolves the link *and* generates the OG image), and sends the URL. Confirm
 their hero matches your QA one (same fixes are deployed, so it will), then render the clean post
-image (title + chart only, no UI chrome) to `~/Downloads/`:
+image (title, chart + the narrative caption; no UI chrome) to `~/Downloads/`:
 
 ```bash
 ~/.venvs/chartsage/bin/python scripts/chart_image.py \

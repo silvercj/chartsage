@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """Render a clean ChartSage hero-chart image for a social post.
 
-Loads a published report, strips the card chrome (buttons, index, kind badge,
-caption), and screenshots the first chart card at 2x. Run it with a Python env
-that has Playwright + chromium (the project's venv does):
+Loads a published report, strips the card chrome (buttons, index, kind badge) but
+keeps the title, chart, and the narrative caption, then screenshots the first chart
+card at 2x. Run it with a Python env that has Playwright + chromium (the project's venv does):
 
     ~/.venvs/chartsage/bin/python scripts/chart_image.py \
         https://chartsage.app/report/<id> ~/Downloads/<event>_chart.png
@@ -16,14 +16,13 @@ import sys
 
 from playwright.sync_api import sync_playwright
 
-# JS run in the page: hide every button + span (drag handle, index, kind badge,
-# toggle, hide-X) and the caption paragraph, leaving just the title + chart.
+# JS run in the page: hide every button + span (drag handle, index "01", kind badge,
+# toggle, hide-X), leaving the title, chart, AND the narrative caption (<p>). The caption
+# carries the insight (and the card's `<p>` has no inner spans, so the span-hide is safe).
 STRIP_CHROME = """() => {
   const card = document.querySelector('section.card');
   if (!card) return;
   card.querySelectorAll('button, span').forEach(e => (e.style.display = 'none'));
-  const cap = card.querySelector('p');
-  if (cap) cap.style.display = 'none';
 }"""
 
 
