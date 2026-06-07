@@ -30,10 +30,11 @@ detail: `docs/marketing-event-data-post-playbook.md`.
 
 ## You vs. the user — hand off cleanly
 
-Some steps only the user can do: **fetch gated data** (login/large sources you
-can't pull) and **run + publish the report under the brand account**. Don't try
-to work around those — give them exactly what they need and wait for the result.
-Everything else (research, cleaning, the image, the copy) is yours.
+Two steps are the user's: **fetch gated data** (login/large sources you can't pull) and
+**publish the final report under the brand account** (Step 6). Everything else is yours —
+including **generating and QA-ing a throwaway copy of the report yourself first** (Step 5), so the
+user only ever publishes something you've already verified. Never hand over a report you haven't
+seen rendered.
 
 ## The loop
 
@@ -74,32 +75,42 @@ with their headline numbers, then:
 **4. Hand back the CSV — _you → user_.** Save the cleaned file to `~/Downloads/`
 with a clear name (e.g. `f1_pole_by_circuit_ascii.csv`) so they can upload as-is.
 
-**5. Generate + publish — _user_.** They upload it in the app (logged in → brand
-account) **with the custom prompt you give them**. The prompt steers ChartSage to
-your angle — e.g. *"Lead with a bar chart of pole_to_win_pct by circuit, ranked
-highest first."* (≤280 chars). **Name the hero chart, but don't over-constrain** —
-"make ONE chart / minimise others" backfires: chart-selection then picks too few and
-the heuristic fallback fills the report with generic distributions. Ask for the hero
-**plus a few supporting charts**. They review it, set the hero, **Publish** (Share in
-the toolbar — makes the link resolve *and* generates the OG image), and send you the
-report URL.
+**5. Self-QA the report yourself — _you_, before anyone publishes.** Don't hand the user a report
+to publish blind. Generate a **throwaway** QA report via the API (under the QA anon id — never
+published, never on the brand account) and verify it:
 
-**6. Check the report, then make the chart image — _you_.** **First open the
-published report and confirm the hero is the chart your analysis intended** — right
-columns, real values, not a flat/generic "<column> — distribution" fallback — and run it
-past the **UX checklist** (`docs/report-ux-checklist.md`): axes fitting the data (not forced
-to 0), no empty/degenerate charts, % formatted right. If it's
-wrong, fix it *before* posting (re-shape the CSV, re-run with a clearer prompt) —
-never hand over a broken report. Once it's right, render a clean image (title + chart
-only, no UI chrome) to `~/Downloads/` with the bundled script — it handles loading,
-stripping the buttons/index/caption, and shooting the hero (first) card:
+```bash
+~/.venvs/chartsage/bin/python scripts/qa_generate.py ~/Downloads/<file>.csv "<your custom prompt>"
+```
+It prints the `session_id` + a chart QA — flagging **EMPTY** / **SELF-GROUP** charts, **FALLBACK**
+picks, and **TIME-SCATTER** advisories. Then render it **as owner, no publish needed**, and eyeball
+the hero + full page against the **UX checklist** (`docs/report-ux-checklist.md` — axes fitting the
+data, no empty/degenerate charts, % formatted right):
+
+```bash
+~/.venvs/chartsage/bin/python scripts/qa_render.py https://chartsage.app/report/<id>
+```
+**If anything's wrong, fix the _generation_ durably** (CLAUDE.md → *Fix the generator, not the
+dataset*: reproduce → failing test → fix in `fallback.py` / `chart_executor.py` / the chart
+component → deploy), not a one-off CSV hack. Re-QA until clean, then share the rendered hero with
+the user. *(Custom prompt: name the hero **plus a couple of supporting charts**; don't say "ONE
+chart / minimise" — that under-selects into the fallback. ≤280 chars.)*
+
+> The QA scripts run under a fixed QA anon id at `~/.chartsage/qa-anon-id` (in the backend
+> `UNLIMITED_ANON_IDS` allowlist, so it's uncapped) and hit the prod API (`CHARTSAGE_API_URL`).
+
+**6. User publishes the verified report; you render the post image — _user → you_.** Only once the
+QA report is clean: the user uploads the **same CSV + prompt** under the brand account, **Publishes**
+(Share in the toolbar — resolves the link *and* generates the OG image), and sends the URL. Confirm
+their hero matches your QA one (same fixes are deployed, so it will), then render the clean post
+image (title + chart only, no UI chrome) to `~/Downloads/`:
 
 ```bash
 ~/.venvs/chartsage/bin/python scripts/chart_image.py \
   https://chartsage.app/report/<id> ~/Downloads/<event>_chart.png
 ```
-(`scripts/chart_image.py` is in this skill's directory. The project venv at
-`~/.venvs/chartsage` already has Playwright + chromium.)
+(All three scripts — `qa_generate.py`, `qa_render.py`, `chart_image.py` — are in this skill's
+`scripts/`. The project venv `~/.venvs/chartsage` already has Playwright + chromium.)
 
 **7. Lay out the post — _you_.** Per the X algorithm:
 - **Main tweet:** hook + the surprising stat + **the chart image** + a soft
@@ -138,10 +149,11 @@ rather than inventing one. (`docs/marketing-x-algorithm.md` §0.6 / §4.)
   data.gov / OWID / FiveThirtyEight). Assembling a table from scraped figures is the
   factoid trap in disguise. Confirm the source exists before pitching — and mind URLs
   (NOAA's HURDAT2 lives on `www.nhc.noaa.gov`, not the ftp host).
-- **Verify the report before you post.** Chart-selection (Haiku) can under-pick on
-  small/odd tables and silently fall back to generic distribution charts — open the
-  published report and confirm the hero is *your* analysis first. (We track this as the
-  fallback rate in PostHog's `report_charts_composed`; see `docs/analytics-events.md`.)
+- **Self-QA before anyone publishes.** Don't hand over a blind report — *you* generate + render a
+  throwaway QA copy first (`qa_generate.py` / `qa_render.py`, Step 5). Haiku is non-deterministic on
+  small tables (under-picks → fallback; self-groups a line into a spiky tangle; picks scatters for
+  time series), so every run differs — verify the *actual* charts, and when one's wrong fix the
+  generator, not the CSV. (Fallback rate lives in PostHog's `report_charts_composed`.)
 - **Don't over-constrain the upload prompt.** "ONE chart / minimise others" makes the
   model under-select → fallback. Name the hero, allow a few supporting charts.
 - **ASCII-clean the CSV**, or accented names become mojibake in the stored report.

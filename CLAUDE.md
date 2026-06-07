@@ -6,7 +6,23 @@ Guidance for Claude Code sessions working on ChartSage.
 - **Architecture & how to add a chart kind:** [ChartSage.md](ChartSage.md)
 - **Report UX checklist (what to eyeball in a generated report):** [docs/report-ux-checklist.md](docs/report-ux-checklist.md)
 - **Design specs:** `docs/superpowers/specs/`
-- **Run / deploy:** [README.md](README.md) — frontend → Vercel on `git push origin main`; backend → Cloud Run, **manual**, via `gcloud builds submit --config cloudbuild.yaml --substitutions=...` (no auto-trigger).
+- **Run / deploy:** [README.md](README.md) — frontend → Vercel on `git push origin main`. Backend → Cloud Run, **manual** (no auto-trigger): for **code-only** changes run **`scripts/deploy-backend.sh [<sha>]`** — it builds the image and swaps it (`run services update --image`), preserving all env/secrets, then checks `/health`. ⚠️ Only use `gcloud builds submit --config cloudbuild.yaml` for **env/secret changes**, and then pass **every** `--substitutions` — its defaults are placeholders that clobber `SUPABASE_URL` + Stripe envs.
+
+## Fix the generator, not the dataset
+When a report or chart looks wrong, fix it at the **point of generation** so the fix holds for
+*every* dataset — not a one-off patch for the CSV in front of you. Every chart bug we've hit was a
+**general** flaw, never a property of that one file: a flat fallback bar, a year rendered as a
+histogram, a line tangled by self-grouping, a "3-mo avg" label on yearly data — each lived in chart
+selection (`src/api/fallback.py`), an executor (`src/api/chart_executor.py`), or a chart component
+(`src/app/report/[id]/charts/`). The discipline:
+1. **Reproduce** it locally (load the CSV → `profile_dataframe` → the failing path) so you understand the *class* of input that triggers it.
+2. **Write a failing test, then fix it at the source** (TDD) — generalise from "this CSV" to "any dataset shaped like this".
+3. **Log it in [docs/report-ux-checklist.md](docs/report-ux-checklist.md)** so the next report (and the next session) catches the whole class.
+
+Reshaping the input CSV is a last resort — at most a column-naming hint (e.g. don't name a goal-count
+column `margin`, which auto-formats as a %), never the actual fix. **Before a marketing post, generate
+the report yourself via the API and QA the *rendered* hero (see the `event-data-post` skill) — never
+hand the user a report to publish that you haven't verified.**
 
 ## Analytics & events — treat as first-class
 Events/analytics are how we see what the product **and the models** are doing — activation, credit economics, and model-output quality (e.g. the chart **fallback rate**). **Consider analytics on every change:** when you add or change a feature, ask "what event proves this works / is used?" and emit or update one.
