@@ -43,6 +43,27 @@ def chart_composition(charts) -> dict:
     }
 
 
+def chart_signature(spec) -> tuple:
+    """A chart's identity for dedup: its kind + the set of columns it draws from. Two specs
+    with the same signature render the same chart (regardless of title)."""
+    return (getattr(spec, "kind", None), tuple(sorted(getattr(spec, "source_columns", None) or [])))
+
+
+def drop_duplicates(existing, candidates) -> list:
+    """Drop candidate specs that re-make a chart already in ``existing`` (same signature).
+    The heuristic fallback re-derives charts from the same dataframe, so when it supplements
+    a few model-selected charts it can duplicate them — keep the model's (better-titled) one."""
+    seen = {chart_signature(s) for s in existing}
+    kept = []
+    for s in candidates:
+        sig = chart_signature(s)
+        if sig in seen:
+            continue
+        seen.add(sig)
+        kept.append(s)
+    return kept
+
+
 # A column whose name IS one of these (e.g. "Year", "Decade") is a time/ordinal axis.
 # Matched on the WHOLE name (letters only) — not as a substring — so a rate like
 # "majors_per_year" or "goals_per_month", which merely *contains* a temporal word, is

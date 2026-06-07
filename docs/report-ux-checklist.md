@@ -41,6 +41,9 @@ checks here as we find them.
 ## Selection quality
 - [ ] **Fallback charts** — generic `"<column> — distribution"` titles mean chart-selection under-picked.
   Track the rate via PostHog `report_charts_composed` (see `docs/analytics-events.md`).
+- [x] **Fallback duplicating model charts** — when the model picks <3, the fallback re-derives from the
+  same df and can re-make charts the model already chose (each line showed twice). *Fixed 2026-06-07:
+  `drop_duplicates` (report_generator) drops fallback specs matching a model chart's kind + source columns.*
 - [ ] **Wrong hero** — the lead chart isn't the intended analysis.
 - [ ] Truncated / awkward auto-titles.
 
@@ -62,3 +65,7 @@ checks here as we find them.
   rendering a spiky tangle (one one-point series per value); (b) `LineChart.tsx` labels the moving
   average by real period ("3-yr avg") instead of a hardcoded "3-mo avg". Banked the nonsensical
   key-metric check. (`src/api/chart_executor.py`, `src/app/report/[id]/charts/LineChart.tsx`.)
+- **2026-06-07** — more from the cards self-QA: (a) `execute_line_chart` drops a **near-unique
+  group_by** (continuous metric → 12-series spiky tangle); (b) fallback **dedup** — drop fallback
+  charts that duplicate a model chart (cards report showed the cards + reds lines twice). QA tool
+  now understands box/heatmap series. (`chart_executor.py`, `fallback.py`, `report_generator.py`.)

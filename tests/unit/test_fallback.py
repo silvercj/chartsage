@@ -120,6 +120,27 @@ def test_chart_composition_and_fallback_detection():
     assert chart_composition(charts[1:])["allFallback"] is True
 
 
+def test_drop_duplicate_fallback_charts():
+    """The fallback re-derives charts from the same df, so it can re-make a chart the model
+    already selected (same kind + source columns) — e.g. a 'cards over year' line when the
+    model already charted cards over year. Those duplicates must be dropped (the World Cup
+    cards report showed the cards and reds lines twice each)."""
+    from fallback import drop_duplicates
+
+    class S:
+        def __init__(self, kind, cols):
+            self.kind, self.source_columns = kind, cols
+
+    model = [S("line", ["year", "cards"]), S("line", ["year", "reds"])]
+    fb = [
+        S("line", ["year", "cards"]),     # duplicate of model[0]
+        S("line", ["reds", "year"]),      # duplicate of model[1] (column order ignored)
+        S("histogram", ["matches"]),      # genuinely new
+    ]
+    kept = drop_duplicates(model, fb)
+    assert [s.kind for s in kept] == ["histogram"], "should keep only the non-duplicate chart"
+
+
 def test_fallback_timeseries_leads_with_line_not_histogram():
     """A time-series table — a year/ordinal column + metrics, no categorical — should lead
     with a LINE of the metric over time, not a histogram of the year. Regression for the

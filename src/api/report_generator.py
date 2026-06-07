@@ -13,7 +13,7 @@ import pandas as pd
 from schemas import ChartSpec, Report, ChartWithCaption, ReportNarrative, ToolError, DataProfile
 from chart_tools import CHART_TOOLS, NARRATIVE_TOOL
 from chart_executor import TOOL_EXECUTORS, execute_key_metrics, normalize_percentage_spec
-from fallback import pick_fallback_charts
+from fallback import pick_fallback_charts, drop_duplicates
 
 
 MAX_CHARTS = 10
@@ -105,14 +105,18 @@ class ReportGenerator:
             specs.extend(self._call_selection_more(specs))
 
         if len(specs) < MIN_CHARTS_FOR_NO_FALLBACK:
-            # Fallback specs are built deterministically (not via _execute_tool_calls),
-            # so their percentage scale is normalized here instead.
-            specs.extend(
+            # Fallback specs are built deterministically (not via _execute_tool_calls), so
+            # their percentage scale is normalized here. Drop any that re-make a chart the
+            # model already selected — the fallback re-derives from the same dataframe and
+            # would otherwise duplicate model charts (each line showed up twice in the cards
+            # report when the model under-picked).
+            fb = [
                 normalize_percentage_spec(s)
                 for s in pick_fallback_charts(
                     self.profile, self.df, max_charts=MAX_CHARTS - len(specs),
                 )
-            )
+            ]
+            specs.extend(drop_duplicates(specs, fb))
 
         return specs[:MAX_CHARTS]
 
