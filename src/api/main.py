@@ -27,7 +27,7 @@ from deps import Identity, get_identity, get_identity_optional, require_admin
 from pydantic import BaseModel
 from llm_config import MODEL_NARRATIVE, MODEL_SELECTION, estimate_cost_usd
 from posthog_server import PostHogServer
-from fallback import chart_composition
+from fallback import chart_composition, is_fallback_spec
 from profile import profile_dataframe
 from render_token import make_render_token
 from sampling import MAX_ANALYSIS_ROWS, sample_for_analysis
@@ -519,6 +519,18 @@ async def generate_report(
         "rowCount": int(df.shape[0]),
         "columnCount": int(df.shape[1]),
     })
+
+    # Per-chart type signal: one event per chart so the chart-kind mix (line vs bar vs pie vs …)
+    # is a simple breakdown over time in PostHog, rather than an array property buried on the
+    # report-level event. Lets us watch whether we're over-indexing on any one chart type.
+    for ch in report.charts:
+        posthog.capture(identity.distinct_id, "chart_generated", {
+            "reportId": report_id,
+            "kind": ch.spec.kind,
+            "isFallback": is_fallback_spec(ch.spec),
+            "deep": deep,
+            "customPrompt": bool(custom_prompt),
+        })
 
     logging.info(
         "=== RUN SUMMARY ===\nrun_id: %s\nreport: %s\nrows: %d cols: %d  charts: %d  elapsed: %dms",

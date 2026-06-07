@@ -34,6 +34,7 @@ remove an event, update this file in the same PR/commit:
 | `report_generation_started` | BE | `/generate-report` accepted (after credit check) | rowCount, columnCount, filename, sizeBytes, deep, customPrompt | baseline |
 | `report_generation_succeeded` | BE | report built + persisted | reportId, rowCount, columnCount, chartCount, **usedFallback**, **fallbackChartCount**, modelSelection, modelNarrative, input/output/cacheReadTokens, estCostUsd, elapsedMs, deep, customPrompt | baseline · **2026-06-06: +usedFallback, +fallbackChartCount** |
 | `report_charts_composed` | BE | after a report is generated | reportId, chartCount, fallbackChartCount, modelChartCount, usedFallback, allFallback, fallbackRatio, chartKinds[], keyMetricsCount, modelSelection, deep, customPrompt, rowCount, columnCount | **Added 2026-06-06.** Primary model-output-quality event (see "Fallback rate" below). |
+| `chart_generated` | BE | one per chart, after a report is generated | reportId, **kind**, **isFallback**, deep, customPrompt | **Added 2026-06-07.** One event per chart so the chart-kind mix is a simple breakdown by `kind` — see "Chart-type mix" below. |
 | `report_generation_failed` | BE | generation raised | reason, errorClass, httpStatus, elapsedMs | baseline |
 | `claude_overloaded` | BE | model 529/busy during selection | stage | baseline |
 | `generate_more_started` | BE | `/generate-more` begins | reportId, existingChartCount | baseline |
@@ -56,6 +57,13 @@ in — marked by the `fallback:` `intent` prefix; computed by `chart_composition
 - **avg fallback share per report** = mean of `fallbackRatio`.
 Segment by `modelSelection`, `rowCount`/`columnCount`, `deep`, `customPrompt` to find where the
 model under-selects.
+
+**Chart-type mix.** `chart_generated` fires once per chart with its `kind` (one of: bar, grouped_bar,
+dual_axis, histogram, scatter, line, pie, box, heatmap, treemap) and `isFallback`. Plot the
+distribution with a **Trends** insight on `chart_generated` **broken down by `kind`** — a pie for the
+overall split, or a stacked area / line to watch it over time. Add an `isFallback = true` filter to
+split model picks from the heuristic fallback. (Added 2026-06-07 after a run of line-heavy reports —
+this makes the skew visible; the report-level `chartKinds[]` array undercounts repeats within a report.)
 
 ## Sharing, exports & engagement
 
