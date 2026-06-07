@@ -49,6 +49,17 @@ export function catAxis(extra: Record<string, any> = {}) {
   };
 }
 
+// How far to slant category-axis labels so they don't collide. Weighs both the
+// count AND the length — long names ("Netherlands") overlap well before you have 10
+// of them. Returns 0 (flat) when they comfortably fit. Pair with grid containLabel.
+export function labelRotation(cats: any[]): number {
+  const n = cats?.length ?? 0;
+  if (n === 0) return 0;
+  const maxLen = cats.reduce((mx: number, s: any) => Math.max(mx, String(s ?? '').length), 0);
+  const crowded = n > 10 || n * maxLen > 55;
+  return crowded ? (n > 16 || maxLen > 16 ? 45 : 30) : 0;
+}
+
 // Value axis with hairline split-lines + mono labels.
 export function valAxis(extra: Record<string, any> = {}) {
   const { axisLabel, ...rest } = extra;

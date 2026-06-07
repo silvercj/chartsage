@@ -11,8 +11,9 @@ checks here as we find them.
   data). *Fixed for scatter 2026-06-07 (`charts/ScatterChart.tsx`); `chartTheme.ts` `valAxis` passes
   `scale` through, so any chart can opt in.*
 - [ ] **Bar y-axis NOT starting at 0** — the opposite trap: bars must baseline at 0 or the lengths lie.
-- [ ] Crammed / overlapping x-axis labels (too many categories) — wide bar charts collapse to top-12;
-  long category lists should rotate or truncate.
+- [x] **Crammed / overlapping x-axis labels** — *fixed 2026-06-07*: bar labels auto-slant (length-aware
+  `labelRotation` in `chartTheme.ts`, weighs count **and** label length) when they'd collide; wide bars
+  also collapse to top-12. *(Other category charts — grouped bar, box, histogram — can adopt the same helper.)*
 
 ## Chart-type fit
 - [ ] **Scatter used for a time series** where a line/bar reads better (e.g. "total goals vs year").

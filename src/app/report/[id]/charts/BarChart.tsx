@@ -1,7 +1,7 @@
 'use client';
 import ReactECharts from 'echarts-for-react';
 import { getFormatter } from '../../../lib/format';
-import { chartBase, catAxis, valAxis, CHART_TEAL, CHART_INK, CHART_INK_MUTED } from './chartTheme';
+import { chartBase, catAxis, valAxis, labelRotation, CHART_TEAL, CHART_INK, CHART_INK_MUTED } from './chartTheme';
 import { isWideChart } from './isWideChart';
 
 const COLLAPSED_LIMIT = 12;
@@ -18,6 +18,7 @@ export default function BarChart({ spec, collapsed = false }: { spec: any; colla
   const xData: any[] = limited ? (spec.x ?? []).slice(0, COLLAPSED_LIMIT) : (spec.x ?? []);
   const yData: any[] = limited ? (spec.y ?? []).slice(0, COLLAPSED_LIMIT) : (spec.y ?? []);
   const n = xData.length;
+  const rotate = labelRotation(xData);   // length-aware slant so long/many labels don't collide
 
   const option = {
     ...chartBase(),
@@ -26,16 +27,16 @@ export default function BarChart({ spec, collapsed = false }: { spec: any; colla
       trigger: 'item',
       formatter: (p: any) => `<strong>${p.name}</strong><br/>${fmtY(p.value)}`,
     },
-    grid: { left: 8, right: 18, top: 24, bottom: n > 10 ? 24 : 8, containLabel: true },
+    grid: { left: 8, right: 18, top: 24, bottom: rotate ? 30 : 8, containLabel: true },
     xAxis: catAxis({
       data: xData,
       name: spec.x_label,
       nameLocation: 'middle',
-      nameGap: n > 10 ? 60 : 40,
+      nameGap: rotate ? 64 : 40,
       nameTextStyle: { color: CHART_INK_MUTED, fontSize: 11 },
       axisLabel: {
         interval: 0,
-        rotate: n > 10 ? 30 : 0,
+        rotate,
         fontSize: n > 15 ? 10 : 11,
       },
     }),
