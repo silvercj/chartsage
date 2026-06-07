@@ -20,6 +20,9 @@ checks here as we find them.
   A scatter is for *relationships*, not trends over time. *Fallback fixed 2026-06-07: a year/ordinal
   column + metrics now leads with a metric-over-time **line** (`fallback.py` `_ordinal_index` /
   `_timeseries_line`), instead of a "year — distribution" histogram + a "year vs matches" scatter.*
+- [x] **Line grouped by its own measure** — a `group_by` equal to the value column makes one
+  one-point series per value: a tangle of coloured spikes, x-axis mislabeled with the values.
+  *Fixed 2026-06-07: `execute_line_chart` drops a `group_by` that equals the value/date column.*
 - [ ] Pie with too many slices; **box plot with one value per group** (renders empty).
 - [ ] **Empty chart** (no x/y data) — e.g. a degenerate box plot — shouldn't be shown at all.
 
@@ -31,12 +34,20 @@ checks here as we find them.
   types as a number (e.g. `goal_diff`, `goal_gap`).
 - [ ] Currency/units missing where expected.
 - [ ] **Mojibake** in labels (accented names garbled) — ASCII-clean the source CSV.
+- [x] **Moving-average overlay mislabeled "3-mo avg"** on non-monthly lines (a 3-point avg, auto-added
+  to any single-series line ≥12 pts). *Fixed 2026-06-07: `LineChart.tsx` `movingAvgLabel()` derives the
+  period from `x_label` → "3-yr avg" / "3-mo avg" / neutral "3-pt avg".*
 
 ## Selection quality
 - [ ] **Fallback charts** — generic `"<column> — distribution"` titles mean chart-selection under-picked.
   Track the rate via PostHog `report_charts_composed` (see `docs/analytics-events.md`).
 - [ ] **Wrong hero** — the lead chart isn't the intended analysis.
 - [ ] Truncated / awkward auto-titles.
+
+## Key metrics
+- [ ] **Nonsensical key metric** at the top of the report — e.g. "Year span: 2022" (a year, not a
+  span) or a decimal count ("22.23 teams/tournament"). Backend `key_metrics`; not in the post but in
+  the report. *(Open — spotted on the blowouts report.)*
 
 ## Change log
 - **2026-06-07** — created. Added the *scatter forced-zero* fix (the World Cup "total goals vs year"
@@ -46,3 +57,8 @@ checks here as we find them.
   came out all-histogram/scatter when Haiku under-picked; the fallback now produces the trend the
   data wants. Also banked the *count-wrongly-shown-as-%* check (a goal `margin` formatting as a
   percentage). (`src/api/fallback.py`, `tests/unit/test_fallback.py`.)
+- **2026-06-07** — fixes surfaced by the new *generate-and-self-QA-before-publishing* loop (World Cup
+  blowouts): (a) `execute_line_chart` drops a `group_by` equal to the value/date column — it was
+  rendering a spiky tangle (one one-point series per value); (b) `LineChart.tsx` labels the moving
+  average by real period ("3-yr avg") instead of a hardcoded "3-mo avg". Banked the nonsensical
+  key-metric check. (`src/api/chart_executor.py`, `src/app/report/[id]/charts/LineChart.tsx`.)

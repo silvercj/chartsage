@@ -18,6 +18,17 @@ function rollingAvg(values: number[], window: number): (number | null)[] {
   return out;
 }
 
+// Label the 3-point moving average by the axis's real period — never a blanket
+// "3-mo avg", which is wrong on yearly/quarterly data (and showed on every year-based
+// report). The line executor sets x_label = "{Granularity} ({date_col})" and the
+// fallback sets it to the column name, so the leading word is the period; otherwise
+// fall back to a neutral "3-pt avg".
+function movingAvgLabel(xLabel: string | undefined): string {
+  const gran = String(xLabel || '').split(' (')[0].trim().toLowerCase();
+  const unit: Record<string, string> = { year: 'yr', quarter: 'qtr', month: 'mo', week: 'wk', day: 'day' };
+  return `3-${unit[gran] || 'pt'} avg`;
+}
+
 export default function LineChart({ spec }: { spec: any }) {
   const fmtY = getFormatter(spec.y_display_type);
   const hasSeries = spec.series && Array.isArray(spec.series);
@@ -62,7 +73,7 @@ export default function LineChart({ spec }: { spec: any }) {
   if (showSmoothed) {
     const smoothed = rollingAvg(spec.y as number[], 3);
     baseSeries.push({
-      name: '3-mo avg',
+      name: movingAvgLabel(spec.x_label),
       type: 'line',
       data: smoothed,
       smooth: true,
