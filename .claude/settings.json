@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(~/.venvs/chartsage/bin/python *event-data-post/scripts/publish.py*)"
+    ]
+  },
+  "autoMode": {
+    "allow": [
+      "$defaults",
+      "Publishing or unpublishing a ChartSage marketing report by running the event-data-post publish.py script (.claude/skills/event-data-post/scripts/publish.py, optionally with --content or --unpublish) is allowed — the user reviews the report at the pipeline gates before anything is posted to X."
+    ]
+  }
+}
