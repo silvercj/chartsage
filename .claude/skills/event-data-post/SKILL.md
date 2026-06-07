@@ -32,10 +32,11 @@ detail: `docs/marketing-event-data-post-playbook.md`.
 
 The user's role is **provide + approve + post**: they **fetch gated data** (login/large sources you
 can't pull), **review the report at two gates** (the QA-account stage and the final content-account
-report), and **post to X** (no Twitter API — scheduling/posting stays theirs). Everything else is
-yours: find + enrich the data, **generate → QA → publish** it on the ChartSage QA and content accounts
-(see *Automated pipeline*), render the image, write the thread. Never put a report in front of them
-you haven't rendered + QA'd yourself.
+report), and **approve + post on X** (one-click-approve the Buffer draft, then tend the replies — no
+Twitter API; X stays Buffer-mediated). Everything else is yours: find + enrich the data,
+**generate → QA → publish** it on the ChartSage QA and content accounts (see *Automated pipeline*),
+render the image, write the thread, and **draft it into the Buffer queue** (see *Buffer scheduling*).
+Never put a report in front of them you haven't rendered + QA'd yourself.
 
 ## The loop
 
@@ -107,10 +108,13 @@ through the **content account**, QA + publish it (Gate 2 = the user's final OK),
   one-line product plug.
 - **Reply 2 (self, optional):** a bonus stat to keep the thread alive.
 
-**8. Schedule + tend — _user_.** They schedule the main tweet (Buffer) for when
-they can be present, drop Reply 1 right after, and reply to every genuine human
-reply in the first hour — the author-reply is the single biggest reach signal
-(~150× a like). Remind them of this; a scheduled-and-abandoned post underperforms.
+**8. Schedule + tend — _you draft, user approves + tends_.** Pick the slot with
+**`buffer_manager.py`** (it reconciles the live queue and flags the gaps), propose it, and on the
+user's OK **schedule the thread as a Buffer draft** (`buffer_schedule.py`; image = the report's
+`og_image_url`) — see *Buffer scheduling*. The user one-click-approves the draft in Buffer (the
+pre-set time is kept), then replies to every genuine human reply in the first hour — the author-reply
+is the single biggest reach signal (~150× a like). Remind them; a scheduled-and-abandoned post
+underperforms.
 
 **9. Log it — _you_, immediately.** The moment a post goes live, append it to
 **`analyses-log.md`** (this skill's dir): date, hook, event/topic, dataset + source,
@@ -159,6 +163,31 @@ reviews the content at the gates.
 
 Both publishes (3 + 4) are content going live — the human reviews the *content* at 3 and 5; the
 permission rule just removes the per-call publish prompt.
+
+## Buffer scheduling (read the queue, fill the gaps)
+
+Posts reach X through **Buffer** (the brand's `@chartsageapp` channel) via Buffer's **GraphQL API**
+(`https://api.buffer.com`, personal key in `~/.chartsage/buffer-token`). We never touch the Twitter
+API — Buffer posts to X once a draft is approved. Scripts (this skill's `scripts/`):
+
+- **`buffer_list.py`** — read the live queue: channels, upcoming posts (with times), org limits (`--json` for the agent).
+- **`buffer_manager.py`** — the manager: reconciles the queue against the **cadence policy** and prints the calendar with **GAPS** flagged + limit reasoning. Read-only; the *agent* matches each gap to a backlog post.
+- **`buffer_schedule.py`** — create/delete a post-thread: `--text` / `--reply`(×N) / `--image <public url>` / `--at <ISO-8601 UTC>` / `--draft` / `--delete <id>` / `--dry-run`. Needs a settings permission rule (like `publish.py`); the human still reviews each plan.
+- **`buffer_api.py`** — shared GraphQL helper. (`buffer_probe.py` = schema introspection, dev only.)
+
+**The loop (this *is* Step 8):**
+1. `buffer_manager.py` → the gaps (e.g. "Jun 13/15/17/19 empty", runway, limits).
+2. *Agent* matches each gap to a **Ready/Backlog** post in `analyses-log.md` — an already-published report first, else build one via the *Automated pipeline*.
+3. **Time each post** — anchor to its event so it rides the live hashtag (an F1 post near the race, a WC post around a match); else the default US window (`--slot`, ~15:00 UTC). The manager suggests a default; tune per content.
+4. **Propose** the plan (report → slot → thread) for the user's OK.
+5. On OK → `buffer_schedule.py --at <slot> --draft --text … --image <og_image_url> --reply … --reply …` → lands as a **Buffer draft** (`status: draft`, time preserved).
+6. The **user approves** the draft in Buffer (one click; the pre-set time is kept) and tends replies. Then log it (Step 9) + update the post's status.
+
+**Cadence policy** (the manager's defaults; flags override): **every other day** (`--spacing 2`) until we hold a ~**14-day runway**, then tighten to **daily** (`--spacing 1`); reserve **2/day for event spikes** (a race/match day), spaced US-morning + US-evening so they don't cannibalise. Scale frequency to backlog depth **and** engagement, not just the calendar.
+
+**Image = the report's OG card, for free.** Publishing a report auto-generates a public 1200×630 OG card (hero chart + title + `chartsage.app`) at `og_image_url` (from `/report/<id>/meta`, or `{SUPABASE_URL}/storage/v1/object/public/og-images/<id>.png`). Pass it straight to `--image` — Buffer's API takes only **public URLs** (no file upload yet), so this is the zero-glue path (and lands a free brand impression in the image; beats hosting the portrait `chart_image.py` hero).
+
+**Gotchas:** `saveToDraft:true` → `status: draft` that **keeps the `dueAt`** (an owner key never auto-skips approval — so the gate is reliable); the human approves in Buffer. `buffer_list.py` is the **source of truth** over `analyses-log.md` — reconcile statuses (a "Scheduled" row missing from the queue may already be **sent** — check sent history). Buffer's plan caps (5000 posts / 2000 threads-per-channel) won't bind — the real limits are our cadence + X's per-day cap (`dailyPostingLimits`, wireable).
 
 ## The one hashtag — research it, don't guess
 

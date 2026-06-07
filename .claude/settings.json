@@ -1,13 +1,15 @@
 {
   "permissions": {
     "allow": [
-      "Bash(~/.venvs/chartsage/bin/python *event-data-post/scripts/publish.py*)"
+      "Bash(~/.venvs/chartsage/bin/python *event-data-post/scripts/publish.py*)",
+      "Bash(~/.venvs/chartsage/bin/python *event-data-post/scripts/buffer_schedule.py*)"
     ]
   },
   "autoMode": {
     "allow": [
       "$defaults",
-      "Publishing or unpublishing a ChartSage marketing report by running the event-data-post publish.py script (.claude/skills/event-data-post/scripts/publish.py, optionally with --content or --unpublish) is allowed — the user reviews the report at the pipeline gates before anything is posted to X."
+      "Publishing or unpublishing a ChartSage marketing report by running the event-data-post publish.py script (.claude/skills/event-data-post/scripts/publish.py, optionally with --content or --unpublish) is allowed — the user reviews the report at the pipeline gates before anything is posted to X.",
+      "Scheduling, drafting, or deleting a ChartSage marketing post on the brand's own Buffer queue by running the event-data-post buffer_schedule.py script (.claude/skills/event-data-post/scripts/buffer_schedule.py) is allowed — posts are created as drafts (saveToDraft) the user approves in Buffer before anything goes live on X, and the user reviews each scheduling plan in the conversation first."
     ]
   }
 }
