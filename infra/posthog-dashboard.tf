@@ -280,15 +280,34 @@ resource "posthog_insight" "traffic_by_utm_source" {
 }
 
 resource "posthog_insight" "x_posts_by_campaign" {
-  name = "X posts - traffic by campaign (utm_source = x)"
+  name = "X traffic by campaign (organic + ads)"
   query_json = jsonencode({
     "kind" : "DataVisualizationNode",
-    "source" : { "kind" : "HogQLQuery", "query" : "SELECT coalesce(properties.utm_campaign, '(none)') AS campaign, count(DISTINCT person_id) AS visitors, count() AS pageviews FROM events WHERE event = '$pageview' AND properties.utm_source = 'x' GROUP BY campaign ORDER BY visitors DESC" },
+    "source" : { "kind" : "HogQLQuery", "query" : "SELECT coalesce(properties.utm_campaign, '(none)') AS campaign, count(DISTINCT person_id) AS visitors, count() AS pageviews FROM events WHERE event = '$pageview' AND properties.utm_source IN ('x', 'x_ads') GROUP BY campaign ORDER BY visitors DESC" },
     "display" : "ActionsBar",
     "chartSettings" : {
       "xAxis" : { "column" : "campaign" },
       "yAxis" : [{ "column" : "visitors", "settings" : { "formatting" : { "decimalPlaces" : 0 }, "display" : { "label" : "Visitors", "color" : local.c_violet } } }],
       "showValuesOnSeries" : true
+    }
+  })
+  tags          = ["managed-by:terraform"]
+  dashboard_ids = [posthog_dashboard.chartsage.id]
+}
+
+resource "posthog_insight" "x_ads_by_creative" {
+  name = "X ads - visitors by creative (utm_source = x_ads)"
+  query_json = jsonencode({
+    "kind" : "DataVisualizationNode",
+    "source" : { "kind" : "HogQLQuery", "query" : "SELECT coalesce(properties.utm_content, '(none)') AS creative, count(DISTINCT person_id) AS visitors, count() AS pageviews FROM events WHERE event = '$pageview' AND properties.utm_source = 'x_ads' GROUP BY creative ORDER BY visitors DESC" },
+    "display" : "ActionsBar",
+    "chartSettings" : {
+      "xAxis" : { "column" : "creative" },
+      "yAxis" : [
+        { "column" : "visitors", "settings" : { "formatting" : { "decimalPlaces" : 0 }, "display" : { "label" : "Visitors", "color" : local.c_accent } } },
+        { "column" : "pageviews", "settings" : { "formatting" : { "decimalPlaces" : 0 }, "display" : { "label" : "Pageviews", "color" : local.c_primary } } }
+      ],
+      "showLegend" : true, "showValuesOnSeries" : true
     }
   })
   tags          = ["managed-by:terraform"]
@@ -445,6 +464,7 @@ resource "posthog_dashboard_layout" "chartsage" {
     { insight_id = posthog_insight.activation_funnel.id },
     { insight_id = posthog_insight.traffic_by_utm_source.id },
     { insight_id = posthog_insight.x_posts_by_campaign.id },
+    { insight_id = posthog_insight.x_ads_by_creative.id },
     { insight_id = posthog_insight.reports_published_daily.id },
     { insight_id = posthog_insight.post_gen_actions.id },
     { insight_id = posthog_insight.exports_by_format.id },
