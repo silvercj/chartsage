@@ -404,6 +404,14 @@ def execute_line_chart(df: pd.DataFrame, params: dict) -> ChartSpec | ToolError:
         if not pd.api.types.is_numeric_dtype(df[value_col]):
             return _err(f"value_col='{value_col}' is not numeric (required when agg != 'count').")
 
+    # A group_by that's the same column as the measure (or the date axis) is never
+    # meaningful — you can't break a metric down by itself. It produces one one-point
+    # series per distinct value: a tangle of spikes with the x-axis mislabeled with the
+    # values (the World Cup "blowouts by year" hero did exactly this). Drop it so we draw
+    # a single clean trend line instead.
+    if group_by is not None and group_by in (value_col, date_col):
+        group_by = None
+
     work = df.copy()
     work["_date"] = parsed_dates
     work = work.dropna(subset=["_date"])

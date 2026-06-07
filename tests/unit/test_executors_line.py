@@ -75,6 +75,24 @@ def test_area_flag_sets_spec_area(activities):
     assert result.area is True
 
 
+def test_group_by_equal_to_value_col_is_ignored():
+    # Grouping a line by the very column it measures is nonsensical: it yields one
+    # one-point series per distinct value — a tangle of spikes with the x-axis mislabeled
+    # with the values, not years. The executor must drop such a group_by and draw a single
+    # clean series. Regression for the World Cup blowouts hero (group_by=blowout_pct on a
+    # blowout_pct line) which rendered as a mess of coloured spikes.
+    df = pd.DataFrame({
+        "year": [2000, 2004, 2008, 2012, 2016, 2020],
+        "blowout_pct": [10.0, 12.0, 8.0, 9.0, 7.0, 6.0],
+    })
+    result = execute_line_chart(df, _params(
+        date_col="year", value_col="blowout_pct", agg="mean",
+        granularity="year", group_by="blowout_pct"))
+    assert isinstance(result, ChartSpec)
+    assert result.series is None, "must collapse to a single series, not one-per-value"
+    assert result.x and result.y and len(result.x) == 6
+
+
 def test_integer_year_column_parsed_as_years():
     # Regression: a 4-digit integer year column must be treated as calendar years,
     # not nanoseconds-since-epoch (which collapsed every row to ~1970 -> a 1-point line).
