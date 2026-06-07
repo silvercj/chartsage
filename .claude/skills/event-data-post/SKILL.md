@@ -220,6 +220,14 @@ rather than inventing one. (`docs/marketing-x-algorithm.md` §0.6 / §4.)
   generator, not the CSV. (Fallback rate lives in PostHog's `report_charts_composed`.)
 - **Don't over-constrain the upload prompt.** "ONE chart / minimise others" makes the
   model under-select → fallback. Name the hero, allow a few supporting charts.
+- **Don't force the chart _type_ either — name the metric, not the form.** Writing *"lead with a
+  **line chart** of X over Year"* is why our posts came out 10/10 lines — not the data. A/B on the QA
+  account (2026-06-07, Apple data): a neutral prompt was **~52% line / 48% varied** (bars, box,
+  heatmap, pie), and adding *"choose a variety of chart types"* pushed it to **39% line**. So: say
+  *"lead with X over Year, titled '…'"* (name the **metric** + a title, let the selector pick the
+  shape), and append *"choose a variety of chart types"* when you want to push variety. The selector
+  defaults to a spread on its own; forcing "line" is what flattens it. (The default `selection_system.txt`
+  now also caps line-spam the way it caps bars.)
 - **Don't over-distill the data either.** Pre-aggregating down to the hook (a 4-column table)
   starves selection → fallback → duplicate charts → a thin report. A rich table (e.g. the World Cup
   *discipline* post: 7 columns → 10 varied charts, zero fallback) showcases ChartSage *and* dodges
