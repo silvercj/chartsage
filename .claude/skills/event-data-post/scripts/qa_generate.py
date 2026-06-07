@@ -85,11 +85,14 @@ def qa_dump(rep: dict) -> list:
         fb = "FB" if "fallback" in (s.get("intent") or "").lower() else "model"
         series = s.get("series")
         if series:
-            pts = sum(len(ser.get("y", ser.get("data", [])) or []) for ser in series)
-            data, empty = f"series({len(series)}ser,{pts}pt)", pts == 0
+            pts = sum(len(ser.get("y") or ser.get("data") or []) for ser in series)
+            boxish = any("q1" in ser or "median" in ser for ser in series)  # box plots: no y/data
+            data = f"series({len(series)}ser,{'box' if boxish else str(pts) + 'pt'})"
+            empty = pts == 0 and not boxish
         else:
             ys = s.get("y") or []
-            data, empty = f"x={len(s.get('x') or [])},y={len(ys)}", not ys
+            data = f"x={len(s.get('x') or [])},y={len(ys)}"
+            empty = not ys and not s.get("nodes")  # nodes => sankey, also has data
         src = s.get("source_columns") or []
         flags, notes = [], []
         if empty:
