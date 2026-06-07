@@ -25,6 +25,9 @@ _CURRENCY_KEYWORDS = (
     "gross", "net", "dollar", "usd", "earnings", "spend",
 )
 _PERCENTAGE_KEYWORDS = ("rate", "ratio", "percent", "pct", "share", "margin")
+# An explicit percentage marker is unambiguous and must win over currency keywords —
+# otherwise 'gross_margin_pct' matches the currency keyword 'gross' first and renders as $ not %.
+_EXPLICIT_PERCENT_MARKERS = ("pct", "percent", "%")
 
 
 def _err(reason: str) -> ToolError:
@@ -47,6 +50,8 @@ def _infer_display_type(col_name: str, agg: str = None) -> str:
     if agg == "count":
         return "count"
     lower = col_name.lower()
+    if any(kw in lower for kw in _EXPLICIT_PERCENT_MARKERS):
+        return "percentage"
     if any(kw in lower for kw in _CURRENCY_KEYWORDS):
         return "currency"
     if any(kw in lower for kw in _PERCENTAGE_KEYWORDS):

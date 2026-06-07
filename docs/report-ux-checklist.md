@@ -29,6 +29,10 @@ checks here as we find them.
 ## Values & formatting
 - [ ] **Percentage shown as `0.61` instead of `61%`** — the column needs a pct/rate/share/margin/ratio
   name (`_PERCENTAGE_KEYWORDS` in `src/api/chart_executor.py`), or the value is on the wrong scale.
+- [x] **A `%` column rendered as currency (`$38` not `38%`)** because a currency keyword in the name
+  (e.g. **`gross`** / `net` in `gross_margin_pct`) was matched *before* the percentage check.
+  *Fixed 2026-06-07: `_infer_display_type` lets an explicit `pct`/`percent` marker win over currency
+  keywords (`chart_executor.py`); regression test in `tests/unit/test_percentage_normalization.py`.*
 - [ ] **The reverse — a plain count wrongly shown as a `%`** because its name contains a percentage
   keyword (e.g. a sports goal **`margin`** of 2.3 rendering as "2.3%"). Rename the CSV column so it
   types as a number (e.g. `goal_diff`, `goal_gap`).

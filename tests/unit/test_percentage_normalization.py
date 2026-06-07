@@ -4,8 +4,19 @@ by 100). normalize_percentage_spec() rescales specs whose values arrived on the
 non-percentage specs, and a dual-axis secondary series untouched.
 """
 import pytest
-from chart_executor import normalize_percentage_spec
+from chart_executor import _infer_display_type, normalize_percentage_spec
 from schemas import ChartSpec
+
+
+def test_infer_display_type_explicit_pct_beats_currency():
+    # 'gross_margin_pct' / 'net_margin_pct' contain a currency keyword ('gross'/'net'), but an
+    # explicit percentage marker must win — otherwise they mis-render as $ instead of %.
+    assert _infer_display_type("gross_margin_pct") == "percentage"
+    assert _infer_display_type("net_margin_pct") == "percentage"
+    assert _infer_display_type("services_pct") == "percentage"
+    assert _infer_display_type("net_income") == "currency"
+    assert _infer_display_type("total_revenue") == "currency"
+    assert _infer_display_type("win_rate") == "percentage"
 
 
 def _spec(**kw):
