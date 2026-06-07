@@ -93,6 +93,23 @@ def test_group_by_equal_to_value_col_is_ignored():
     assert result.x and result.y and len(result.x) == 6
 
 
+def test_group_by_near_unique_column_is_ignored():
+    # A group_by with ~one distinct value per row is a continuous/over-grained column, not a
+    # category — grouping by it makes one one-point series per value (a spiky tangle), even
+    # when it isn't the value/date col. Regression for the World Cup cards line that Haiku
+    # grouped by reds_per_game (a continuous metric, ~12 unique values across 14 tournaments).
+    df = pd.DataFrame({
+        "year":  list(range(2000, 2012)),
+        "cards": [2.0, 2.3, 1.3, 2.0, 2.7, 3.4, 4.5, 4.2, 4.3, 5.2, 4.1, 3.0],
+        "reds":  [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 1, 2],   # 10 distinct / 12 rows => near-unique
+    })
+    result = execute_line_chart(df, _params(
+        date_col="year", value_col="cards", agg="mean", granularity="year", group_by="reds"))
+    assert isinstance(result, ChartSpec), result
+    assert result.series is None, "near-unique group_by should collapse to a single series"
+    assert result.x and result.y and len(result.x) == 12
+
+
 def test_integer_year_column_parsed_as_years():
     # Regression: a 4-digit integer year column must be treated as calendar years,
     # not nanoseconds-since-epoch (which collapsed every row to ~1970 -> a 1-point line).

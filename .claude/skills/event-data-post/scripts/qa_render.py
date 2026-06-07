@@ -4,9 +4,9 @@
 generated *before* it's ever published. Shoots a chrome-stripped hero card + a full-page
 review screenshot.
 
-    qa_render.py <report-url> [anon-id] [hero-out.png] [full-out.png]
+    qa_render.py <report-url> [hero-out.png] [full-out.png]
 
-anon-id defaults to CHARTSAGE_QA_ANON_ID / ~/.chartsage/qa-anon-id.
+The owner anon id comes from CHARTSAGE_QA_ANON_ID / ~/.chartsage/qa-anon-id.
 Outputs default to /tmp/qa_hero.png and /tmp/qa_full.png.
 Needs the project venv (Playwright + chromium): ~/.venvs/chartsage/bin/python.
 """
@@ -38,11 +38,11 @@ def qa_anon_id() -> str:
 
 def main():
     if len(sys.argv) < 2:
-        sys.exit("usage: qa_render.py <report-url> [anon-id] [hero-out] [full-out]")
+        sys.exit("usage: qa_render.py <report-url> [hero-out.png] [full-out.png]")
     url = sys.argv[1]
-    anon = sys.argv[2] if len(sys.argv) > 2 else qa_anon_id()
-    hero_out = sys.argv[3] if len(sys.argv) > 3 else "/tmp/qa_hero.png"
-    full_out = sys.argv[4] if len(sys.argv) > 4 else "/tmp/qa_full.png"
+    hero_out = sys.argv[2] if len(sys.argv) > 2 else "/tmp/qa_hero.png"
+    full_out = sys.argv[3] if len(sys.argv) > 3 else "/tmp/qa_full.png"
+    anon = qa_anon_id()  # owner id from CHARTSAGE_QA_ANON_ID / ~/.chartsage/qa-anon-id
     if not anon:
         print("! no anon id (pass one or set ~/.chartsage/qa-anon-id); an unpublished report "
               "won't load as owner.", file=sys.stderr)

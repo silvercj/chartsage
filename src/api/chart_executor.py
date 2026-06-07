@@ -412,6 +412,15 @@ def execute_line_chart(df: pd.DataFrame, params: dict) -> ChartSpec | ToolError:
     if group_by is not None and group_by in (value_col, date_col):
         group_by = None
 
+    # A group_by that's (near-)unique — roughly one distinct value per row — is a
+    # continuous/over-grained column, not a category: grouping by it yields one one-point
+    # series per value (the same spiky tangle), e.g. the World Cup cards line Haiku grouped
+    # by reds_per_game. Real groupings repeat across rows, so drop near-unique ones.
+    if group_by is not None and group_by in df.columns:
+        g = df[group_by].dropna()
+        if len(g) and g.nunique() >= 0.7 * len(g):
+            group_by = None
+
     work = df.copy()
     work["_date"] = parsed_dates
     work = work.dropna(subset=["_date"])

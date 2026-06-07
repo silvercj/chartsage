@@ -86,9 +86,10 @@ def qa_dump(rep: dict) -> list:
         series = s.get("series")
         if series:
             pts = sum(len(ser.get("y") or ser.get("data") or []) for ser in series)
-            boxish = any("q1" in ser or "median" in ser for ser in series)  # box plots: no y/data
-            data = f"series({len(series)}ser,{'box' if boxish else str(pts) + 'pt'})"
-            empty = pts == 0 and not boxish
+            # box plots (q1/median) + heatmap cells (col/row/value) carry data without a y/data list
+            struct = any(k in ser for ser in series for k in ("q1", "median", "value"))
+            data = f"series({len(series)}ser,{'struct' if (struct and not pts) else str(pts) + 'pt'})"
+            empty = pts == 0 and not struct
         else:
             ys = s.get("y") or []
             data = f"x={len(s.get('x') or [])},y={len(ys)}"
