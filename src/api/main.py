@@ -389,7 +389,13 @@ async def generate_report(
     if df.shape[0] < 1:
         raise HTTPException(status_code=422, detail="File has no data rows.")
 
+    # Assign the report id up-front so every event in this request — started, failed, succeeded,
+    # charts_composed, chart_generated — shares the same reportId join key (request -> report ->
+    # charts in PostHog). It's just a fresh UUID; persistence below reuses it.
+    report_id = uuid.uuid4().hex
+
     posthog.capture(identity.distinct_id, "report_generation_started", {
+        "reportId": report_id,
         "rowCount": int(df.shape[0]),
         "columnCount": int(df.shape[1]),
         "filename": file.filename,
@@ -407,7 +413,7 @@ async def generate_report(
         )
         report = gen.build_report(deep=deep)
     except RetryableBusy:
-        posthog.capture(identity.distinct_id, "claude_overloaded", {"stage": "selection"})
+        posthog.capture(identity.distinct_id, "claude_overloaded", {"reportId": report_id, "stage": "selection"})
         raise HTTPException(status_code=503, detail={
             "code": "BUSY",
             "message": "Claude is busy. Please retry in 30 seconds.",
@@ -415,6 +421,7 @@ async def generate_report(
     except APIStatusError as e:
         logging.exception("Claude API error")
         posthog.capture(identity.distinct_id, "report_generation_failed", {
+            "reportId": report_id,
             "reason": "claude_api_status_error",
             "errorClass": type(e).__name__,
             "httpStatus": getattr(getattr(e, "response", None), "status_code", 0),
@@ -424,6 +431,7 @@ async def generate_report(
     except Exception as e:
         logging.exception("Report generation failed")
         posthog.capture(identity.distinct_id, "report_generation_failed", {
+            "reportId": report_id,
             "reason": "internal",
             "errorClass": type(e).__name__,
             "httpStatus": 500,
@@ -435,7 +443,6 @@ async def generate_report(
         _note = f"Analyzed a representative random sample of {MAX_ANALYSIS_ROWS:,} of {total_rows:,} rows."
         report.data_quality = [_note] + list(report.data_quality or [])
 
-    report_id = uuid.uuid4().hex
     csv_csv = df.to_csv(index=False).encode("utf-8")
 
     # Persist: storage upload first, then DB row. If storage fails, fail the whole request.
@@ -526,6 +533,7 @@ async def generate_report(
     for ch in report.charts:
         posthog.capture(identity.distinct_id, "chart_generated", {
             "reportId": report_id,
+            "chartId": ch.chart_id,
             "kind": ch.spec.kind,
             "isFallback": is_fallback_spec(ch.spec),
             "deep": deep,

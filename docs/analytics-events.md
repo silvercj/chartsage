@@ -31,11 +31,11 @@ remove an event, update this file in the same PR/commit:
 
 | Event | Src | Trigger | Key props | Lifecycle |
 |---|---|---|---|---|
-| `report_generation_started` | BE | `/generate-report` accepted (after credit check) | rowCount, columnCount, filename, sizeBytes, deep, customPrompt | baseline |
+| `report_generation_started` | BE | `/generate-report` accepted (after credit check) | **reportId**, rowCount, columnCount, filename, sizeBytes, deep, customPrompt | baseline · **2026-06-07: +reportId** (join key) |
 | `report_generation_succeeded` | BE | report built + persisted | reportId, rowCount, columnCount, chartCount, **usedFallback**, **fallbackChartCount**, modelSelection, modelNarrative, input/output/cacheReadTokens, estCostUsd, elapsedMs, deep, customPrompt | baseline · **2026-06-06: +usedFallback, +fallbackChartCount** |
 | `report_charts_composed` | BE | after a report is generated | reportId, chartCount, fallbackChartCount, modelChartCount, usedFallback, allFallback, fallbackRatio, chartKinds[], keyMetricsCount, modelSelection, deep, customPrompt, rowCount, columnCount | **Added 2026-06-06.** Primary model-output-quality event (see "Fallback rate" below). |
-| `chart_generated` | BE | one per chart, after a report is generated | reportId, **kind**, **isFallback**, deep, customPrompt | **Added 2026-06-07.** One event per chart so the chart-kind mix is a simple breakdown by `kind` — see "Chart-type mix" below. |
-| `report_generation_failed` | BE | generation raised | reason, errorClass, httpStatus, elapsedMs | baseline |
+| `chart_generated` | BE | one per chart, after a report is generated | reportId, **chartId**, **kind**, **isFallback**, deep, customPrompt | **Added 2026-06-07.** One event per chart so the chart-kind mix is a simple breakdown by `kind` — see "Chart-type mix" below. |
+| `report_generation_failed` | BE | generation raised | **reportId**, reason, errorClass, httpStatus, elapsedMs | baseline · **2026-06-07: +reportId** |
 | `claude_overloaded` | BE | model 529/busy during selection | stage | baseline |
 | `generate_more_started` | BE | `/generate-more` begins | reportId, existingChartCount | baseline |
 | `generate_more_succeeded` | BE | extra charts appended | reportId, newChartCount, **chartKinds[]**, inputTokens, outputTokens, estCostUsd, elapsedMs | baseline · **2026-06-06: +chartKinds** |
@@ -46,6 +46,14 @@ remove an event, update this file in the same PR/commit:
 | `add_chart_started` | BE | `/add-chart` begins | reportId, mode, chartType | baseline |
 | `add_chart_succeeded` | BE | one chart added | reportId, mode, chartKind, elapsedMs | baseline |
 | `add_chart_failed` | BE | add-chart raised / produced no chart | reportId, reason, errorClass?, httpStatus?, elapsedMs | baseline |
+
+**Joining request → report → charts (one key).** Every event in a generation request carries the same
+**`reportId`**: `report_generation_started` (the request) → `report_generation_succeeded` /
+`report_charts_composed` (report level) → `chart_generated` (per chart), and `report_generation_failed`
+on the error path. So you can funnel or `JOIN ... USING (reportId)` start → outcome → chart mix.
+`chart_generated` also carries a unique **`chartId`** (the chart's own id) for chart-level identity —
+e.g. tying a chart to a later `add_chart` / `report_feedback`. *(reportId threaded through the request
+2026-06-07; previously `started`/`failed` had none, so the request couldn't be joined to its report.)*
 
 **Fallback rate (the motivating use case).** A chart is a *fallback* when chart-selection
 (Haiku) returned too few charts and the deterministic heuristic (`pick_fallback_charts`) filled
