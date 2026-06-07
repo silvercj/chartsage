@@ -65,9 +65,16 @@ with their headline numbers, then:
   action them.* (Check the log first — don't re-pitch an angle we've already posted.)
 - The hook is the **finding the analysis surfaces** (often *not* the one you expected).
   The ChartSage report you'll brief in Step 5 is literally this analysis, rendered.
-- **Clean** it: re-encode ASCII-safe (accented names like `Nürburgring` store as
-  mojibake otherwise), drop junk columns, keep what tells the story, and **name
-  columns so ChartSage types them right** — a `pct`/`rate`/`share`/`margin`/
+- **Keep it rich — don't distill to the hook.** Hand ChartSage the *richest* table that still
+  contains the hook metric (many columns/rows), not a tiny one cut down to the single narrative.
+  A thin table starves chart selection — the model under-picks → the fallback fires → duplicate/
+  generic charts → a thin report — and the rendered report **is** the demo. ChartSage *aggregates*
+  (mean/sum/count by a group) but won't compute a **derived ratio** (cards-per-game = bookings ÷
+  matches), so pre-compute **only that one hook metric** as a column among many and keep the rest.
+  (For a *trend* hook, per-period rows; for *ranking/distribution* hooks, near-raw per-row data is
+  even better. The "ChartSage can't derive metrics" gap is logged in `docs/FUTURE-IMPROVEMENTS.md`.)
+- **Clean** it: re-encode ASCII-safe (accented names like `Nürburgring` store as mojibake
+  otherwise) and **name columns so ChartSage types them right** — a `pct`/`rate`/`share`/`margin`/
   `ratio` column auto-formats as a percentage (see `_PERCENTAGE_KEYWORDS` in
   `src/api/chart_executor.py`; 0–100 values are fine, the backend normalises).
 - **Propose the post**: the one-line hook + the exact numbers, for the user to OK.
@@ -156,6 +163,10 @@ rather than inventing one. (`docs/marketing-x-algorithm.md` §0.6 / §4.)
   generator, not the CSV. (Fallback rate lives in PostHog's `report_charts_composed`.)
 - **Don't over-constrain the upload prompt.** "ONE chart / minimise others" makes the
   model under-select → fallback. Name the hero, allow a few supporting charts.
+- **Don't over-distill the data either.** Pre-aggregating down to the hook (a 4-column table)
+  starves selection → fallback → duplicate charts → a thin report. A rich table (e.g. the World Cup
+  *discipline* post: 7 columns → 10 varied charts, zero fallback) showcases ChartSage *and* dodges
+  those bugs. Upload rich; pre-compute only the derived hook metric (Step 3).
 - **ASCII-clean the CSV**, or accented names become mojibake in the stored report.
 - **The custom prompt is essential** — without it ChartSage may lead with a
   generic distribution chart instead of your angle.
