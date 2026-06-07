@@ -121,10 +121,7 @@ export default function OgCard({ id }: { id: string }) {
       <div className="flex-1 px-12 pt-5 pb-3 flex items-center">
         <div className="w-full card shadow-card rounded-2xl px-7 pt-5 pb-3">
           {chart ? (
-            <>
-              <h2 className="font-display text-xl text-ink mb-2 truncate">{chart.spec.title}</h2>
-              <ChartContent spec={chart.spec} />
-            </>
+            <ChartContent spec={chart.spec} />
           ) : (
             <p className="text-ink-2 text-base py-20 text-center">
               Turn any spreadsheet into a beautiful, interactive report — in seconds.

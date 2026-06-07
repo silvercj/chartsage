@@ -240,15 +240,51 @@ def _public_urls(session_id: str, row: dict) -> dict:
     }
 
 
+def _headline_chart_title(report_json: dict) -> str | None:
+    """Title of the chart shown big on the social card — first chart in the main column by
+    order (matches the frontend OgCard.headlineChart), else the first chart of any kind."""
+    charts = [c for c in (report_json.get("charts") or []) if isinstance(c, dict)]
+    by_id = {c.get("chart_id"): c for c in charts}
+    main = sorted(
+        (e for e in (report_json.get("layout") or []) if e.get("position") == "main"),
+        key=lambda e: e.get("order", 0),
+    )
+    for entry in main:
+        c = by_id.get(entry.get("chart_id"))
+        if c and (c.get("spec") or {}).get("title"):
+            return c["spec"]["title"]
+    for c in charts:
+        if (c.get("spec") or {}).get("title"):
+            return c["spec"]["title"]
+    return None
+
+
+def _clip(text: str, limit: int) -> str:
+    """Collapse whitespace and trim to <= limit chars on a word boundary (no mid-word cuts)."""
+    text = " ".join((text or "").split())
+    if len(text) <= limit:
+        return text
+    head = text[: limit - 1].rsplit(" ", 1)[0].rstrip(" ,.;:—–-")
+    return f"{head or text[: limit - 1]}…"
+
+
 def _report_title_desc(row: dict) -> tuple[str, str]:
+    # Title: the headline chart's own title is the punchiest, most specific headline and is what the
+    # OG card renders big — prefer it, then the stored report title, then the summary's first
+    # sentence, then a generic fallback. Description: the report summary (top-level in report_json;
+    # NOT `narrative`, which is unset). Both clipped on a word boundary so og:title / twitter:title /
+    # link previews read cleanly instead of cutting mid-word.
     report_json = row.get("report_json") or {}
-    # Prefer the stored per-report title (first sentence of the summary, set at save_report) so
-    # og:title / twitter:title / link previews show the real headline, not the generic fallback.
-    title = (row.get("title") or report_json.get("title") or "ChartSage report").strip()[:120]
-    narrative = report_json.get("narrative")
-    summary = narrative.get("summary") if isinstance(narrative, dict) else (narrative if isinstance(narrative, str) else None)
-    desc = (summary or "An AI-generated report — charts and insights from a spreadsheet.").strip()[:200]
-    return title, desc
+    summary = report_json.get("summary")
+    summary = summary if isinstance(summary, str) and summary.strip() else None
+    title = (
+        _headline_chart_title(report_json)
+        or row.get("title")
+        or (summary.split(".", 1)[0] if summary else None)
+        or "ChartSage report"
+    )
+    desc = summary or "An AI-generated report — charts and insights from a spreadsheet."
+    return _clip(title, 120), _clip(desc, 200)
 
 
 # ---- Endpoints -------------------------------------------------------------
