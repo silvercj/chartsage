@@ -45,22 +45,25 @@ But it **doesn't have to be sports, or even an event** — any genuinely interes
 dataset is fine too. Web-search what's coming up if unsure. Pick something where
 data can say something non-obvious — the post lives or dies on the *surprise*.
 
-**2. Find real datasets — _you → user_.** Find 1–3 *already-published* datasets — an
-actual Kaggle dataset, a NOAA / data.gov file, an Our World in Data / FiveThirtyEight
-/ Ergast CSV — and **verify each exists** (open the page, pull the file). You're
-*finding* a dataset, **not assembling one**: stitching scraped figures into a table
-("team value + titles + drought") is the trap — that's a graphic, not an analysis.
-Frame each as a **question the raw rows answer** — a rate to compute, a ranking, a
-trend, a correlation (Monaco worked because pole→win % was *computed per circuit*).
-Truly-public files you pull yourself (GitHub / NOAA / OWID, sometimes a Kaggle mirror
-on Hugging Face); for login-walled Kaggle the user grabs it. Pitch your expected
-finding as a *hypothesis* — the real hook is whatever Step 3 surfaces. Let them pick.
+**2. Find a rich dataset — _you (→ user if gated)_.** Reach for **one genuinely rich,
+already-published dataset** — many columns/rows or multiple tables (the Fjelstul World
+Cup DB, a full Kaggle dataset, a NOAA / data.gov / OWID / FiveThirtyEight file) — *not*
+a thin table built to fit a point you already have in mind. **Don't bring a hypothesis.**
+You're not hunting for numbers to confirm a hunch; you're hunting for a dataset worth
+*exploring*. Verify it exists and pull it (public files yourself — GitHub / NOAA / OWID
+/ a Kaggle HF mirror; login-walled Kaggle → the user). Never *assemble* a table from
+scraped figures ("team value + titles + drought") — that's the factoid trap: a graphic,
+not an analysis.
 
-**3. Analyse + find the story — _you_.** Actually work the raw data — aggregate,
-rank, compute the rate, look across time — and let the finding *emerge*:
-- The hook is the **surprising, screenshot-worthy finding the analysis surfaces**
-  (often *not* your Step-2 hunch). The ChartSage report you'll brief in Step 5 is
-  literally this analysis, rendered — so the dataset has to be worth analysing.
+**3. EDA → find the angles — _you_.** Explore the data *openly* — profile the columns,
+aggregate, rank, look across time, correlate — and let the interesting findings
+**emerge** (don't force the one you walked in with). Surface **2–4 candidate angles**
+with their headline numbers, then:
+- **Pick the single most surprising, screenshot-worthy one** to post now — and **bank
+  the rest** in `analyses-log.md` (a one-liner each) as future posts. *Note them, don't
+  action them.* (Check the log first — don't re-pitch an angle we've already posted.)
+- The hook is the **finding the analysis surfaces** (often *not* the one you expected).
+  The ChartSage report you'll brief in Step 5 is literally this analysis, rendered.
 - **Clean** it: re-encode ASCII-safe (accented names like `Nürburgring` store as
   mojibake otherwise), drop junk columns, keep what tells the story, and **name
   columns so ChartSage types them right** — a `pct`/`rate`/`share`/`margin`/
@@ -109,9 +112,11 @@ they can be present, drop Reply 1 right after, and reply to every genuine human
 reply in the first hour — the author-reply is the single biggest reach signal
 (~150× a like). Remind them of this; a scheduled-and-abandoned post underperforms.
 
-**9. Log it — _you_.** Append the post to **`analyses-log.md`** (this skill's dir):
-date, hook, event/topic, dataset + source, the report URL, and the hashtag. It's our
-running record — skim it first so we never repeat an angle.
+**9. Log it — _you_, immediately.** The moment a post goes live, append it to
+**`analyses-log.md`** (this skill's dir): date, hook, event/topic, dataset + source,
+report URL, hashtag. **Don't batch it** — a stale log means repeated angles (it's how
+we nearly re-posted World Cup host advantage). Keep the **Banked angles** list there
+current too (Step 3), and **skim the whole log before every pitch**.
 
 ## The one hashtag — research it, don't guess
 
