@@ -152,7 +152,7 @@ reviews the content at the gates.
    published result. A fail here is a **bug → back to step 2** (fix + redeploy), not a re-roll.
    ```bash
    CHARTSAGE_ANON_ID=$(cat ~/.chartsage/content-id) ~/.venvs/chartsage/bin/python scripts/qa_generate.py ~/Downloads/<file>.csv "<prompt>"
-   CHARTSAGE_ANON_ID=$(cat ~/.chartsage/content-id) ~/.venvs/chartsage/bin/python scripts/publish.py <id>
+   ~/.venvs/chartsage/bin/python scripts/publish.py <id> --content
    ```
 5. **User final OK (Gate 2)** on the live content-account report + the drafted thread.
 6. **Render the hero (`chart_image.py`) + lay out the thread (Step 7); the user posts** (X stays manual).

@@ -4,11 +4,12 @@ stage a QA-account report so the user can review the whole thing in-browser (Gat
 publish the content-account report for the post (step 4). Publishing resolves the share link
 + generates the OG image.
 
-    publish.py <report-id>                 # publish
+    publish.py <report-id>                 # publish on the QA account (default)
+    publish.py <report-id> --content       # publish on the content account
     publish.py <report-id> --unpublish     # take it back down
 
-Owner anon id: CHARTSAGE_ANON_ID env, else CHARTSAGE_QA_ANON_ID, else ~/.chartsage/qa-anon-id.
-For the content account:  CHARTSAGE_ANON_ID=$(cat ~/.chartsage/content-id) publish.py <id>
+Account: --content reads ~/.chartsage/content-id; otherwise CHARTSAGE_ANON_ID env, else
+CHARTSAGE_QA_ANON_ID, else ~/.chartsage/qa-anon-id.
 """
 import os
 import sys
@@ -22,7 +23,12 @@ API = os.environ.get(
 ).rstrip("/")
 
 
-def anon_id() -> str:
+def anon_id(content: bool = False) -> str:
+    if content:
+        f = Path.home() / ".chartsage" / "content-id"
+        if f.is_file():
+            return f.read_text().strip()
+        sys.exit("no content id at ~/.chartsage/content-id")
     v = os.environ.get("CHARTSAGE_ANON_ID") or os.environ.get("CHARTSAGE_QA_ANON_ID")
     if v:
         return v.strip()
@@ -33,12 +39,13 @@ def anon_id() -> str:
 
 
 def main():
-    if len(sys.argv) < 2:
-        sys.exit("usage: publish.py <report-id> [--unpublish]")
-    rid = sys.argv[1]
-    action = "unpublish" if "--unpublish" in sys.argv[2:] else "publish"
+    args = sys.argv[1:]
+    rid = next((a for a in args if not a.startswith("--")), None)
+    if not rid:
+        sys.exit("usage: publish.py <report-id> [--content] [--unpublish]")
+    action = "unpublish" if "--unpublish" in args else "publish"
     req = urllib.request.Request(f"{API}/report/{rid}/{action}", data=b"", method="POST")
-    req.add_header("X-Anon-Id", anon_id())
+    req.add_header("X-Anon-Id", anon_id("--content" in args))
     try:
         with urllib.request.urlopen(req, timeout=60) as r:
             body = r.read().decode()
