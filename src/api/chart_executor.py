@@ -997,12 +997,18 @@ def execute_treemap_chart(df: pd.DataFrame, params: dict) -> ChartSpec | ToolErr
     )
 
 
-def execute_key_metrics(df: pd.DataFrame, params: dict) -> list[KeyMetric] | ToolError:
+def execute_key_metrics(df: pd.DataFrame, params: dict, roles: dict | None = None) -> list[KeyMetric] | ToolError:
+    roles = roles or {}
     out: list[KeyMetric] = []
     for m in (params.get("metrics") or [])[:5]:
         col, agg = m.get("column"), m.get("agg")
         label, fmt = m.get("label") or col, m.get("format", "number")
         if col not in df.columns:
+            continue
+        # A year/date axis or an ID is not a headline measure — aggregating it (max(year)=2025,
+        # "average id") yields a meaningless KPI tile. Skip those (mirrors the chart rule "never use
+        # an identifier column as a metric"); count/nunique stay, since a distinct-count can be useful.
+        if agg in ("sum", "mean", "median", "min", "max") and roles.get(col) in ("identifier", "date"):
             continue
         # Optional row filter so a metric can describe ONE group (e.g. win rate
         # where venue=='Host nation') instead of the whole column. Compared as

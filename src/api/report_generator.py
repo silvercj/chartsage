@@ -180,7 +180,8 @@ class ReportGenerator:
             if getattr(block, "type", None) != "tool_use":
                 continue
             if block.name == "key_metrics":
-                res = execute_key_metrics(self.df, block.input)
+                res = execute_key_metrics(self.df, block.input,
+                                          roles={c.name: c.role for c in self.profile.columns})
                 if isinstance(res, ToolError):
                     errors.append({"id": block.id, "reason": res.reason})
                 else:

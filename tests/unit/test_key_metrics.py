@@ -29,6 +29,28 @@ def test_key_metrics_drops_invalid_and_errors_when_empty():
     assert isinstance(res, ToolError)
 
 
+def test_key_metrics_drops_aggregated_year_or_id_axis():
+    # A year/date/identifier axis is not a measure: max(year)=2025 ("Current year") is a
+    # meaningless KPI tile and must be dropped; a real measure on the same call survives.
+    df = pd.DataFrame({"year": [2017, 2018, 2019], "revenue": [100.0, 200.0, 300.0]})
+    res = execute_key_metrics(df, {"metrics": [
+        {"label": "Current year", "column": "year", "agg": "max", "format": "number"},
+        {"label": "Total revenue", "column": "revenue", "agg": "sum", "format": "currency"},
+    ]}, roles={"year": "identifier", "revenue": "numeric"})
+    labels = [m.label for m in res]
+    assert "Current year" not in labels
+    assert "Total revenue" in labels
+
+
+def test_key_metrics_distinct_count_of_axis_kept():
+    # count/nunique of a date/identifier is still useful (e.g. "9 fiscal years") -> kept.
+    df = pd.DataFrame({"year": [2017, 2018, 2019]})
+    res = execute_key_metrics(df, {"metrics": [
+        {"label": "Fiscal years", "column": "year", "agg": "nunique"},
+    ]}, roles={"year": "identifier"})
+    assert [m.label for m in res] == ["Fiscal years"] and res[0].value == 3.0
+
+
 def test_key_metrics_filter_subsets_before_agg():
     # The host-advantage bug: a metric for one group must aggregate ONLY that
     # group's rows, not the whole column. Overall mean here is 2/6 = 0.333.

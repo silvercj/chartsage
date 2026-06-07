@@ -25,6 +25,8 @@ CHART_TOOLS: list[dict] = [
         "key_metrics",
         "Headline numbers shown as a stat band at the top of the report. Call this ONCE with the "
         "3–5 most important figures a reader wants first (a total, an average, a key rate, a notable count). "
+        "Pick genuine MEASURES — never a year, date, row index, or ID as a headline number (e.g. NOT 'Current year: 2025'); "
+        "label each accurately for its aggregation: a 'growth'/'change'/'increase' label must be a real delta (use a filter), not a sum or total. "
         "You choose the label/column/agg; the value is computed from the data over ALL rows by default. "
         "To describe ONE group instead (e.g. the win rate for host nations only, or sales in one region), "
         "add the optional `filter` {column, value} — the value is then computed only over rows where that "
