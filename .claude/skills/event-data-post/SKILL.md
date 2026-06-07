@@ -9,8 +9,8 @@ description: >-
   post for me" or "time for a fresh post", which default to this data-showcase
   workflow (you research the event + dataset). It runs the whole loop: research
   the event → pitch surprising datasets → (the user fetches the raw data) → clean
-  it + propose the post + save the CSV to ~/Downloads → (the user runs +
-  publishes the report with your custom prompt) → render a clean chart image →
+  it + propose the post + save the CSV to ~/Downloads → (you generate, self-QA,
+  and publish the report via the ChartSage accounts; the user approves it) → render a clean chart image →
   lay out the thread with ONE researched event hashtag and the link in reply 1.
   Do NOT use it for: plain report generation from the user's own file, posting
   specific pre-decided content (a feature or pricing announcement), chart/layout
@@ -30,11 +30,12 @@ detail: `docs/marketing-event-data-post-playbook.md`.
 
 ## You vs. the user — hand off cleanly
 
-Two steps are the user's: **fetch gated data** (login/large sources you can't pull) and
-**publish the final report under the brand account** (Step 6). Everything else is yours —
-including **generating and QA-ing a throwaway copy of the report yourself first** (Step 5), so the
-user only ever publishes something you've already verified. Never hand over a report you haven't
-seen rendered.
+The user's role is **provide + approve + post**: they **fetch gated data** (login/large sources you
+can't pull), **review the report at two gates** (the QA-account stage and the final content-account
+report), and **post to X** (no Twitter API — scheduling/posting stays theirs). Everything else is
+yours: find + enrich the data, **generate → QA → publish** it on the ChartSage QA and content accounts
+(see *Automated pipeline*), render the image, write the thread. Never put a report in front of them
+you haven't rendered + QA'd yourself.
 
 ## The loop
 
@@ -79,45 +80,24 @@ with their headline numbers, then:
   `src/api/chart_executor.py`; 0–100 values are fine, the backend normalises).
 - **Propose the post**: the one-line hook + the exact numbers, for the user to OK.
 
-**4. Hand back the CSV — _you → user_.** Save the cleaned file to `~/Downloads/`
-with a clear name (e.g. `f1_pole_by_circuit_ascii.csv`) so they can upload as-is.
+**4. Save the cleaned CSV — _you_.** Save the cleaned file to `~/Downloads/` with a clear name
+(e.g. `f1_pole_by_circuit_ascii.csv`) — it feeds the pipeline (Steps 5–6).
 
-**5. Self-QA the report yourself — _you_, before anyone publishes.** Don't hand the user a report
-to publish blind. Generate a **throwaway** QA report via the API (under the QA anon id — never
-published, never on the brand account) and verify it:
+**5. Generate + self-QA + stage for review — _you_.** Generate on the **QA account**, QA it, fix any
+generator bugs at the source (don't re-roll — *Automated pipeline* §2), then **publish it and send the
+user the link to QA the whole report (Gate 1)**. The scripts, gates, and the diagnose-before-reroll
+discipline live in **[Automated pipeline](#automated-pipeline-qa-account--content-account)** below.
 
-```bash
-~/.venvs/chartsage/bin/python scripts/qa_generate.py ~/Downloads/<file>.csv "<your custom prompt>"
-```
-It prints the `session_id` + a chart QA — flagging **EMPTY** / **SELF-GROUP** charts, **FALLBACK**
-picks, and **TIME-SCATTER** advisories. Then render it **as owner, no publish needed**, and eyeball
-the hero + full page against the **UX checklist** (`docs/report-ux-checklist.md` — axes fitting the
-data, no empty/degenerate charts, % formatted right):
-
-```bash
-~/.venvs/chartsage/bin/python scripts/qa_render.py https://chartsage.app/report/<id>
-```
-**If anything's wrong, fix the _generation_ durably** (CLAUDE.md → *Fix the generator, not the
-dataset*: reproduce → failing test → fix in `fallback.py` / `chart_executor.py` / the chart
-component → deploy), not a one-off CSV hack. Re-QA until clean, then share the rendered hero with
-the user. *(Custom prompt: name the hero **plus a couple of supporting charts**; don't say "ONE
-chart / minimise" — that under-selects into the fallback. ≤280 chars.)*
-
-> The QA scripts run under a fixed QA anon id at `~/.chartsage/qa-anon-id` (in the backend
-> `UNLIMITED_ANON_IDS` allowlist, so it's uncapped) and hit the prod API (`CHARTSAGE_API_URL`).
-
-**6. User publishes the verified report; you render the post image — _user → you_.** Only once the
-QA report is clean: the user uploads the **same CSV + prompt** under the brand account, **Publishes**
-(Share in the toolbar — resolves the link *and* generates the OG image), and sends the URL. Confirm
-their hero matches your QA one (same fixes are deployed, so it will), then render the clean post
-image (title, chart + the narrative caption; no UI chrome) to `~/Downloads/`:
+**6. Publish the real one + render the image — _you_.** On the user's OK, run the same data + prompt
+through the **content account**, QA + publish it (Gate 2 = the user's final OK), then render the hero
+(title + chart + narrative, no chrome) to `~/Downloads/`:
 
 ```bash
 ~/.venvs/chartsage/bin/python scripts/chart_image.py \
   https://chartsage.app/report/<id> ~/Downloads/<event>_chart.png
 ```
-(All three scripts — `qa_generate.py`, `qa_render.py`, `chart_image.py` — are in this skill's
-`scripts/`. The project venv `~/.venvs/chartsage` already has Playwright + chromium.)
+(Scripts — `qa_generate.py`, `qa_render.py`, `publish.py`, `chart_image.py` — are in this skill's
+`scripts/`; the project venv `~/.venvs/chartsage` has Playwright + chromium.)
 
 **7. Lay out the post — _you_.** Per the X algorithm:
 - **Main tweet:** hook + the surprising stat + **the chart image** + a soft
@@ -140,26 +120,44 @@ current too (Step 3), and **skim the whole log before every pitch**.
 
 ## Automated pipeline (QA account → content account)
 
-Two allowlisted ids (in the backend `UNLIMITED_ANON_IDS` allowlist, stored locally) drive this: a
-**QA id** (`~/.chartsage/qa-anon-id`, throwaway testing) and a **content id**
-(`~/.chartsage/content-id`, published marketing reports). The `scripts/` resolve the id from
-`CHARTSAGE_ANON_ID` env → `~/.chartsage/qa-anon-id`; target the content account by prefixing
-`CHARTSAGE_ANON_ID=$(cat ~/.chartsage/content-id)`.
+**Setup (one-time).** Two anon ids, both in the backend `UNLIMITED_ANON_IDS` allowlist and stored
+locally: a **QA id** (`~/.chartsage/qa-anon-id`, throwaway testing) and a **content id**
+(`~/.chartsage/content-id`, published marketing reports). Scripts resolve the id from `CHARTSAGE_ANON_ID`
+env → `~/.chartsage/qa-anon-id`; **target the content account by prefixing `CHARTSAGE_ANON_ID=$(cat
+~/.chartsage/content-id)`**. Publishing needs a settings permission rule for `publish.py` (else the
+auto-mode classifier hard-blocks it); that rule only removes the per-call prompt — the human still
+reviews the content at the gates.
 
-1. **Find + enrich** the data (Steps 1–4). Gated sources → the user pulls them.
-2. **QA account: generate + self-QA — _bounded_.** `qa_generate.py` then `qa_render.py`. **Diagnose
-   every QA fail; don't re-roll it.** A generator bug (dup, self-grouped/tangled line, empty chart,
-   mislabel, scatter-for-time-series) → **stop → fix at the source → push + deploy** — that's the
-   point. Re-roll *only* for genuine Haiku variance, **capped at ~2**; persistent flakiness escalates
-   to the user. Never spray-and-pray.
-3. **QA account: publish → user QAs the whole report (Gate 1).** `publish.py <id>`, send the link; the
-   user reviews the *rendered* report in-browser (catches what the hero image hides). Issues → step 2.
-4. **Content account: generate → QA → publish.** Re-run the *same* data + prompt under the content id,
-   QA the published result. A fail here is a **bug → back to step 2** (fix + redeploy), not a re-roll.
+1. **Find + enrich** (Steps 1–4). Gated sources → the user pulls them.
+2. **QA account: generate + self-QA — _bounded_.**
+   ```bash
+   ~/.venvs/chartsage/bin/python scripts/qa_generate.py ~/Downloads/<file>.csv "<custom prompt>"
+   ~/.venvs/chartsage/bin/python scripts/qa_render.py https://chartsage.app/report/<id>
+   ```
+   `qa_generate` prints the chart QA (flags **EMPTY** / **SELF-GROUP** / **FALLBACK** / **TIME-SCATTER**);
+   `qa_render` shoots the hero + full page as owner (no publish). Check against the **UX checklist**
+   (`docs/report-ux-checklist.md`). **Diagnose every QA fail; don't re-roll it** — a generator bug (dup,
+   tangled line, empty chart, mislabel, scatter-for-time-series) → **stop → fix at the source
+   (`fallback.py`/`chart_executor.py`/chart component) → push + deploy** (CLAUDE.md *Fix the generator*).
+   Re-roll *only* for genuine Haiku variance, **capped at ~2**; persistent flakiness escalates to the
+   user. Never spray-and-pray. *(Prompt: name the hero + a couple of supporting charts; ≤280 chars; never
+   "ONE chart".)*
+3. **QA account: publish → user QAs the whole report (Gate 1).**
+   ```bash
+   ~/.venvs/chartsage/bin/python scripts/publish.py <id>
+   ```
+   Send the link; the user reviews the *rendered* report in-browser (catches what the hero image hides).
+   Issues → step 2.
+4. **Content account: generate → QA → publish.** Same data + prompt under the content id; QA the
+   published result. A fail here is a **bug → back to step 2** (fix + redeploy), not a re-roll.
+   ```bash
+   CHARTSAGE_ANON_ID=$(cat ~/.chartsage/content-id) ~/.venvs/chartsage/bin/python scripts/qa_generate.py ~/Downloads/<file>.csv "<prompt>"
+   CHARTSAGE_ANON_ID=$(cat ~/.chartsage/content-id) ~/.venvs/chartsage/bin/python scripts/publish.py <id>
+   ```
 5. **User final OK (Gate 2)** on the live content-account report + the drafted thread.
 6. **Render the hero (`chart_image.py`) + lay out the thread (Step 7); the user posts** (X stays manual).
 
-Both publishes (3 + 4) are content going live — the human reviews the *content* at 3 and 5; a settings
+Both publishes (3 + 4) are content going live — the human reviews the *content* at 3 and 5; the
 permission rule just removes the per-call publish prompt.
 
 ## The one hashtag — research it, don't guess
