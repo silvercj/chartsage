@@ -23,13 +23,11 @@ STRIP_CHROME = """() => {
   const card = document.querySelector('section.card');
   if (!card) return;
   card.querySelectorAll('button, span').forEach(e => (e.style.display = 'none'));
-  const cap = card.querySelector('p');
-  if (cap) cap.style.display = 'none';
 }"""
 
 
 def qa_anon_id() -> str:
-    v = os.environ.get("CHARTSAGE_QA_ANON_ID")
+    v = os.environ.get("CHARTSAGE_ANON_ID") or os.environ.get("CHARTSAGE_QA_ANON_ID")
     if v:
         return v.strip()
     f = Path.home() / ".chartsage" / "qa-anon-id"

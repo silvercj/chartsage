@@ -32,7 +32,7 @@ _TEMPORAL = {"year", "years", "date", "decade", "season", "period", "quarter", "
 
 
 def qa_anon_id() -> str:
-    v = os.environ.get("CHARTSAGE_QA_ANON_ID")
+    v = os.environ.get("CHARTSAGE_ANON_ID") or os.environ.get("CHARTSAGE_QA_ANON_ID")
     if v:
         return v.strip()
     f = Path.home() / ".chartsage" / "qa-anon-id"

@@ -138,6 +138,30 @@ report URL, hashtag. **Don't batch it** — a stale log means repeated angles (i
 we nearly re-posted World Cup host advantage). Keep the **Banked angles** list there
 current too (Step 3), and **skim the whole log before every pitch**.
 
+## Automated pipeline (QA account → content account)
+
+Two allowlisted ids (in the backend `UNLIMITED_ANON_IDS` allowlist, stored locally) drive this: a
+**QA id** (`~/.chartsage/qa-anon-id`, throwaway testing) and a **content id**
+(`~/.chartsage/content-id`, published marketing reports). The `scripts/` resolve the id from
+`CHARTSAGE_ANON_ID` env → `~/.chartsage/qa-anon-id`; target the content account by prefixing
+`CHARTSAGE_ANON_ID=$(cat ~/.chartsage/content-id)`.
+
+1. **Find + enrich** the data (Steps 1–4). Gated sources → the user pulls them.
+2. **QA account: generate + self-QA — _bounded_.** `qa_generate.py` then `qa_render.py`. **Diagnose
+   every QA fail; don't re-roll it.** A generator bug (dup, self-grouped/tangled line, empty chart,
+   mislabel, scatter-for-time-series) → **stop → fix at the source → push + deploy** — that's the
+   point. Re-roll *only* for genuine Haiku variance, **capped at ~2**; persistent flakiness escalates
+   to the user. Never spray-and-pray.
+3. **QA account: publish → user QAs the whole report (Gate 1).** `publish.py <id>`, send the link; the
+   user reviews the *rendered* report in-browser (catches what the hero image hides). Issues → step 2.
+4. **Content account: generate → QA → publish.** Re-run the *same* data + prompt under the content id,
+   QA the published result. A fail here is a **bug → back to step 2** (fix + redeploy), not a re-roll.
+5. **User final OK (Gate 2)** on the live content-account report + the drafted thread.
+6. **Render the hero (`chart_image.py`) + lay out the thread (Step 7); the user posts** (X stays manual).
+
+Both publishes (3 + 4) are content going live — the human reviews the *content* at 3 and 5; a settings
+permission rule just removes the per-call publish prompt.
+
 ## The one hashtag — research it, don't guess
 
 Use a **single event tag**: the tag that event's real audience uses *that week*
