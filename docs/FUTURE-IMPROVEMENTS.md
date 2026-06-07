@@ -62,6 +62,14 @@ A running list of deferred work and hardening ideas. Not committed plans — cap
 *Two non-blocking nits flagged in review of the chart under-selection fix (which added the reach-for-more retry + the profiler top-N rescue). Both bounded; logged for later hardening.*
 
 - **Profiler ↔ executor cardinality mismatch.** The profiler now keeps a repeating object column `categorical` up to 200 distinct (ratio ≤ 0.5), but most chart executors cap at `MAX_CATEGORIES = 30` — only `pie_chart` renders past that (top-8 + "Other"). A borderline short-text column (31–200 repeating values) can therefore yield one weak pie. Harmless (never a crash), and partly intentional (top-N is desired), but worth aligning: either lower the profiler ceiling toward ~50–60, or add a mean-string-length heuristic to separate "tags/cities" from "sentences."
+- **Unique year/temporal column mis-classified as `identifier`.** A per-season dataset's `year`
+  column (unique → cardinality == row count) gets role `identifier` in the profiler, so it's dropped
+  from the numeric metrics: Haiku is nudged to treat it as non-chartable (under-picks → fallback)
+  **and** the time-series fallback (`_ordinal_index` in `fallback.py`, which only scans numeric-role
+  columns) can't find the axis → no metric-over-year line, just generic histograms. The F1-reliability
+  post (2026-06-07) needed a re-roll because of this. Fix: don't mark a temporal-named / plausible-year
+  column `identifier` (it's the time axis, not an ID), and/or have `_ordinal_index` scan all columns.
+  Bites any per-year dataset — i.e. half the event-data posts.
 - **`key_metrics` could be recomputed on the reach-for-more / deepen round.** `_execute_tool_calls` overwrites `self._key_metrics` if a later selection round emits a `key_metrics` call (the system prompt still says "call key_metrics first"). Idempotent in practice (recomputed from the same data), but cleaner to strip the `key_metrics` tool from the reach-for-more and deepen tool lists, or skip the overwrite when metrics already exist.
 
 ---

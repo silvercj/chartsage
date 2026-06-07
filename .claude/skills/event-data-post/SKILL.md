@@ -178,6 +178,12 @@ rather than inventing one. (`docs/marketing-x-algorithm.md` §0.6 / §4.)
   data.gov / OWID / FiveThirtyEight). Assembling a table from scraped figures is the
   factoid trap in disguise. Confirm the source exists before pitching — and mind URLs
   (NOAA's HURDAT2 lives on `www.nhc.noaa.gov`, not the ftp host).
+- **Timely post → _current_ data — check the latest date FIRST.** An event post needs a dataset
+  that reaches (near) the present; a chart ending years before the event looks stale and kills the
+  "today" hook (we nearly shipped an F1 reliability chart ending **2021** for a 2026 race — bad). Frozen
+  mirrors bite: the dead Ergast dump (and the `rubenv/ergast-mrd` mirror) stop at ~2022. For F1 use
+  **Jolpica** (the live Ergast successor) or a freshly-updated Kaggle Ergast set; for any source,
+  verify `max(year)`/latest row before building — if it's stale, get current data (user pulls if gated).
 - **Self-QA before anyone publishes.** Don't hand over a blind report — *you* generate + render a
   throwaway QA copy first (`qa_generate.py` / `qa_render.py`, Step 5). Haiku is non-deterministic on
   small tables (under-picks → fallback; self-groups a line into a spiky tangle; picks scatters for

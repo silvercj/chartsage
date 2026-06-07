@@ -17,6 +17,8 @@ hashtag, status.
 | 2026-06-07 | The WC rout is dying — 4+ goal blowouts fell from ~31% (1954) to ~5% today; avg margin 2.3 → 1.4. 48 teams in 2026 — comeback? | FIFA World Cup 2026 | Fjelstul World Cup DB — blowout rate (4+ margin) per men's tournament, 1930–2022 | _CSV + thread + self-QA'd hero ready; awaiting brand-account run_ | `#WorldCup2026` | **Ready** |
 | 2026-06-07 | The WC got mean, then mellowed — cards/game tripled from 1.6 (1970) to a **5.2 peak in 2006**, cooled to ~3.5; reds 0 → 0.44 → 0.06 | FIFA World Cup 2026 | Fjelstul World Cup DB — **discipline by men's tournament** (cards/yellows/reds/goals per game + size), 1970–2022 (rich 7-col table → 10-chart report) | chartsage.app/report/3f9e7154b6734c1fa5221eacd9f29445 — UTM `worldcup`/`cards` | `#WorldCup2026` | **Scheduled** |
 
+| 2026-06-07 | Finishing used to be the hard part — ~half the F1 grid DNF'd for decades (peak **57% in 1966**); now ~1 in 10. Verstappen's lap-1 exit a throwback | Monaco GP 2026 (Verstappen DNF) | **Ergast 1950–2021 + live Jolpica 2022–2025** — DNF/reliability per season (rich 6-col → 10-chart report) | chartsage.app/report/b3cef7aeae2642eabb5b8a61ea599680 — UTM `f1-monaco`/`dnf-history` | `#MonacoGP` | **Posted** (1st full QA→content pipeline run) |
+
 <!-- Append new posts above this line. Keep newest at the bottom of the table. -->
 
 ## Banked angles (found via EDA, not yet posted)
