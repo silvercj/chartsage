@@ -10,7 +10,7 @@ hashtag, status.
 | 2026-06-04 | 3 hosts in 2026 — host nations win **61%** of WC games vs **43%** on neutral ground (964 matches since 1930) | FIFA World Cup 2026 | World Cup match results — host vs neutral win rate | _published (UTM campaign ~`worldcup`; link not captured)_ | `#WorldCup2026` | **Posted** |
 | 2026-06-05 | "Pole = win"? Monaco pole-sitter wins just **46%** (≈ the ~44% avg); Barcelona **71%** is the real fortress; Rio 10% | Monaco GP | F1 pole→win % by circuit (Ergast/Jolpica, computed per circuit) | chartsage.app/report/2f2bf9e3a61d4f98892309da2fa72200 — UTM `f1-monaco`/`pole-fortress` | `#MonacoGP` | **Posted** |
 | 2026-06-06 | Recorded major Atlantic hurricanes/yr by decade — 2020s lead every decade (~4.3/yr) | Atlantic hurricane season | NOAA HURDAT2 1851–2025 | _drafted; report hit the chart-fallback bug (now fixed) — not yet re-run/posted_ | `#HurricaneSeason` | Drafted (paused) |
-| 2026-06-07 | The 1954 World Cup averaged **5.4 goals/game**; the last five ~2.5 — a 70-yr slide that flatlined in the '90s | FIFA World Cup 2026 | Fjelstul World Cup DB — goals/game per men's tournament, 1930–2022 | _preparing_ | `#WorldCup2026` | In progress |
+| 2026-06-07 | The 1954 World Cup averaged **5.4 goals/game**; the last five ~2.5 — a 70-yr slide that flatlined in the '90s | FIFA World Cup 2026 | Fjelstul World Cup DB — goals/game per men's tournament, 1930–2022 | chartsage.app/report/0755fecf5ab2440c8d8f9ab840d658db — UTM `worldcup`/`goals-per-game` | `#WorldCup2026` | Posted |
 
 <!-- Append new posts above this line. Keep newest at the bottom of the table. -->
 
