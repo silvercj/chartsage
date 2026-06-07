@@ -12,6 +12,7 @@ from chart_executor import (
     execute_histogram_chart,
     execute_scatter_chart,
     execute_box_plot,
+    _infer_display_type,
 )
 
 
@@ -42,6 +43,48 @@ def chart_composition(charts) -> dict:
     }
 
 
+# A column whose name IS one of these (e.g. "Year", "Decade") is a time/ordinal axis.
+# Matched on the WHOLE name (letters only) — not as a substring — so a rate like
+# "majors_per_year" or "goals_per_month", which merely *contains* a temporal word, is
+# never mistaken for the axis (that bug made the hurricanes report flat-line).
+_TEMPORAL_NAMES = {
+    "year", "years", "yr", "date", "dates", "decade", "decades", "season", "seasons",
+    "period", "periods", "quarter", "quarters", "month", "months", "week", "weeks",
+}
+
+
+def _ordinal_index(nums, df: pd.DataFrame) -> str | None:
+    """A numeric column that's a temporal/ordinal index — a year/decade/… axis with one
+    row per value (the x of a time series). Returns its name, or None. Lets the fallback
+    chart a metric OVER time instead of histogramming the year itself."""
+    for c in nums:
+        norm = "".join(ch for ch in c.name.lower() if ch.isalpha())
+        if norm not in _TEMPORAL_NAMES:
+            continue
+        s = pd.to_numeric(df[c.name], errors="coerce").dropna()
+        if len(s) >= 4 and s.nunique() >= 0.9 * len(s):
+            return c.name
+    return None
+
+
+def _timeseries_line(df: pd.DataFrame, idx_col: str, value_col: str, intent: str) -> ChartSpec:
+    """A chronological line of `value_col` over the ordinal `idx_col` (e.g. a metric by year)."""
+    work = df[[idx_col, value_col]].dropna().sort_values(idx_col)
+    return ChartSpec(
+        kind="line",
+        title=f"{value_col} over {idx_col}",
+        intent=intent,
+        x=[str(v) for v in work[idx_col].tolist()],
+        y=[float(v) for v in work[value_col].tolist()],
+        x_label=idx_col,
+        y_label=value_col,
+        x_display_type="category",
+        y_display_type=_infer_display_type(value_col),
+        source_columns=[idx_col, value_col],
+        data_point_count=int(len(work)),
+    )
+
+
 def pick_fallback_charts(profile: DataProfile, df: pd.DataFrame, max_charts: int = 5) -> list[ChartSpec]:
     """Pure heuristic chart selection, biased toward VARIETY rather than bars.
 
@@ -56,6 +99,8 @@ def pick_fallback_charts(profile: DataProfile, df: pd.DataFrame, max_charts: int
 
     cats = [c for c in profile.columns if c.role == "categorical" and 2 <= c.cardinality <= 30]
     nums = [c for c in profile.columns if c.role == "numeric"]
+    idx_name = _ordinal_index(nums, df)                 # a year/ordinal time axis, if any
+    metrics = [c for c in nums if c.name != idx_name]   # numerics minus the time axis
 
     def add(result: Any) -> bool:
         """Append if it's a real chart; return True when we've hit max_charts."""
@@ -63,21 +108,26 @@ def pick_fallback_charts(profile: DataProfile, df: pd.DataFrame, max_charts: int
             specs.append(result)
         return len(specs) >= max_charts
 
-    # 1. ONE lead bar (top categorical) — capped at one to avoid a bar-heavy fallback.
-    if cats:
+    # 1. ONE lead chart — the shape the table actually wants.
+    lead = None
+    if idx_name and metrics:
+        # Time-series table (a year/ordinal axis + metrics): chart the metric OVER time,
+        # not a histogram of the year. Fixes "Blowout_pct by year" rendering as a flat
+        # "year — distribution" histogram when the model under-picks (World Cup blowouts).
+        lead = _timeseries_line(df, idx_name, metrics[0].name, intent)
+    elif cats:
         top_cat = cats[0]
-        # A categorical whose every value is unique is a row label/key (one row each),
-        # so a frequency bar of it is all 1s — a flat, useless chart (this is what made
-        # the hurricanes-by-decade report render as a flat "decade — distribution" bar).
-        # When numerics are present it's a "label + metrics" table, so chart the most
-        # prominent metric BY the label instead — for one row per label the agg of a
-        # single value is that value, giving the bar the data actually wants.
-        if nums and top_cat.cardinality >= profile.row_count:
+        # A categorical whose every value is unique is a row label/key (one row each), so a
+        # frequency bar of it is all 1s — a flat, useless chart (this is what made the
+        # hurricanes-by-decade report render as a flat "decade — distribution" bar). When
+        # numerics are present it's a "label + metrics" table, so chart the most prominent
+        # metric BY the label instead — for one row per label the agg is that value.
+        if metrics and top_cat.cardinality >= profile.row_count:
             lead = execute_aggregation_bar_chart(df, {
-                "value_col": nums[0].name,
+                "value_col": metrics[0].name,
                 "group_col": top_cat.name,
                 "agg": "sum",
-                "title": f"{nums[0].name} by {top_cat.name}",
+                "title": f"{metrics[0].name} by {top_cat.name}",
                 "intent": intent,
             })
         else:
@@ -86,21 +136,28 @@ def pick_fallback_charts(profile: DataProfile, df: pd.DataFrame, max_charts: int
                 "title": f"{top_cat.name} — distribution",
                 "intent": intent,
             })
-        if add(lead):
+    if lead is not None and add(lead):
+        return specs
+
+    # 1b. A second trend line — the next metric over time (time-series tables only), so an
+    #     all-fallback report leads with TWO trends rather than a trend + a weak histogram.
+    if idx_name and len(metrics) >= 2:
+        if add(_timeseries_line(df, idx_name, metrics[1].name, intent)):
             return specs
 
-    # 2. A box plot — top numeric across the top categorical (a different way to read the data).
-    if nums and cats:
+    # 2. A box plot — top metric across the top categorical (a different way to read the data).
+    if metrics and cats:
         if add(execute_box_plot(df, {
-            "value_col": nums[0].name,
+            "value_col": metrics[0].name,
             "group_col": cats[0].name,
-            "title": f"{nums[0].name} by {cats[0].name}",
+            "title": f"{metrics[0].name} by {cats[0].name}",
             "intent": intent,
         })):
             return specs
 
-    # 3. Histograms for the top 2 numerics.
-    for col in nums[:2]:
+    # 3. Histograms — the top 2 metrics, skipping any already drawn as trend lines above.
+    hist_metrics = metrics[2:] if idx_name else metrics[:2]
+    for col in hist_metrics[:2]:
         if add(execute_histogram_chart(df, {
             "column": col.name,
             "title": f"{col.name} — distribution",
@@ -108,10 +165,13 @@ def pick_fallback_charts(profile: DataProfile, df: pd.DataFrame, max_charts: int
         })):
             return specs
 
-    # 4. Strongest correlation as scatter (correlated pair or best available numeric pair).
+    # 4. Strongest correlation as scatter — among metrics, skipping the time axis (so we
+    #    don't reduce a trend to a generic "year vs matches" scatter).
     scatter_added = False
-    if profile.correlations:
-        best_pair, _ = max(profile.correlations.items(), key=lambda kv: abs(kv[1]))
+    metric_corrs = {k: v for k, v in (profile.correlations or {}).items()
+                    if idx_name not in k.split("||")}
+    if metric_corrs:
+        best_pair, _ = max(metric_corrs.items(), key=lambda kv: abs(kv[1]))
         x_col, y_col = best_pair.split("||")
         result = execute_scatter_chart(df, {
             "x_col": x_col,
@@ -129,7 +189,7 @@ def pick_fallback_charts(profile: DataProfile, df: pd.DataFrame, max_charts: int
     if not scatter_added and len(specs) < 3:
         numeric_dtype_cols = [
             col for col in df.columns
-            if pd.api.types.is_numeric_dtype(df[col])
+            if pd.api.types.is_numeric_dtype(df[col]) and col != idx_name
         ]
         if len(numeric_dtype_cols) >= 2:
             x_col, y_col = numeric_dtype_cols[0], numeric_dtype_cols[1]

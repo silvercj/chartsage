@@ -118,3 +118,20 @@ def test_chart_composition_and_fallback_detection():
     assert comp["chartKinds"] == ["bar", "histogram", "scatter"]
     # all-fallback case (the hurricanes report)
     assert chart_composition(charts[1:])["allFallback"] is True
+
+
+def test_fallback_timeseries_leads_with_line_not_histogram():
+    """A time-series table — a year/ordinal column + metrics, no categorical — should lead
+    with a LINE of the metric over time, not a histogram of the year. Regression for the
+    World Cup 'blowouts by year' report that came out as a 'year — distribution' histogram."""
+    df = pd.DataFrame({
+        "Year": [1990, 1994, 1998, 2002, 2006, 2010, 2014, 2018, 2022],
+        "Blowout_pct": [5.8, 7.7, 6.2, 4.7, 4.7, 4.7, 6.2, 3.1, 4.7],
+    })
+    profile = profile_dataframe(df)
+    specs = pick_fallback_charts(profile, df)
+    assert specs, "fallback produced no charts"
+    lead = specs[0]
+    assert lead.kind == "line", f"time-series lead should be a line, got {lead.kind!r}"
+    assert "Blowout_pct" in lead.source_columns, f"lead should chart the metric: {lead.source_columns}"
+    assert lead.y and len(set(lead.y)) > 1, "lead must plot real metric values, not a count distribution"
