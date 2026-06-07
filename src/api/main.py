@@ -240,8 +240,11 @@ def _public_urls(session_id: str, row: dict) -> dict:
     }
 
 
-def _report_title_desc(report_json: dict) -> tuple[str, str]:
-    title = (report_json.get("title") or "ChartSage report").strip()[:120]
+def _report_title_desc(row: dict) -> tuple[str, str]:
+    report_json = row.get("report_json") or {}
+    # Prefer the stored per-report title (first sentence of the summary, set at save_report) so
+    # og:title / twitter:title / link previews show the real headline, not the generic fallback.
+    title = (row.get("title") or report_json.get("title") or "ChartSage report").strip()[:120]
     narrative = report_json.get("narrative")
     summary = narrative.get("summary") if isinstance(narrative, dict) else (narrative if isinstance(narrative, str) else None)
     desc = (summary or "An AI-generated report — charts and insights from a spreadsheet.").strip()[:200]
@@ -559,7 +562,7 @@ async def report_meta(
     if not is_public and not owned:
         return {"is_public": False, "owned": False,
                 "title": "Private report", "description": "", "og_image_url": None}
-    title, desc = _report_title_desc(row.get("report_json") or {})
+    title, desc = _report_title_desc(row)
     return {
         "is_public": is_public,
         "title": title, "description": desc,
