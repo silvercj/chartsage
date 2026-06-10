@@ -5,7 +5,7 @@ from fastapi.testclient import TestClient
 from unittest.mock import MagicMock
 from uuid import uuid4
 
-from tests.helpers.fake_claude import FakeClaude, tool_use
+from tests.helpers.fake_claude import FakeClaude, tool_use, ten_distinct_chart_calls
 from tests.helpers.fake_db import FakeDB
 from tests.helpers.fake_storage import FakeStorage
 from tests.helpers.fake_posthog import FakePostHog
@@ -17,10 +17,8 @@ def _csv_bytes(df):
 
 
 def _ten_chart_fake():
-    calls = [tool_use("frequency_bar_chart", {"column": "region", "title": f"T{i}", "intent": f"i{i}"}, id_=f"tu_{i}")
-             for i in range(10)]
     return FakeClaude([
-        {"tool_calls": calls},
+        {"tool_calls": ten_distinct_chart_calls()},
         {"tool_calls": [tool_use("submit_narrative", {"summary": "S.", "captions": [f"c{i}" for i in range(10)], "data_quality": []})]},
     ])
 
@@ -76,7 +74,7 @@ def test_generate_more_spends_40(ctx, sales):
     user = str(uuid4()); holder.current = auth_identity(user)
     sid = _post(tc, sales).json()["session_id"]             # balance now 200
     new = FakeClaude([
-        {"tool_calls": [tool_use("histogram_chart", {"column": "revenue", "title": "M", "intent": "n"}, id_="m0")]},
+        {"tool_calls": [tool_use("scatter_chart", {"x_col": "order_id", "y_col": "revenue", "title": "M", "intent": "n"}, id_="m0")]},
         {"tool_calls": [tool_use("submit_narrative", {"summary": "U.", "captions": ["c"], "data_quality": []})]},
     ])
     from main import app, get_claude_client
@@ -99,7 +97,7 @@ def test_generate_more_uses_stored_csv_key_not_url_id(ctx, sales):
     dashed = "06cfac63-d0d5-4378-b9f9-02e76ffa178d"
     row = db._rows.pop(sid); row["id"] = dashed; db._rows[dashed] = row
     new = FakeClaude([
-        {"tool_calls": [tool_use("histogram_chart", {"column": "revenue", "title": "M", "intent": "n"}, id_="m0")]},
+        {"tool_calls": [tool_use("scatter_chart", {"x_col": "order_id", "y_col": "revenue", "title": "M", "intent": "n"}, id_="m0")]},
         {"tool_calls": [tool_use("submit_narrative", {"summary": "U.", "captions": ["c"], "data_quality": []})]},
     ])
     from main import app, get_claude_client

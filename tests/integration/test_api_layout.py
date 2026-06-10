@@ -6,7 +6,7 @@ from fastapi.testclient import TestClient
 from unittest.mock import MagicMock
 from uuid import uuid4
 
-from tests.helpers.fake_claude import FakeClaude, tool_use
+from tests.helpers.fake_claude import FakeClaude, tool_use, ten_distinct_chart_calls
 from tests.helpers.fake_db import FakeDB
 from tests.helpers.fake_storage import FakeStorage
 from tests.helpers.fake_posthog import FakePostHog
@@ -20,14 +20,10 @@ def _csv_bytes(df: pd.DataFrame) -> bytes:
 
 @pytest.fixture
 def client_with_report(sales):
-    chart_calls = [
-        tool_use("frequency_bar_chart",
-                 {"column": "region", "title": f"Chart {i}", "intent": f"intent {i}"},
-                 id_=f"tu_{i}")
-        for i in range(10)
-    ]
     fake_claude = FakeClaude([
-        {"tool_calls": chart_calls},
+        # 6 distinct charts (>= MIN_CHARTS_TARGET, so no reach-for-more round) — leaves
+        # line/treemap/dual-axis/scatter signatures free for the generate-more test.
+        {"tool_calls": ten_distinct_chart_calls(title_prefix="Chart ", intent_prefix="intent ")[:6]},
         {"tool_calls": [tool_use("submit_narrative",
                                  {"summary": "Sales.", "captions": [f"cap{i}" for i in range(10)], "data_quality": []})]},
     ])
@@ -99,11 +95,19 @@ def test_patch_layout_persists(client_with_report):
 def test_generate_more_appends_charts(client_with_report, sales):
     tc, session_id, report, anon, db, _, ph = client_with_report
 
+    new_specs = [
+        ("line_chart", {"date_col": "order_date", "value_col": "revenue",
+                        "agg": "count", "granularity": "week"}),
+        ("line_chart", {"date_col": "order_date", "value_col": "revenue",
+                        "agg": "sum", "granularity": "week"}),
+        ("treemap_chart", {"category_col": "region", "value_col": "revenue", "agg": "sum"}),
+        ("dual_axis_chart", {"x_col": "region", "bar_value_col": "revenue",
+                             "line_value_col": "revenue", "bar_agg": "sum", "line_agg": "mean"}),
+        ("scatter_chart", {"x_col": "order_id", "y_col": "revenue"}),
+    ]
     new_calls = [
-        tool_use("histogram_chart",
-                 {"column": "revenue", "title": f"More {i}", "intent": f"new {i}"},
-                 id_=f"more_{i}")
-        for i in range(5)
+        tool_use(name, {**inp, "title": f"More {i}", "intent": f"new {i}"}, id_=f"more_{i}")
+        for i, (name, inp) in enumerate(new_specs)
     ]
     new_fake = FakeClaude([
         {"tool_calls": new_calls},

@@ -6,7 +6,7 @@ from fastapi.testclient import TestClient
 from unittest.mock import MagicMock
 from uuid import uuid4
 
-from tests.helpers.fake_claude import FakeClaude, tool_use
+from tests.helpers.fake_claude import FakeClaude, tool_use, ten_distinct_chart_calls
 from tests.helpers.fake_db import FakeDB
 from tests.helpers.fake_storage import FakeStorage
 from tests.helpers.fake_posthog import FakePostHog
@@ -19,14 +19,8 @@ def _csv_bytes(df: pd.DataFrame) -> bytes:
 
 
 def _scripted_fake():
-    chart_calls = [
-        tool_use("frequency_bar_chart",
-                 {"column": "region", "title": f"T{i}", "intent": f"i{i}"},
-                 id_=f"tu_{i}")
-        for i in range(10)
-    ]
     return FakeClaude([
-        {"tool_calls": chart_calls},
+        {"tool_calls": ten_distinct_chart_calls()},
         {"tool_calls": [tool_use(
             "submit_narrative",
             {"summary": "S.", "captions": [f"c{i}" for i in range(10)], "data_quality": []},

@@ -65,3 +65,30 @@ def tool_use(name: str, input_dict: dict, id_: str = None) -> dict:
     if id_:
         out["id"] = id_
     return out
+
+
+def ten_distinct_chart_calls(title_prefix: str = "T", intent_prefix: str = "i") -> list[dict]:
+    """10 chart tool calls with 10 DISTINCT signatures (kind + source columns) over the
+    `sales` fixture (region / revenue / order_date). The generator dedupes same-signature
+    repeats and rejects degenerate charts, so scripted selections must vary their charts
+    for all 10 to count. Titles are '<title_prefix>0'..'<title_prefix>9', ids tu_0..tu_9."""
+    specs = [
+        ("frequency_bar_chart", {"column": "region"}),
+        ("aggregation_bar_chart", {"value_col": "revenue", "group_col": "region", "agg": "sum"}),
+        ("histogram_chart", {"column": "revenue"}),
+        ("box_plot", {"value_col": "revenue"}),
+        ("pie_chart", {"category_col": "region", "agg": "count"}),
+        ("pie_chart", {"category_col": "region", "value_col": "revenue", "agg": "sum"}),
+        ("line_chart", {"date_col": "order_date", "value_col": "revenue",
+                        "agg": "count", "granularity": "week"}),
+        ("line_chart", {"date_col": "order_date", "value_col": "revenue",
+                        "agg": "sum", "granularity": "week"}),
+        ("treemap_chart", {"category_col": "region", "value_col": "revenue", "agg": "sum"}),
+        ("dual_axis_chart", {"x_col": "region", "bar_value_col": "revenue",
+                             "line_value_col": "revenue", "bar_agg": "sum", "line_agg": "mean"}),
+    ]
+    return [
+        tool_use(name, {**inp, "title": f"{title_prefix}{i}", "intent": f"{intent_prefix}{i}"},
+                 id_=f"tu_{i}")
+        for i, (name, inp) in enumerate(specs)
+    ]

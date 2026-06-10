@@ -9,7 +9,7 @@ import types
 
 from report_generator import ReportGenerator, MIN_CHARTS_TARGET, MAX_CHARTS
 from profile import profile_dataframe
-from tests.helpers.fake_claude import FakeClaude, tool_use
+from tests.helpers.fake_claude import FakeClaude, tool_use, ten_distinct_chart_calls
 
 
 def _make_generator(df, fake):
@@ -34,7 +34,7 @@ def test_under_selection_triggers_reach_for_more(sales):
         # Reach-for-more round: 4 ADDITIONAL distinct charts.
         {"tool_calls": [
             tool_use("line_chart", {"date_col": "order_date", "value_col": "revenue", "agg": "sum",
-                                    "granularity": "month", "title": "Revenue over time", "intent": "i"}, id_="b1"),
+                                    "granularity": "week", "title": "Revenue over time", "intent": "i"}, id_="b1"),
             tool_use("pie_chart", {"category_col": "region", "agg": "count",
                                    "title": "Region share", "intent": "i"}, id_="b2"),
             tool_use("scatter_chart", {"x_col": "order_id", "y_col": "revenue",
@@ -51,12 +51,9 @@ def test_under_selection_triggers_reach_for_more(sales):
 
 def test_healthy_selection_does_not_trigger_reach_for_more(sales):
     """Initial selection returns 8 valid charts (>= MIN_CHARTS_TARGET). _call_selection_more
-    must NOT be called: the count stays 8 and FakeClaude's single scripted response is the
-    only one consumed (a second call would raise AssertionError)."""
-    calls = [
-        tool_use("frequency_bar_chart", {"column": "region", "title": f"T{i}", "intent": f"i{i}"}, id_=f"c{i}")
-        for i in range(8)
-    ]
+    must NOT be called: the count stays 8 (all distinct signatures) and FakeClaude's single
+    scripted response is the only one consumed (a second call would raise AssertionError)."""
+    calls = ten_distinct_chart_calls()[:8]
     fake = FakeClaude([{"tool_calls": calls}])   # only ONE scripted response
     gen = _make_generator(sales, fake)
     specs = gen.generate_charts()
@@ -83,7 +80,7 @@ def test_reach_for_more_dedupes_and_caps(sales):
                                                "agg": "max", "title": "Dup agg", "intent": "i"}, id_="d2"),
             # genuinely new angles
             tool_use("line_chart", {"date_col": "order_date", "value_col": "revenue", "agg": "sum",
-                                    "granularity": "month", "title": "Rev trend", "intent": "i"}, id_="d3"),
+                                    "granularity": "week", "title": "Rev trend", "intent": "i"}, id_="d3"),
             tool_use("pie_chart", {"category_col": "region", "agg": "count",
                                    "title": "Region share", "intent": "i"}, id_="d4"),
         ]},

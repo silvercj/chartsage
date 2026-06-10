@@ -38,17 +38,38 @@ def test_happy_path_returns_chart_specs(activities):
 
 
 def test_caps_at_ten_charts(activities):
-    """Even if Claude returns 15 tool calls, we only keep the first 10."""
-    fake = FakeClaude([
-        {"tool_calls": [
-            tool_use("frequency_bar_chart", {
-                "column": "activity_type", "title": f"t{i}", "intent": f"i{i}"})
-            for i in range(15)
-        ]},
-    ])
+    """Even if Claude returns 15 tool calls (10 distinct + 5 same-signature repeats,
+    which dedup drops), we only keep the first 10."""
+    distinct = [
+        tool_use("frequency_bar_chart", {"column": "activity_type"}),
+        tool_use("aggregation_bar_chart",
+                 {"value_col": "duration_minutes", "group_col": "activity_type", "agg": "mean"}),
+        tool_use("histogram_chart", {"column": "duration_minutes"}),
+        tool_use("box_plot", {"value_col": "duration_minutes", "group_col": "activity_type"}),
+        tool_use("box_plot", {"value_col": "duration_minutes"}),
+        tool_use("pie_chart", {"category_col": "activity_type", "agg": "count"}),
+        tool_use("line_chart", {"date_col": "activity_date", "value_col": "duration_minutes",
+                                "agg": "count", "granularity": "week"}),
+        tool_use("line_chart", {"date_col": "activity_date", "value_col": "duration_minutes",
+                                "agg": "sum", "granularity": "week"}),
+        tool_use("treemap_chart", {"category_col": "activity_type",
+                                   "value_col": "duration_minutes", "agg": "sum"}),
+        tool_use("dual_axis_chart", {"x_col": "activity_type",
+                                     "bar_value_col": "duration_minutes",
+                                     "line_value_col": "duration_minutes",
+                                     "bar_agg": "sum", "line_agg": "mean"}),
+    ]
+    repeats = [
+        tool_use("frequency_bar_chart", {"column": "activity_type"})
+        for _ in range(5)
+    ]
+    calls = distinct + repeats
+    for i, c in enumerate(calls):
+        c["input"].update({"title": f"t{i}", "intent": f"i{i}"})
+    fake = FakeClaude([{"tool_calls": calls}])
     gen = _make_generator(activities, fake)
     specs = gen.generate_charts()
-    assert len(specs) <= 10
+    assert len(specs) == 10
 
 
 def test_full_report_includes_narrative(activities):
@@ -100,7 +121,7 @@ def test_key_metrics_routed_to_report_not_charts(sales):
                 "agg": "sum", "title": "Revenue by region", "intent": "compare"}),
             tool_use("line_chart", {
                 "date_col": "order_date", "value_col": "revenue", "agg": "sum",
-                "granularity": "month", "title": "Revenue over time", "intent": "trend"}),
+                "granularity": "week", "title": "Revenue over time", "intent": "trend"}),
         ]},
         {"tool_calls": []},  # reach-for-more (3 charts < target, no errors) proposes nothing
         {"tool_calls": [

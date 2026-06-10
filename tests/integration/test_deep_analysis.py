@@ -18,7 +18,7 @@ from report_generator import ReportGenerator, MAX_DEEP_CHARTS
 from credits import DEEP_ANALYSIS_COST
 from profile import profile_dataframe
 from schemas import ChartSpec
-from tests.helpers.fake_claude import FakeClaude, tool_use
+from tests.helpers.fake_claude import FakeClaude, tool_use, ten_distinct_chart_calls
 from tests.helpers.fake_db import FakeDB
 from tests.helpers.fake_storage import FakeStorage
 from tests.helpers.fake_posthog import FakePostHog
@@ -50,10 +50,16 @@ def test_deepen_respects_chart_cap(sales):
                   source_columns=["region"], data_point_count=4)
         for i in range(seed_count)
     ]
-    # Round 1 proposes 5 valid histograms — far more than the 2 remaining slots.
+    # Round 1 proposes 5 valid DISTINCT charts — far more than the 2 remaining slots.
     overflow = [
-        tool_use("histogram_chart", {"column": "revenue", "title": f"H{i}", "intent": "i"}, id_=f"h{i}")
-        for i in range(5)
+        tool_use("histogram_chart", {"column": "revenue", "title": "H0", "intent": "i"}, id_="h0"),
+        tool_use("box_plot", {"value_col": "revenue", "title": "H1", "intent": "i"}, id_="h1"),
+        tool_use("pie_chart", {"category_col": "region", "agg": "count",
+                               "title": "H2", "intent": "i"}, id_="h2"),
+        tool_use("treemap_chart", {"category_col": "region", "value_col": "revenue",
+                                   "agg": "sum", "title": "H3", "intent": "i"}, id_="h3"),
+        tool_use("line_chart", {"date_col": "order_date", "value_col": "revenue", "agg": "count",
+                                "granularity": "week", "title": "H4", "intent": "i"}, id_="h4"),
     ]
     fc = FakeClaude([{"tool_calls": overflow}])   # one round is enough; cap stops the loop
     gen = ReportGenerator(
@@ -73,10 +79,8 @@ def _csv_bytes(df):
 
 
 def _ten_chart_fake():
-    calls = [tool_use("frequency_bar_chart", {"column": "region", "title": f"T{i}", "intent": f"i{i}"}, id_=f"tu_{i}")
-             for i in range(10)]
     return FakeClaude([
-        {"tool_calls": calls},
+        {"tool_calls": ten_distinct_chart_calls()},
         {"tool_calls": [tool_use("submit_narrative", {"summary": "S.", "captions": [f"c{i}" for i in range(10)], "data_quality": []})]},
     ])
 
