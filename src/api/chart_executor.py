@@ -736,9 +736,17 @@ def execute_heatmap_chart(df: pd.DataFrame, params: dict) -> ChartSpec | ToolErr
     intent = params["intent"]
 
     if mode == "correlation":
-        numeric_cols = [c for c in df.columns if pd.api.types.is_numeric_dtype(df[c])]
+        from profile import is_identifier_column   # local import: profile imports nothing from here
+        # IDs are numeric by dtype but meaningless in a correlation matrix — enforce the
+        # 'never use an identifier as a metric' rule at the executor, not just the prompt.
+        numeric_cols = [
+            c for c in df.columns
+            if pd.api.types.is_numeric_dtype(df[c])
+            and not is_identifier_column(c, df[c], int(df.shape[0]))
+        ]
         if len(numeric_cols) < 2:
-            return _err(f"Correlation heatmap needs ≥2 numeric columns; found {len(numeric_cols)}.")
+            return _err(f"Correlation heatmap needs ≥2 numeric measure columns "
+                        f"(identifier/ID columns are excluded); found {len(numeric_cols)}.")
         corr = df[numeric_cols].corr(numeric_only=True).round(3)
         series = []
         for i, row in enumerate(numeric_cols):

@@ -67,6 +67,15 @@ def _is_identifier(name: str, dtype: str, cardinality: int, row_count: int) -> b
     return False
 
 
+def is_identifier_column(name: str, series: pd.Series, row_count: int) -> bool:
+    """Whether a column reads as a row ID (an *_id-style name, or all-unique integers).
+    Public wrapper for executors that must keep IDs out of numeric computations (e.g.
+    the correlation heatmap), mirroring the profile's role detection."""
+    return _is_identifier(
+        name, str(series.dtype), int(series.nunique(dropna=True)), row_count,
+    )
+
+
 def _is_date(series: pd.Series) -> bool:
     if pd.api.types.is_datetime64_any_dtype(series):
         return True
