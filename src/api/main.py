@@ -520,6 +520,11 @@ async def generate_report(
         "reportId": report_id,
         **comp,
         "keyMetricsCount": len(report.key_metrics or []),
+        # Model-output-quality counters from generation: charts the degeneracy screen
+        # rejected (would have rendered as nothing) and charts the narrative curation
+        # pass dropped after seeing their computed data.
+        "degenerateRejectedCount": int(report.metadata.get("degenerate_rejected_total", 0)),
+        "curationDroppedCount": int(report.metadata.get("curation_dropped_total", 0)),
         "modelSelection": MODEL_SELECTION,
         "deep": deep,
         "customPrompt": bool(custom_prompt),

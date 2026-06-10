@@ -24,7 +24,16 @@ checks here as we find them.
   one-point series per value: a tangle of coloured spikes, x-axis mislabeled with the values.
   *Fixed 2026-06-07: `execute_line_chart` drops a `group_by` that equals the value/date column.*
 - [ ] Pie with too many slices; **box plot with one value per group** (renders empty).
-- [ ] **Empty chart** (no x/y data) — e.g. a degenerate box plot — shouldn't be shown at all.
+- [x] **Empty / degenerate chart** (all-1s frequency bar, single-point line, one-slice pie,
+  1×1 heatmap, multi-series line of lone points) — *fixed 2026-06-10 as a CLASS:
+  `degenerate_reason()` (`chart_executor.py`) screens every model-selected spec; a degenerate
+  one becomes a ToolError feeding the existing retry round. New shapes of "executed fine but
+  shows nothing" belong in that function, not as one-off guards.*
+- [x] **Months/weekdays out of order** on a category axis (Apr, Aug, Dec… or sorted by value) —
+  *fixed 2026-06-10: `natural_category_order()` (`data_processing_utils.py`), applied by the
+  bar/grouped-bar/dual-axis/heatmap executors.*
+- [x] **Multi-series line fabricating zeros** where a group has no data in a period — mean/median
+  lines crashed to 0. *Fixed 2026-06-10: missing periods are `None` (gaps); count/sum still 0-fill.*
 
 ## Values & formatting
 - [ ] **Percentage shown as `0.61` instead of `61%`** — the column needs a pct/rate/share/margin/ratio
@@ -48,8 +57,14 @@ checks here as we find them.
 - [x] **Fallback duplicating model charts** — when the model picks <3, the fallback re-derives from the
   same df and can re-make charts the model already chose (each line showed twice). *Fixed 2026-06-07:
   `drop_duplicates` (report_generator) drops fallback specs matching a model chart's kind + source columns.*
-- [ ] **Wrong hero** — the lead chart isn't the intended analysis.
+- [x] **Wrong hero** — the lead chart isn't the intended analysis. *Addressed 2026-06-10: the
+  narrative pass (the only call that sees the computed data) now returns `chart_order`
+  (hero first) and `drop_charts` (duds); `build_report` applies them. Still eyeball the hero —
+  the model can rank wrong — but the order is no longer "whatever was called first".*
 - [ ] Truncated / awkward auto-titles.
+- [ ] **Wrong unit despite y_format** — the model can now declare number/currency/percent per
+  chart (overrides column-name sniffing). If a unit is still wrong, check whether the model set
+  `y_format` (run log) before reaching for column renames.
 
 ## Key metrics
 - [ ] **Nonsensical key metric** at the top of the report — e.g. "Year span: 2022" (a year, not a
@@ -73,3 +88,15 @@ checks here as we find them.
   group_by** (continuous metric → 12-series spiky tangle); (b) fallback **dedup** — drop fallback
   charts that duplicate a model chart (cards report showed the cards + reds lines twice). QA tool
   now understands box/heatmap series. (`chart_executor.py`, `fallback.py`, `report_generator.py`.)
+- **2026-06-10** — selection/creation pipeline review; mechanisms over one-off guards:
+  (a) **degeneracy screen** — `degenerate_reason()` rejects "executed fine but shows nothing"
+  charts into the retry round (tracked as `degenerateRejectedCount` on `report_charts_composed`);
+  (b) **temporal-ordinal axes in the profile** — a numeric Year/Decade column is flagged once
+  (`ColumnInfo.temporal_ordinal`) and consumed by the prompt, the fallback, and the KPI guard;
+  (c) **narrative curation** — `chart_order` (hero first) + `drop_charts` from the pass that sees
+  the computed data; (d) **y_format** — the model declares number/currency/percent per chart,
+  beating column-name sniffing; (e) **one dedup identity** (`chart_signature`) on every
+  spec-producing path; (f) multi-series line **gaps not zeros** for mean/median; (g) **natural
+  month/weekday/quarter axis order**; (h) correlation heatmap **excludes ID columns**;
+  (i) `add_chart` gets a **retry round**. (`profile.py`, `chart_executor.py`, `chart_tools.py`,
+  `report_generator.py`, `fallback.py`, `data_processing_utils.py`, prompts.)
