@@ -151,7 +151,7 @@ class ReportGenerator:
         return specs, errors, response.content
 
     def _call_selection_retry(
-        self, prior_content: list[Any], errors: list[dict],
+        self, prior_content: list[Any], errors: list[dict], user_message: str | None = None,
     ) -> tuple[list[ChartSpec], list[dict]]:
         # Anthropic requires a tool_result for EVERY tool_use in the prior assistant turn,
         # not just the failed ones. Build the full set: errors get their reason; successes
@@ -176,7 +176,10 @@ class ReportGenerator:
                 })
 
         messages = [
-            {"role": "user", "content": self.profile.to_text() + self._focus_block()},
+            # The retry replays the round's original user message (the profile by
+            # default; add_chart passes its own instruction) so the conversation is
+            # coherent for the model.
+            {"role": "user", "content": user_message or (self.profile.to_text() + self._focus_block())},
             {"role": "assistant", "content": _serialize_content(prior_content)},
             {"role": "user", "content": tool_results},
         ]
@@ -383,7 +386,11 @@ class ReportGenerator:
             messages=[{"role": "user", "content": user}],
             cache_static=True,
         )
-        specs, _ = self._execute_tool_calls(response.content)
+        specs, errors = self._execute_tool_calls(response.content)
+        if not specs and errors:
+            # Same courtesy as the main pass: feed the errors back once so the model
+            # can correct a bad column / degenerate pick before we 422 the request.
+            specs, _ = self._call_selection_retry(response.content, errors, user_message=user)
         if not specs:
             return None
         spec = specs[0]
