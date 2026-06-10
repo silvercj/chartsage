@@ -19,6 +19,20 @@ _TITLE_INTENT = {
     "intent": {"type": "string", "description": "One-sentence rationale for this chart."},
 }
 
+# Optional, never required: how the charted value displays. The model's declaration wins
+# over column-name keyword sniffing — it knows from context that a football goal 'margin'
+# is a plain number (not a %) and that 'gross_margin_pct' is a % (not $).
+_Y_FORMAT = {
+    "y_format": {
+        "type": "string",
+        "enum": ["number", "currency", "percent"],
+        "description": "How the charted value should display. Set it when you know the unit "
+                       "from context: 'percent' for a rate/share/proportion, 'currency' for "
+                       "money, 'number' for a plain measure or count-like value. Omit to infer "
+                       "from the column name.",
+    },
+}
+
 
 CHART_TOOLS: list[dict] = [
     _t(
@@ -84,6 +98,7 @@ CHART_TOOLS: list[dict] = [
             "value_col": {"type": "string", "description": "Numeric column to aggregate."},
             "group_col": {"type": "string", "description": "Categorical column to group by."},
             "agg": {"type": "string", "enum": ["sum", "mean", "median", "min", "max"]},
+            **_Y_FORMAT,
             **_TITLE_INTENT,
         },
         ["value_col", "group_col", "agg", "title", "intent"],
@@ -105,6 +120,7 @@ CHART_TOOLS: list[dict] = [
             "x_col": {"type": "string"},
             "y_col": {"type": "string"},
             "color_by": {"type": "string", "description": "Optional categorical column for coloring points."},
+            **_Y_FORMAT,
             **_TITLE_INTENT,
         },
         ["x_col", "y_col", "title", "intent"],
@@ -119,6 +135,7 @@ CHART_TOOLS: list[dict] = [
             "granularity": {"type": "string", "enum": ["day", "week", "month", "quarter", "year"]},
             "group_by": {"type": "string", "description": "Optional categorical column for multiple lines."},
             "area": {"type": "boolean", "description": "Fill under the line (area chart). Multi-series + area = stacked area."},
+            **_Y_FORMAT,
             **_TITLE_INTENT,
         },
         ["date_col", "value_col", "agg", "granularity", "title", "intent"],
@@ -130,6 +147,7 @@ CHART_TOOLS: list[dict] = [
             "category_col": {"type": "string"},
             "value_col": {"type": "string", "description": "Numeric column to aggregate (omit when agg='count')."},
             "agg": {"type": "string", "enum": ["sum", "mean", "count"]},
+            **_Y_FORMAT,
             **_TITLE_INTENT,
         },
         ["category_col", "agg", "title", "intent"],
@@ -140,6 +158,7 @@ CHART_TOOLS: list[dict] = [
         {
             "value_col": {"type": "string"},
             "group_col": {"type": "string", "description": "Optional categorical column for groups."},
+            **_Y_FORMAT,
             **_TITLE_INTENT,
         },
         ["value_col", "title", "intent"],
@@ -154,6 +173,7 @@ CHART_TOOLS: list[dict] = [
             "col_col": {"type": "string", "description": "Required when mode='pivot'."},
             "value_col": {"type": "string", "description": "Required when mode='pivot' and agg != 'count'."},
             "agg": {"type": "string", "enum": ["sum", "mean", "count"], "description": "Required when mode='pivot'."},
+            **_Y_FORMAT,
             **_TITLE_INTENT,
         },
         ["mode", "title", "intent"],
@@ -168,6 +188,7 @@ CHART_TOOLS: list[dict] = [
             "value_col": {"type": "string"},
             "agg": {"type": "string", "enum": ["sum", "mean", "median", "min", "max"]},
             "mode": {"type": "string", "enum": ["grouped", "stacked"]},
+            **_Y_FORMAT,
             **_TITLE_INTENT,
         },
         ["category_col", "breakdown_col", "value_col", "agg", "mode", "title", "intent"],
@@ -182,6 +203,7 @@ CHART_TOOLS: list[dict] = [
             "line_value_col": {"type": "string"},
             "bar_agg": {"type": "string", "enum": ["sum", "mean", "median", "min", "max", "count"]},
             "line_agg": {"type": "string", "enum": ["sum", "mean", "median", "min", "max", "count"]},
+            **_Y_FORMAT,
             **_TITLE_INTENT,
         },
         ["x_col", "bar_value_col", "line_value_col", "bar_agg", "line_agg", "title", "intent"],
@@ -195,6 +217,7 @@ CHART_TOOLS: list[dict] = [
             "subcategory_col": {"type": "string", "description": "Optional second level."},
             "value_col": {"type": "string"},
             "agg": {"type": "string", "enum": ["sum", "mean", "count"]},
+            **_Y_FORMAT,
             **_TITLE_INTENT,
         },
         ["category_col", "value_col", "agg", "title", "intent"],

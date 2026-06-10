@@ -26,6 +26,7 @@ Rules:
 - Extract charts from rich-but-messy columns. High-cardinality categorical columns (country, genre, names, tags) are still chartable as a top-N — frequency_bar_chart or treemap_chart will show the top values and roll the rest into "Other". Any date or year column is chartable as a trend over time (line_chart). So catalog/listing datasets (lots of text columns) should still yield a full ~10-chart report. The one thing to never chart is role="unusable" (free text, IDs) — but a categorical column is fair game even when its cardinality is high.
 - Some categorical columns are multi-value / tag columns (marked "multi-value" in the profile — e.g. genres, countries, tags, cast). Chart them with frequency_bar_chart or treemap_chart; the values shown will be the top individual tags, not the raw combined cells.
 - Aim for a spread: a couple of distributions, a couple of comparisons or trends, a correlation, a composition — not 10 versions of the same idea.
+- Set `y_format` (number/currency/percent) whenever you know the unit of the charted value from context. Column names lie: a football goal "margin" is a plain number (not a percent), "gross" units sold isn't currency, a "share" of wins IS a percent. Your y_format overrides the name-based guess — use it whenever the name alone could mislead.
 - Every chart needs an `intent` field: one sentence about what this chart shows and why it's interesting.
 - Reference anomalies in your `intent` when they're relevant (e.g., "Using median because the profile flagged a 600-minute outlier.").
 

@@ -59,6 +59,21 @@ def _infer_display_type(col_name: str, agg: str = None) -> str:
     return "number"
 
 
+_Y_FORMAT_TO_DISPLAY = {"number": "number", "currency": "currency", "percent": "percentage"}
+
+
+def _display_type(params: dict, col_name: str | None, agg: str = None) -> str:
+    """y display type for a chart: the model's explicit y_format wins — it knows from
+    context whether a 'margin' is money, a rate, or goals — with column-name keyword
+    sniffing (_infer_display_type) as the fallback. Counts always display as 'count'."""
+    if agg == "count":
+        return "count"
+    fmt = (params or {}).get("y_format")
+    if fmt in _Y_FORMAT_TO_DISPLAY:
+        return _Y_FORMAT_TO_DISPLAY[fmt]
+    return _infer_display_type(col_name, agg) if col_name else "number"
+
+
 def _to_fraction(value: float) -> float:
     """A percentage value on the 0–100 scale -> a 0–1 fraction.
 
@@ -282,7 +297,7 @@ def execute_aggregation_bar_chart(df: pd.DataFrame, params: dict) -> ChartSpec |
         x_label=group_col,
         y_label=f"{agg.capitalize()} of {value_col}",
         x_display_type="category",
-        y_display_type=_infer_display_type(value_col, agg),
+        y_display_type=_display_type(params, value_col, agg),
         source_columns=[value_col, group_col],
         data_point_count=int(len(work)),
     )
@@ -373,7 +388,7 @@ def execute_scatter_chart(df: pd.DataFrame, params: dict) -> ChartSpec | ToolErr
     if len(work) > MAX_SCATTER_POINTS:
         work = work.sample(n=MAX_SCATTER_POINTS, random_state=42)
 
-    y_display = _infer_display_type(y_col)
+    y_display = _display_type(params, y_col)
 
     if color_by is None:
         return ChartSpec(
@@ -499,7 +514,7 @@ def execute_line_chart(df: pd.DataFrame, params: dict) -> ChartSpec | ToolError:
             x_label=f"{granularity.capitalize()} ({date_col})",
             y_label=f"{agg.capitalize()}" + (f" of {value_col}" if agg != "count" else ""),
             x_display_type="date",
-            y_display_type=_infer_display_type(value_col, agg) if value_col else "count",
+            y_display_type=_display_type(params, value_col, agg) if value_col else "count",
             area=area,
             source_columns=[date_col] + ([value_col] if agg != "count" else []),
             data_point_count=int(len(work)),
@@ -532,7 +547,7 @@ def execute_line_chart(df: pd.DataFrame, params: dict) -> ChartSpec | ToolError:
         x_label=f"{granularity.capitalize()} ({date_col})",
         y_label=f"{agg.capitalize()}" + (f" of {value_col}" if agg != "count" else ""),
         x_display_type="date",
-        y_display_type=_infer_display_type(value_col, agg) if value_col else "count",
+        y_display_type=_display_type(params, value_col, agg) if value_col else "count",
         area=area,
         source_columns=[date_col, group_by] + ([value_col] if agg != "count" else []),
         data_point_count=int(len(work)),
@@ -611,7 +626,7 @@ def execute_pie_chart(df: pd.DataFrame, params: dict) -> ChartSpec | ToolError:
         x_label=category_col,
         y_label=f"{agg.capitalize()}" + (f" of {value_col}" if agg != "count" else ""),
         x_display_type="category",
-        y_display_type=_infer_display_type(value_col, agg) if value_col else "count",
+        y_display_type=_display_type(params, value_col, agg) if value_col else "count",
         source_columns=cols,
         data_point_count=int(len(work)),
     )
@@ -654,7 +669,7 @@ def execute_box_plot(df: pd.DataFrame, params: dict) -> ChartSpec | ToolError:
             x_label=value_col,
             y_label="",
             x_display_type="category",
-            y_display_type=_infer_display_type(value_col),
+            y_display_type=_display_type(params, value_col),
             source_columns=[value_col],
             data_point_count=int(len(values)),
         )
@@ -683,7 +698,7 @@ def execute_box_plot(df: pd.DataFrame, params: dict) -> ChartSpec | ToolError:
         x_label=group_col,
         y_label=value_col,
         x_display_type="category",
-        y_display_type=_infer_display_type(value_col),
+        y_display_type=_display_type(params, value_col),
         source_columns=[value_col, group_col],
         data_point_count=int(len(work)),
     )
@@ -771,7 +786,7 @@ def execute_heatmap_chart(df: pd.DataFrame, params: dict) -> ChartSpec | ToolErr
         x_label=col_col,
         y_label=row_col,
         x_display_type="category",
-        y_display_type=_infer_display_type(value_col, agg) if value_col else "count",
+        y_display_type=_display_type(params, value_col, agg) if value_col else "count",
         source_columns=cols_needed,
         data_point_count=int(len(work)),
     )
@@ -845,7 +860,7 @@ def execute_grouped_bar_chart(df: pd.DataFrame, params: dict) -> ChartSpec | Too
         x_label=category_col,
         y_label=f"{agg.capitalize()} of {value_col}",
         x_display_type="category",
-        y_display_type=_infer_display_type(value_col, agg),
+        y_display_type=_display_type(params, value_col, agg),
         stacked=(mode == "stacked"),
         source_columns=[category_col, breakdown_col, value_col],
         data_point_count=int(len(work)),
@@ -930,7 +945,7 @@ def execute_dual_axis_chart(df: pd.DataFrame, params: dict) -> ChartSpec | ToolE
         y_label=bar_value_col,
         y_label_secondary=line_value_col,
         x_display_type="category",
-        y_display_type=_infer_display_type(bar_value_col, bar_agg),
+        y_display_type=_display_type(params, bar_value_col, bar_agg),
         source_columns=cols,
         data_point_count=int(len(work)),
     )
@@ -1043,7 +1058,7 @@ def execute_treemap_chart(df: pd.DataFrame, params: dict) -> ChartSpec | ToolErr
         x_label=category_col,
         y_label=(f"{agg.capitalize()}" if agg == "count" else f"{agg.capitalize()} of {value_col}"),
         x_display_type="category",
-        y_display_type=_infer_display_type(value_col, agg),
+        y_display_type=_display_type(params, value_col, agg),
         source_columns=group_cols + ([value_col] if agg != "count" else []),
         data_point_count=int(len(work)),
     )
