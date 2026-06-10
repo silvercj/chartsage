@@ -535,8 +535,15 @@ def execute_line_chart(df: pd.DataFrame, params: dict) -> ChartSpec | ToolError:
 
     periods_sorted = sorted(all_periods)
     period_labels = [str(p) for p in periods_sorted]
+    # Periods where a group has no rows: a count (and a sum) of nothing is genuinely 0,
+    # but a mean/median/min/max of nothing is unknowable — filling 0 fabricates a crash
+    # to zero in the rendered line. Leave those as None (the renderer draws a gap).
+    missing_fill = 0.0 if agg in ("count", "sum") else None
     for name, s in per_group.items():
-        aligned = [float(s.get(p, 0.0)) for p in periods_sorted]
+        aligned = [
+            float(s[p]) if p in s.index else missing_fill
+            for p in periods_sorted
+        ]
         series_list.append({"name": name, "x": period_labels, "y": aligned})
 
     return ChartSpec(

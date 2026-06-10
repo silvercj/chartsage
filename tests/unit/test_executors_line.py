@@ -122,3 +122,29 @@ def test_integer_year_column_parsed_as_years():
     assert isinstance(result, ChartSpec)
     assert len(result.x) == 9
     assert result.x[0] == "1990" and result.x[-1] == "2022"
+
+
+def test_multi_series_mean_leaves_gaps_not_fabricated_zeros():
+    # Group B has no rows in Feb. A mean of nothing is unknowable — filling 0 fabricates
+    # a crash to zero in the rendered line. Missing periods must be None (a gap).
+    df = pd.DataFrame({
+        "d": ["2024-01-05", "2024-02-05", "2024-03-05", "2024-01-10", "2024-03-10"],
+        "g": ["A", "A", "A", "B", "B"],
+        "v": [10.0, 20.0, 30.0, 100.0, 300.0],
+    })
+    result = execute_line_chart(df, _params(
+        date_col="d", value_col="v", agg="mean", granularity="month", group_by="g"))
+    b = next(s for s in result.series if s["name"] == "B")
+    assert b["y"] == [100.0, None, 300.0]
+
+
+def test_multi_series_count_still_zero_fills():
+    # For a count, absence of rows genuinely means zero events — keep the 0.
+    df = pd.DataFrame({
+        "d": ["2024-01-05", "2024-02-05", "2024-03-05", "2024-01-10", "2024-03-10"],
+        "g": ["A", "A", "A", "B", "B"],
+        "v": [1.0, 1.0, 1.0, 1.0, 1.0],
+    })
+    result = execute_line_chart(df, _params(date_col="d", agg="count", group_by="g"))
+    b = next(s for s in result.series if s["name"] == "B")
+    assert b["y"] == [1.0, 0.0, 1.0]
