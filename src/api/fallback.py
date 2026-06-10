@@ -64,28 +64,12 @@ def drop_duplicates(existing, candidates) -> list:
     return kept
 
 
-# A column whose name IS one of these (e.g. "Year", "Decade") is a time/ordinal axis.
-# Matched on the WHOLE name (letters only) — not as a substring — so a rate like
-# "majors_per_year" or "goals_per_month", which merely *contains* a temporal word, is
-# never mistaken for the axis (that bug made the hurricanes report flat-line).
-_TEMPORAL_NAMES = {
-    "year", "years", "yr", "date", "dates", "decade", "decades", "season", "seasons",
-    "period", "periods", "quarter", "quarters", "month", "months", "week", "weeks",
-}
-
-
-def _ordinal_index(nums, df: pd.DataFrame) -> str | None:
-    """A numeric column that's a temporal/ordinal index — a year/decade/… axis with one
-    row per value (the x of a time series). Returns its name, or None. Lets the fallback
-    chart a metric OVER time instead of histogramming the year itself."""
-    for c in nums:
-        norm = "".join(ch for ch in c.name.lower() if ch.isalpha())
-        if norm not in _TEMPORAL_NAMES:
-            continue
-        s = pd.to_numeric(df[c.name], errors="coerce").dropna()
-        if len(s) >= 4 and s.nunique() >= 0.9 * len(s):
-            return c.name
-    return None
+def _ordinal_index(nums) -> str | None:
+    """The name of the numeric temporal/ordinal axis (a year/decade/… column with one
+    row per value — the x of a time series), or None. Detection lives in the profile
+    (ColumnInfo.temporal_ordinal) so the model, the fallback, and the KPI guard all
+    agree on which column is the time axis."""
+    return next((c.name for c in nums if c.temporal_ordinal), None)
 
 
 def _timeseries_line(df: pd.DataFrame, idx_col: str, value_col: str, intent: str) -> ChartSpec:
@@ -120,7 +104,7 @@ def pick_fallback_charts(profile: DataProfile, df: pd.DataFrame, max_charts: int
 
     cats = [c for c in profile.columns if c.role == "categorical" and 2 <= c.cardinality <= 30]
     nums = [c for c in profile.columns if c.role == "numeric"]
-    idx_name = _ordinal_index(nums, df)                 # a year/ordinal time axis, if any
+    idx_name = _ordinal_index(nums)                     # a year/ordinal time axis, if any
     metrics = [c for c in nums if c.name != idx_name]   # numerics minus the time axis
 
     def add(result: Any) -> bool:

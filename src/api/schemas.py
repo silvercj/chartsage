@@ -27,6 +27,10 @@ class ColumnInfo(BaseModel):
     unusable_reason: Optional[str] = None
     multi_value: bool = False
     delimiter: Optional[str] = None
+    # Numeric column that's really a time/ordinal axis (Year, Decade, Quarter — one row
+    # per period). Detected in profile.py; consumed by the prompt text, the fallback's
+    # lead-line pick, and the key-metrics role guard.
+    temporal_ordinal: bool = False
 
 
 class DataProfile(BaseModel):
@@ -42,6 +46,12 @@ class DataProfile(BaseModel):
             parts = [f"- {c.name}: role={c.role}, dtype={c.dtype}, cardinality={c.cardinality}, nulls={c.null_count}"]
             if c.role == "numeric":
                 parts.append(f"  min={c.min}, max={c.max}, mean={c.mean}, median={c.median}, std={c.std}")
+                if c.temporal_ordinal:
+                    parts.append(
+                        "  ordinal time axis (one row per period) — chart metrics OVER it "
+                        "(line_chart date_col, or the x of a comparison); never histogram it, "
+                        "aggregate it as a metric, or report it as a key metric"
+                    )
             elif c.role == "categorical" and c.top_values:
                 top = ", ".join(f"{v}={n}" for v, n in c.top_values[:5])
                 if c.multi_value:

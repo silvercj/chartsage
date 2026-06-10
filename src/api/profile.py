@@ -28,6 +28,28 @@ _NON_NEGATIVE_KEYWORDS = ("duration", "count", "quantity", "age", "price",
                           "amount", "revenue", "sales", "cost")
 _DATE_KEYWORDS = ("date", "time", "created", "updated", "start", "end", "timestamp")
 
+# A numeric column whose name IS one of these (e.g. "Year", "Decade") is a time/ordinal
+# axis. Matched on the WHOLE name (letters only) — not as a substring — so a rate like
+# "majors_per_year" or "goals_per_month", which merely *contains* a temporal word, is
+# never mistaken for the axis (that bug made the hurricanes report flat-line).
+_TEMPORAL_NAMES = {
+    "year", "years", "yr", "date", "dates", "decade", "decades", "season", "seasons",
+    "period", "periods", "quarter", "quarters", "month", "months", "week", "weeks",
+}
+
+
+def _has_temporal_name(name: str) -> bool:
+    return "".join(ch for ch in name.lower() if ch.isalpha()) in _TEMPORAL_NAMES
+
+
+def _is_temporal_ordinal(name: str, series: pd.Series) -> bool:
+    """True for a numeric time/ordinal axis: a temporally-named column with (near-)one
+    row per value — the x of a time series (e.g. Year in a one-row-per-year table)."""
+    if not _has_temporal_name(name):
+        return False
+    s = pd.to_numeric(series, errors="coerce").dropna()
+    return len(s) >= 4 and s.nunique() >= 0.9 * len(s)
+
 
 def _is_identifier(name: str, dtype: str, cardinality: int, row_count: int) -> bool:
     lower = name.lower()
@@ -35,9 +57,12 @@ def _is_identifier(name: str, dtype: str, cardinality: int, row_count: int) -> b
         return True
     # Cardinality-based: only integer columns where every value is unique
     # Require a minimum of 50 rows to avoid misclassifying small analytic ranges (e.g. x=0..19)
+    # A temporally-named column (Year, Decade) is exempt: a long yearly series is all-unique
+    # ints too, but it's the time axis, not a row ID.
     if (np.issubdtype(np.dtype(dtype), np.integer)
             and cardinality == row_count
-            and row_count >= 50):
+            and row_count >= 50
+            and not _has_temporal_name(name)):
         return True
     return False
 
@@ -86,6 +111,7 @@ def _profile_column(name: str, series: pd.Series, row_count: int) -> ColumnInfo:
             mean=float(nonnull.mean()) if len(nonnull) else None,
             median=float(nonnull.median()) if len(nonnull) else None,
             std=float(nonnull.std()) if len(nonnull) > 1 else None,
+            temporal_ordinal=_is_temporal_ordinal(name, series),
         )
 
     # Low-cardinality categorical: enumerate the full top-5.
