@@ -12,7 +12,12 @@ from typing import Any
 import pandas as pd
 from schemas import ChartSpec, Report, ChartWithCaption, ReportNarrative, ToolError, DataProfile
 from chart_tools import CHART_TOOLS, NARRATIVE_TOOL
-from chart_executor import TOOL_EXECUTORS, execute_key_metrics, normalize_percentage_spec
+from chart_executor import (
+    TOOL_EXECUTORS,
+    degenerate_reason,
+    execute_key_metrics,
+    normalize_percentage_spec,
+)
 from fallback import pick_fallback_charts, drop_duplicates
 
 
@@ -69,6 +74,7 @@ class ReportGenerator:
         # prompt is cached) and is treated as guidance, not a rule override.
         self.custom_prompt = (custom_prompt or "").strip()[:280] or None
         self._key_metrics: list = []
+        self._degenerate_rejections = 0   # model charts rejected by degenerate_reason()
         self._token_totals = {
             "input_tokens_total": 0,
             "output_tokens_total": 0,
@@ -207,10 +213,19 @@ class ReportGenerator:
             if isinstance(result, ToolError):
                 errors.append({"id": block.id, "reason": result.reason})
                 logging.warning("[GEN] tool '%s' error: %s", block.name, result.reason)
-            else:
-                specs.append(normalize_percentage_spec(result))
-                if len(specs) >= MAX_CHARTS:
-                    break
+                continue
+            # A spec that executed fine but renders as nothing (flat all-1s bar,
+            # single-point line) is rejected like a schema error, so the retry round
+            # asks for a better chart instead of the report shipping a dud.
+            reason = degenerate_reason(result)
+            if reason is not None:
+                errors.append({"id": block.id, "reason": reason})
+                self._degenerate_rejections += 1
+                logging.warning("[GEN] tool '%s' degenerate: %s", block.name, reason)
+                continue
+            specs.append(normalize_percentage_spec(result))
+            if len(specs) >= MAX_CHARTS:
+                break
         return specs, errors
 
     def generate_narrative(self, charts: list[ChartSpec]) -> ReportNarrative:

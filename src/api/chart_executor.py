@@ -144,6 +144,58 @@ def normalize_percentage_spec(spec: ChartSpec) -> ChartSpec:
     return spec
 
 
+def degenerate_reason(spec: ChartSpec) -> str | None:
+    """Why a successfully-executed spec would still render as a meaningless chart — or
+    None when it's fine. Run on every model-selected spec before acceptance, so a
+    degenerate chart becomes a ToolError and the existing retry round asks for a better
+    one. This is the general net for the 'executed fine but shows nothing' bug class
+    (flat all-1s bar, single-point line, one-slice pie). Deliberately conservative:
+    only shapes that can never be worth rendering are rejected."""
+    n_x = len(spec.x) if spec.x else 0
+
+    # A frequency bar where every count is 1: the column is a row label, not a category.
+    if (spec.kind == "bar" and spec.y_display_type == "count" and n_x > 1
+            and all(v == 1 for v in (spec.y or []))):
+        col = spec.x_label or (spec.source_columns[0] if spec.source_columns else "the column")
+        return (f"every value of '{col}' appears exactly once (it's a row label), so the "
+                f"counts are all 1 — a flat bar. Chart a numeric column BY '{col}' with "
+                f"aggregation_bar_chart instead.")
+
+    if spec.kind in ("bar", "pie") and spec.x is not None and n_x <= 1:
+        return (f"this {spec.kind} chart has only {n_x} category — nothing to compare. "
+                f"Pick a column with more distinct values or a different chart.")
+
+    if spec.kind == "line":
+        if spec.x is not None and n_x < 3:
+            return (f"this line has only {n_x} point(s) — too few for a trend. Use a finer "
+                    f"granularity, a different date column, or a bar comparison instead.")
+        if spec.series:
+            longest = max(
+                (len([v for v in (s.get("y") or []) if v is not None]) for s in spec.series),
+                default=0,
+            )
+            if longest < 2:
+                return ("every series in this line has fewer than 2 points — it renders as "
+                        "disconnected dots, not trends. Drop the group_by or use a bar comparison.")
+
+    if spec.kind == "scatter":
+        points = n_x if spec.x is not None else sum(len(s.get("x") or []) for s in (spec.series or []))
+        if points < 3:
+            return (f"only {points} point(s) — too few to show a relationship. "
+                    f"Pick columns with more non-null data or a different chart.")
+
+    if (spec.kind == "heatmap" and n_x <= 1
+            and spec.y is not None and len(spec.y) <= 1):
+        return ("this heatmap is a single cell — nothing to compare. "
+                "Pick row/col columns with more distinct values.")
+
+    if spec.kind == "treemap" and spec.nodes is not None and len(spec.nodes) <= 1:
+        return ("this treemap has a single node — no composition to show. "
+                "Pick a category with more distinct values.")
+
+    return None
+
+
 def execute_frequency_bar_chart(df: pd.DataFrame, params: dict) -> ChartSpec | ToolError:
     column = params["column"]
     title = params["title"]
