@@ -18,7 +18,7 @@ from chart_executor import (
     execute_key_metrics,
     normalize_percentage_spec,
 )
-from fallback import pick_fallback_charts, drop_duplicates
+from fallback import pick_fallback_charts, drop_duplicates, chart_signature
 
 
 MAX_CHARTS = 10
@@ -114,7 +114,7 @@ class ReportGenerator:
 
         if errors:
             specs2, _ = self._call_selection_retry(response_content, errors)
-            specs.extend(specs2)
+            specs.extend(drop_duplicates(specs, specs2))
 
         # Clean under-selection: the model picked too few charts but hit no errors,
         # so neither the error-retry nor the fallback floor (3) would fire. Push for
@@ -194,6 +194,7 @@ class ReportGenerator:
     def _execute_tool_calls(self, content_blocks: list[Any]) -> tuple[list[ChartSpec], list[dict]]:
         specs: list[ChartSpec] = []
         errors: list[dict] = []
+        seen_sigs: set = set()   # within-round dedup: the model sometimes repeats itself
         for block in content_blocks:
             if getattr(block, "type", None) != "tool_use":
                 continue
@@ -235,7 +236,12 @@ class ReportGenerator:
                 self._degenerate_rejections += 1
                 logging.warning("[GEN] tool '%s' degenerate: %s", block.name, reason)
                 continue
-            specs.append(normalize_percentage_spec(result))
+            spec = normalize_percentage_spec(result)
+            sig = chart_signature(spec)
+            if sig in seen_sigs:
+                continue   # same kind over the same columns — keep the model's first
+            seen_sigs.add(sig)
+            specs.append(spec)
             if len(specs) >= MAX_CHARTS:
                 break
         return specs, errors
@@ -326,10 +332,11 @@ class ReportGenerator:
 
         if errors:
             specs2, _ = self._call_selection_retry(response.content, errors)
-            specs.extend(specs2)
+            specs.extend(drop_duplicates(specs, specs2))
 
-        # Cap at 5 new charts
-        specs = specs[:5]
+        # "Different angles" enforced, not just prompted: drop re-makes of existing
+        # charts, then cap at 5 new ones.
+        specs = drop_duplicates([c.spec for c in existing], specs)[:5]
 
         # Narrative captions for the new charts only
         narrative = self.generate_narrative(specs) if specs else None
@@ -382,12 +389,6 @@ class ReportGenerator:
         spec = specs[0]
         return ChartWithCaption(chart_id=uuid4().hex, spec=spec, caption=spec.intent)
 
-    @staticmethod
-    def _angle_key(spec: ChartSpec) -> tuple:
-        """Dedupe key for a chart: its kind + the set of columns it draws from.
-        Two charts with the same kind over the same columns are 'the same angle'."""
-        return (spec.kind, tuple(sorted(spec.source_columns)))
-
     def _call_selection_more(self, existing_specs: list[ChartSpec]) -> list[ChartSpec]:
         """One extra selection round when pass-1 under-selected (no errors). Asks for
         ADDITIONAL, DIFFERENT charts toward MAX_CHARTS, explicitly green-lighting more
@@ -414,19 +415,8 @@ class ReportGenerator:
             cache_static=True,
         )
         specs, _ = self._execute_tool_calls(response.content)
-
-        seen = {self._angle_key(s) for s in existing_specs}
         room = MAX_CHARTS - len(existing_specs)
-        new_specs: list[ChartSpec] = []
-        for s in specs:
-            key = self._angle_key(s)
-            if key in seen:
-                continue
-            seen.add(key)
-            new_specs.append(s)
-            if len(new_specs) >= room:
-                break
-        return new_specs
+        return drop_duplicates(existing_specs, specs)[:room]
 
     def deepen(self, seed_specs: list[ChartSpec]) -> list[ChartSpec]:
         """Iterative-deepening loop: add follow-up charts the AI thinks reveal more,
@@ -460,6 +450,9 @@ class ReportGenerator:
             specs, _ = self._execute_tool_calls(response.content)
             if not specs:
                 break                       # AI's "done" signal
+            specs = drop_duplicates(have, specs)
+            if not specs:
+                break                       # a repeats-only round is the same as "done"
             room = MAX_DEEP_CHARTS - len(have)
             specs = specs[:room]
             have.extend(specs)

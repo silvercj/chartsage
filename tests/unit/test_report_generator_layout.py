@@ -17,13 +17,29 @@ def _make_generator(df, fake):
 
 
 def _ten_charts_response(activities):
-    """Build a FakeClaude with 10 chart tool calls + a narrative call."""
-    chart_calls = []
-    for i in range(10):
-        chart_calls.append(tool_use(
-            "frequency_bar_chart",
-            {"column": "activity_type", "title": f"Chart {i}", "intent": f"i{i}"},
-        ))
+    """Build a FakeClaude with 10 distinct chart tool calls (10 different signatures —
+    same-signature repeats are deduped) + a narrative call."""
+    chart_calls = [
+        tool_use("frequency_bar_chart", {"column": "activity_type"}),
+        tool_use("aggregation_bar_chart",
+                 {"value_col": "duration_minutes", "group_col": "activity_type", "agg": "mean"}),
+        tool_use("histogram_chart", {"column": "duration_minutes"}),
+        tool_use("box_plot", {"value_col": "duration_minutes", "group_col": "activity_type"}),
+        tool_use("box_plot", {"value_col": "duration_minutes"}),
+        tool_use("pie_chart", {"category_col": "activity_type", "agg": "count"}),
+        tool_use("line_chart", {"date_col": "activity_date", "value_col": "duration_minutes",
+                                "agg": "count", "granularity": "week"}),
+        tool_use("line_chart", {"date_col": "activity_date", "value_col": "duration_minutes",
+                                "agg": "sum", "granularity": "week"}),
+        tool_use("treemap_chart", {"category_col": "activity_type",
+                                   "value_col": "duration_minutes", "agg": "sum"}),
+        tool_use("dual_axis_chart", {"x_col": "activity_type",
+                                     "bar_value_col": "duration_minutes",
+                                     "line_value_col": "duration_minutes",
+                                     "bar_agg": "sum", "line_agg": "mean"}),
+    ]
+    for i, c in enumerate(chart_calls):
+        c["input"].update({"title": f"Chart {i}", "intent": f"i{i}"})
     return FakeClaude([
         {"tool_calls": chart_calls},
         {"tool_calls": [tool_use(
@@ -66,10 +82,15 @@ def test_default_layout_splits_5_main_5_sidebar(activities):
 
 def test_fewer_than_5_charts_all_main(activities):
     """Edge case: if only 3 charts come back, all go to main."""
-    chart_calls = [tool_use(
-        "frequency_bar_chart",
-        {"column": "activity_type", "title": f"c{i}", "intent": "i"},
-    ) for i in range(3)]
+    chart_calls = [
+        tool_use("frequency_bar_chart",
+                 {"column": "activity_type", "title": "c0", "intent": "i"}),
+        tool_use("histogram_chart",
+                 {"column": "duration_minutes", "title": "c1", "intent": "i"}),
+        tool_use("box_plot",
+                 {"value_col": "duration_minutes", "group_col": "activity_type",
+                  "title": "c2", "intent": "i"}),
+    ]
     fake = FakeClaude([
         {"tool_calls": chart_calls},
         {"tool_calls": []},  # reach-for-more (under target, no errors) proposes nothing
