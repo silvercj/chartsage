@@ -4,6 +4,42 @@ import numpy as np
 import pandas as pd
 
 
+_MONTHS = ["january", "february", "march", "april", "may", "june",
+           "july", "august", "september", "october", "november", "december"]
+_WEEKDAYS = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]
+
+
+def _positions(names: list[str], extra: dict[str, int] | None = None) -> dict[str, int]:
+    pos = {}
+    for i, n in enumerate(names):
+        pos[n] = i
+        pos[n[:3]] = i        # common 3-letter abbreviations (jan, mon, …)
+    pos.update(extra or {})
+    return pos
+
+
+_SEQUENCES = (
+    _positions(_MONTHS, {"sept": 8}),
+    _positions(_WEEKDAYS, {"tues": 1, "thurs": 3}),
+    {f"q{i + 1}": i for i in range(4)},
+)
+
+
+def natural_category_order(values: list) -> list | None:
+    """Reorder month / weekday / quarter names chronologically, or None when the values
+    aren't such a sequence. Category axes default to value/count order, which renders
+    months alphabetically (Apr, Aug, Dec…) or by revenue — noise for a time-like axis.
+    Conservative: every value must belong to ONE known sequence, and at least 3 distinct
+    values are required ('May'/'Mar' alone could be people's names)."""
+    keys = [str(v).strip().lower() for v in values]
+    if len(set(keys)) < 3:
+        return None
+    for pos in _SEQUENCES:
+        if all(k in pos for k in keys):
+            return [v for _, v in sorted(zip(keys, values), key=lambda kv: pos[kv[0]])]
+    return None
+
+
 def compute_group_count(df: pd.DataFrame, group_col: str) -> tuple[list, list]:
     """Return (categories, counts) sorted by count descending."""
     if group_col not in df.columns:

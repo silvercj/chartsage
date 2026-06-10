@@ -11,6 +11,7 @@ import numpy as np
 import pandas as pd
 from schemas import ChartSpec, KeyMetric, ToolError
 from multi_value import detect_multi_value, explode_multi_value
+from data_processing_utils import natural_category_order
 
 
 MAX_CATEGORIES = 30
@@ -32,6 +33,16 @@ _EXPLICIT_PERCENT_MARKERS = ("pct", "percent", "%")
 
 def _err(reason: str) -> ToolError:
     return ToolError(reason=reason)
+
+
+def _natural_reorder(x: list, y: list) -> tuple[list, list]:
+    """Chronological order for a month/weekday/quarter category axis (values follow
+    their categories); any other axis is returned unchanged."""
+    order = natural_category_order(x)
+    if order is None:
+        return x, y
+    idx = {v: i for i, v in enumerate(x)}
+    return order, [y[idx[v]] for v in order]
 
 
 def _available_columns_by_role(df: pd.DataFrame) -> dict[str, list[str]]:
@@ -233,6 +244,7 @@ def execute_frequency_bar_chart(df: pd.DataFrame, params: dict) -> ChartSpec | T
 
     x = [str(v) for v in counts.index.tolist()]
     y = [int(v) for v in counts.values.tolist()]
+    x, y = _natural_reorder(x, y)
 
     return ChartSpec(
         kind="bar",
@@ -288,12 +300,16 @@ def execute_aggregation_bar_chart(df: pd.DataFrame, params: dict) -> ChartSpec |
     if len(grouped) > MAX_CATEGORIES:
         grouped = grouped.head(MAX_CATEGORIES)
 
+    x = [str(k) for k in grouped.index.tolist()]
+    y = [float(v) for v in grouped.values.tolist()]
+    x, y = _natural_reorder(x, y)
+
     return ChartSpec(
         kind="bar",
         title=title,
         intent=intent,
-        x=[str(k) for k in grouped.index.tolist()],
-        y=[float(v) for v in grouped.values.tolist()],
+        x=x,
+        y=y,
         x_label=group_col,
         y_label=f"{agg.capitalize()} of {value_col}",
         x_display_type="category",
@@ -778,6 +794,14 @@ def execute_heatmap_chart(df: pd.DataFrame, params: dict) -> ChartSpec | ToolErr
     if pivot.shape[0] > MAX_CATEGORIES or pivot.shape[1] > MAX_CATEGORIES:
         return _err(f"Heatmap dimensions {pivot.shape} exceed {MAX_CATEGORIES} × {MAX_CATEGORIES} max.")
 
+    # Month/weekday/quarter axes read chronologically.
+    nat_rows = natural_category_order(list(pivot.index))
+    if nat_rows is not None:
+        pivot = pivot.loc[nat_rows]
+    nat_cols = natural_category_order(list(pivot.columns))
+    if nat_cols is not None:
+        pivot = pivot[nat_cols]
+
     series = []
     for r in pivot.index:
         for c in pivot.columns:
@@ -848,8 +872,12 @@ def execute_grouped_bar_chart(df: pd.DataFrame, params: dict) -> ChartSpec | Too
     pivot = work.pivot_table(
         index=category_col, columns=breakdown_col, values=value_col, aggfunc=agg
     )
-    # x order: categories by total value descending (matches aggregation_bar_chart).
+    # x order: categories by total value descending (matches aggregation_bar_chart) —
+    # unless the categories are month/weekday/quarter names, which read chronologically.
     pivot = pivot.loc[pivot.sum(axis=1).sort_values(ascending=False).index]
+    nat = natural_category_order(list(pivot.index))
+    if nat is not None:
+        pivot = pivot.loc[nat]
 
     x = [str(c) for c in pivot.index.tolist()]
     series_list: list[dict] = []
@@ -927,11 +955,15 @@ def execute_dual_axis_chart(df: pd.DataFrame, params: dict) -> ChartSpec | ToolE
     bar_series = _agg_col(bar_value_col, bar_agg)
     line_series = _agg_col(line_value_col, line_agg)
 
-    # Shared x: union of categories present in either aggregation, bar order first.
+    # Shared x: union of categories present in either aggregation, bar order first —
+    # but month/weekday/quarter names read chronologically.
     x_index = list(bar_series.index)
     for k in line_series.index:
         if k not in bar_series.index:
             x_index.append(k)
+    nat = natural_category_order(x_index)
+    if nat is not None:
+        x_index = nat
 
     x = [str(k) for k in x_index]
     bar_data = [None if pd.isna(bar_series.get(k)) else float(bar_series.get(k)) for k in x_index]
