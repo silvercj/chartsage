@@ -38,6 +38,17 @@ SELECTION_SYSTEM = (_PROMPT_DIR / "selection_system.txt").read_text()
 NARRATIVE_SYSTEM = (_PROMPT_DIR / "narrative_system.txt").read_text()
 
 
+def _as_int_list(values) -> list[int]:
+    """Model-supplied index list -> ints, silently skipping anything non-numeric."""
+    out: list[int] = []
+    for v in values or []:
+        try:
+            out.append(int(v))
+        except (TypeError, ValueError):
+            continue
+    return out
+
+
 def _serialize_content(blocks: list[Any]) -> list[dict]:
     """Convert response.content blocks back into request-shape dicts."""
     out: list[dict] = []
@@ -75,6 +86,7 @@ class ReportGenerator:
         self.custom_prompt = (custom_prompt or "").strip()[:280] or None
         self._key_metrics: list = []
         self._degenerate_rejections = 0   # model charts rejected by degenerate_reason()
+        self._curation_dropped = 0        # charts dropped by the narrative curation pass
         self._token_totals = {
             "input_tokens_total": 0,
             "output_tokens_total": 0,
@@ -247,6 +259,8 @@ class ReportGenerator:
                     summary=data.get("summary", ""),
                     captions=list(data.get("captions", [])),
                     data_quality=list(data.get("data_quality", [])),
+                    chart_order=_as_int_list(data.get("chart_order")),
+                    drop_charts=_as_int_list(data.get("drop_charts")),
                 )
         return self._narrative_template_fallback(charts)
 
@@ -452,6 +466,30 @@ class ReportGenerator:
             added.extend(specs)
         return added
 
+    def _apply_curation(
+        self, charts: list[ChartSpec], captions: list[str], narrative: ReportNarrative,
+    ) -> list[tuple[ChartSpec, str]]:
+        """Apply the narrative pass's curation (it saw the computed data): drop the duds
+        it flagged — never below the fallback floor of charts — then order the rest by
+        its importance ranking (hero first); unranked charts keep their relative order.
+        Indices are 1-based; invalid or duplicate ones are ignored."""
+        n = len(charts)
+        max_drops = max(0, n - MIN_CHARTS_FOR_NO_FALLBACK)
+        drop_set: set[int] = set()
+        for i in narrative.drop_charts:
+            if len(drop_set) >= max_drops:
+                break
+            if 1 <= i <= n:
+                drop_set.add(i)
+        self._curation_dropped = len(drop_set)
+
+        order: list[int] = []
+        for i in narrative.chart_order:
+            if 1 <= i <= n and i not in drop_set and i not in order:
+                order.append(i)
+        order += [i for i in range(1, n + 1) if i not in drop_set and i not in order]
+        return [(charts[i - 1], captions[i - 1]) for i in order]
+
     def build_report(self, deep: bool = False) -> Report:
         from datetime import datetime
         from uuid import uuid4
@@ -467,10 +505,14 @@ class ReportGenerator:
         if len(captions) < len(charts):
             captions = captions + [c.intent for c in charts[len(captions):]]
 
+        # Curate using what the narrative pass saw in the computed data: hero first,
+        # duds dropped. Captions travel with their charts.
+        curated = self._apply_curation(charts, captions, narrative)
+
         # Assign stable chart_ids
         charts_with_caption = [
             ChartWithCaption(chart_id=uuid4().hex, spec=spec, caption=cap)
-            for spec, cap in zip(charts, captions)
+            for spec, cap in curated
         ]
 
         # Default layout: first 5 -> main, next 5 -> sidebar
@@ -494,6 +536,8 @@ class ReportGenerator:
                 "column_count": len(self.profile.columns),
                 "custom_prompt": self.custom_prompt,
                 "deep": deep,
+                "degenerate_rejected_total": self._degenerate_rejections,
+                "curation_dropped_total": self._curation_dropped,
                 **self._token_totals,
             },
         )

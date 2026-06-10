@@ -245,6 +245,20 @@ NARRATIVE_TOOL: dict = {
                 "items": {"type": "string"},
                 "description": "Notes about data issues. Empty array if none.",
             },
+            "chart_order": {
+                "type": "array",
+                "items": {"type": "integer"},
+                "description": "Optional. The chart numbers (1-based, as given) reordered "
+                               "best-first: the single most interesting chart leads the report "
+                               "as the hero. Omit to keep the given order.",
+            },
+            "drop_charts": {
+                "type": "array",
+                "items": {"type": "integer"},
+                "description": "Optional. Chart numbers whose computed data turned out flat, "
+                               "empty, or redundant with a kept chart. Use sparingly — only "
+                               "clear duds. Omit to keep all charts.",
+            },
         },
         "required": ["summary", "captions", "data_quality"],
         "additionalProperties": False,

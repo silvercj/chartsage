@@ -123,6 +123,11 @@ class ReportNarrative(BaseModel):
     summary: str
     captions: list[str]
     data_quality: list[str]
+    # Curation by the narrative pass — the only model call that sees the computed chart
+    # data. 1-based indices into the charts it was given: an importance ordering (hero
+    # first) and charts to drop because their data turned out to show nothing.
+    chart_order: list[int] = Field(default_factory=list)
+    drop_charts: list[int] = Field(default_factory=list)
 
 
 class Report(BaseModel):
