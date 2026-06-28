@@ -559,6 +559,10 @@ async def generate_report(
 # on hand — experience a real report in one tap, without an account, a file, or spending
 # their one free report. The id is a fixed 32-hex string (same shape as uuid4().hex).
 SAMPLE_REPORT_ID = "5a3b1ec05a3b1ec05a3b1ec05a3b1ec0"
+# The reports table has a CHECK constraint requiring an owner (anon_id OR user_id set).
+# The sample is system-owned, so give it a fixed sentinel anon_id no real visitor uses —
+# it satisfies the constraint and never affects any visitor's free-report cap.
+SAMPLE_ANON_ID = "5a3b1ec0-5a3b-4ec0-8a3b-1ec05a3b1ec0"
 _SAMPLE_CSV_PATH = os.path.join(os.path.dirname(__file__), "samples", "showcase.csv")
 _SAMPLE_FOCUS = (
     "DTC retail orders for one quarter — surface the revenue trend over time, the regional "
@@ -598,19 +602,18 @@ async def sample_report(
             csv_key = storage.upload_csv(SAMPLE_REPORT_ID, df.to_csv(index=False).encode("utf-8"))
             db.save_report(
                 report_id=SAMPLE_REPORT_ID,
-                anon_id=None,
+                anon_id=SAMPLE_ANON_ID,   # sentinel owner — satisfies the reports owner CHECK
                 user_id=None,
                 report_json=report.model_dump(),
                 csv_storage_key=csv_key,
                 title=_title_from_summary(report.summary),
             )
             db.set_report_visibility(SAMPLE_REPORT_ID, True)   # anyone can view it
-        except Exception as e:
+        except Exception:
             logging.exception("Sample report generation failed")
             raise HTTPException(status_code=503, detail={
                 "code": "SAMPLE_UNAVAILABLE",
                 "message": "Could not load the sample report right now. Please try again.",
-                "error": f"{type(e).__name__}: {e}"[:300],   # surfaced for the CI warm step / debugging
             })
 
     posthog.capture("system-sample", "sample_report_generated", {"reportId": SAMPLE_REPORT_ID})

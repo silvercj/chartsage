@@ -44,7 +44,7 @@ def test_first_call_generates_public_sample(ctx):
     row = db.get_report(SAMPLE_REPORT_ID)
     assert row is not None
     assert row["is_public"] is True            # any visitor can view it
-    assert row["user_id"] is None and row["anon_id"] is None
+    assert row["user_id"] is None              # system-owned (sentinel anon_id, no real user)
     assert len(row["report_json"]["charts"]) >= 3
 
 
