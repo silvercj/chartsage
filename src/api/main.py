@@ -605,11 +605,12 @@ async def sample_report(
                 title=_title_from_summary(report.summary),
             )
             db.set_report_visibility(SAMPLE_REPORT_ID, True)   # anyone can view it
-        except Exception:
+        except Exception as e:
             logging.exception("Sample report generation failed")
             raise HTTPException(status_code=503, detail={
                 "code": "SAMPLE_UNAVAILABLE",
                 "message": "Could not load the sample report right now. Please try again.",
+                "error": f"{type(e).__name__}: {e}"[:300],   # surfaced for the CI warm step / debugging
             })
 
     posthog.capture("system-sample", "sample_report_generated", {"reportId": SAMPLE_REPORT_ID})

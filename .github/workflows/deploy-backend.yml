@@ -71,4 +71,7 @@ jobs:
         run: |
           URL="$(gcloud run services describe "$SERVICE" --region="$REGION" --project="$PROJECT" --format='value(status.url)')"
           echo ">> warming $URL/sample-report (first call generates it; ~30s)"
-          curl -fsS --max-time 120 "$URL/sample-report" && echo "  sample ready" || echo "  (warm failed; non-fatal — first visitor will generate it)"
+          CODE="$(curl -s -o /tmp/sample.json -w '%{http_code}' --max-time 150 "$URL/sample-report")"
+          echo "  HTTP $CODE"
+          echo "  body: $(cat /tmp/sample.json 2>/dev/null)"
+          [ "$CODE" = "200" ] && echo "  sample ready" || echo "  (warm failed; non-fatal — first visitor will generate it)"
