@@ -6,12 +6,13 @@ name: Deploy backend (Cloud Run)
 # path's substitution DEFAULTS are placeholders that would clobber SUPABASE_URL + Stripe
 # envs (see CLAUDE.md). For env/secret changes, use cloudbuild.yaml with every --substitution.
 on:
-  # Deliberate deploy trigger: push a tag like `backend-deploy-<sha>`. (The API token
-  # backing the assistant can push tags but can't dispatch workflows, so a tag push is
-  # how a deploy gets kicked off without a laptop. Pushing a tag = explicit deploy intent.)
+  # Deliberate deploy trigger: push the commit to deploy onto the `ci/deploy-backend`
+  # branch. (The API token backing the assistant can push branches but can't dispatch
+  # workflows or push tags through the proxy, so a push to this dedicated branch is how a
+  # deploy gets kicked off without a laptop. Pushing here = explicit deploy intent.)
   push:
-    tags:
-      - 'backend-deploy-*'
+    branches:
+      - ci/deploy-backend
   # Manual trigger from the GitHub UI (Actions → Deploy backend → Run workflow).
   workflow_dispatch:
     inputs:
