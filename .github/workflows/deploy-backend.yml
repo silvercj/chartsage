@@ -49,7 +49,11 @@ jobs:
           IMAGE="gcr.io/$PROJECT/$SERVICE:$SHORT"
           echo "IMAGE=$IMAGE" >> "$GITHUB_ENV"
           echo ">> building $IMAGE"
-          gcloud builds submit --tag "$IMAGE" --project "$PROJECT" .
+          # --default-buckets-behavior: store source + logs in a regional bucket this SA
+          # owns, so log streaming works without granting the deploy SA project Viewer
+          # (the default logs bucket is only readable by Viewer/Owner, which fails the build).
+          gcloud builds submit --tag "$IMAGE" --project "$PROJECT" \
+            --default-buckets-behavior=regional-user-owned-bucket .
 
       - name: Swap image on Cloud Run (env + secrets preserved)
         run: |
