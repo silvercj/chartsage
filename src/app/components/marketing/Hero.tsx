@@ -1,8 +1,25 @@
 'use client';
+import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { posthog } from '../../lib/posthog';
+import { openSampleReport } from '../../lib/sample';
 import { HERO, APP_HREF } from './content';
 
 export default function Hero() {
+  const router = useRouter();
+  const [loadingSample, setLoadingSample] = useState(false);
+
+  useEffect(() => {
+    posthog.capture?.('landing_hero_viewed');
+  }, []);
+
+  async function onSample(location: string) {
+    if (loadingSample) return;
+    setLoadingSample(true);
+    const ok = await openSampleReport((href) => router.push(href), location);
+    if (!ok) setLoadingSample(false);   // stay put on failure; navigation unmounts on success
+  }
+
   return (
     <header className="relative overflow-hidden">
       {/* teal radial glow (the mockup's .hero::after) */}
@@ -36,13 +53,28 @@ export default function Hero() {
               >
                 {HERO.ctaPrimary}
               </a>
-              <a href="#example" className="btn btn-ghost">{HERO.ctaSecondary}</a>
+              <button
+                type="button"
+                onClick={() => onSample('hero')}
+                disabled={loadingSample}
+                className="btn btn-ghost disabled:opacity-60"
+              >
+                {loadingSample ? 'Loading sample…' : HERO.ctaSecondary}
+              </button>
             </div>
+            <p className="text-ink-3 text-sm mt-3">No file handy? {HERO.ctaSecondary} — no signup needed.</p>
           </div>
 
-          {/* hero report preview (light) */}
+          {/* hero report preview (light) — clickable: opens the real sample report */}
           <div className="theme-light">
-            <div className="bg-surface border border-line rounded-2xl shadow-card-lg overflow-hidden text-ink">
+            <div
+              role="button"
+              tabIndex={0}
+              aria-label="Open a live sample report"
+              onClick={() => onSample('hero_preview')}
+              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSample('hero_preview'); } }}
+              className="bg-surface border border-line rounded-2xl shadow-card-lg overflow-hidden text-ink cursor-pointer transition-shadow hover:shadow-card-lg focus:outline-none focus:ring-2 focus:ring-accent"
+            >
               <div className="flex items-start justify-between border-b border-line px-5 pt-[18px] pb-3.5">
                 <div>
                   <h4 className="font-display font-medium text-lg">Q3 Sales Performance</h4>

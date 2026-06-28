@@ -1,11 +1,12 @@
 'use client';
 
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import { useDropzone } from 'react-dropzone';
 import { useRouter } from 'next/navigation';
 import Papa from 'papaparse';
 import * as XLSX from 'xlsx';
 import { apiFetch } from '../lib/api';
+import { posthog } from '../lib/posthog';
 import OutOfCreditsModal from '../components/OutOfCreditsModal';
 import { useCredits } from '../lib/useCredits';
 import { REPORT_COST, DEEP_ANALYSIS_COST } from '../lib/credits';
@@ -36,6 +37,11 @@ export default function Home() {
   const { balance, refetch } = useCredits();
   const router = useRouter();
 
+  // Funnel: the visitor reached the uploader (the step paid ad traffic never got to).
+  useEffect(() => {
+    posthog.capture?.('uploader_viewed');
+  }, []);
+
   const loadSheet = useCallback((wb: XLSX.WorkBook, name: string) => {
     const ws = wb.Sheets[name];
     const parsed: Record<string, any>[] = ws
@@ -63,6 +69,7 @@ export default function Home() {
       setFile(f);
       setError(null);
       setIsLargeFile(f.size > 10 * 1024 * 1024);
+      posthog.capture?.('file_selected', { sizeBytes: f.size, ext: /\.xlsx$/i.test(f.name) ? 'xlsx' : 'csv' });
       // Reset any prior parse state.
       wbRef.current = null;
       setSheetNames([]);

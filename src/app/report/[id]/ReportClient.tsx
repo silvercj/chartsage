@@ -18,6 +18,8 @@ import {
 } from '@dnd-kit/sortable';
 import { useReportLayout, type Report } from './useReportLayout';
 import { apiFetch } from '../../lib/api';
+import { SAMPLE_REPORT_ID } from '../../lib/sample';
+import { posthog } from '../../lib/posthog';
 import ReportFeedback from './ReportFeedback';
 
 const ChartCard = dynamic(() => import('./ChartCard'), { ssr: false });
@@ -132,6 +134,22 @@ function ReportView({ sessionId, initialReport }: { sessionId: string; initialRe
   return (
     <div className="theme-light bg-canvas text-ink min-h-screen">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {sessionId === SAMPLE_REPORT_ID && (
+          <div className="mb-6 rounded-2xl border border-accent/40 bg-accent/10 px-5 py-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <p className="text-sm text-ink-2">
+              <span className="font-medium text-ink">This is a live sample report.</span>{' '}
+              Drop in your own spreadsheet to get one like this — your first report is free.
+            </p>
+            <a
+              href="/app"
+              onClick={() => posthog.capture?.('sample_make_your_own_clicked')}
+              className="btn btn-primary shrink-0 w-full sm:w-auto text-center"
+            >
+              Make your own →
+            </a>
+          </div>
+        )}
+
         <Toolbar sessionId={sessionId} report={report} onReportUpdated={replaceReport} />
 
         <ReportSummary summary={report.summary} generatedAt={report.generated_at} />

@@ -124,3 +124,20 @@ this makes the skew visible; the report-level `chartKinds[]` array undercounts r
 | `marketing_cta_clicked` | FE | marketing CTA clicked | location (hero/pricing/nav/closing) | baseline |
 | `contact_submitted` | FE | contact form submitted | — | baseline |
 | `support_request` | BE | support/contact endpoint hit | (see `main.py`) | baseline |
+
+## Landing → activation funnel
+
+Added **2026-06-10** to locate where ad traffic drops off. The paid-ad investigation found
+**0 of ~199 paid visitors reached the uploader** (`/` → `/app`); these events make that funnel
+explicit: `landing_hero_viewed` → (`sample_report_clicked` | `marketing_cta_clicked`) →
+`uploader_viewed` → `file_selected` → `report_generation_started` (BE) → `report_generation_succeeded` (BE).
+Build a Funnel insight over them, and segment by `$device_type` / `utm_source` to compare paid vs organic.
+
+| Event | Src | Trigger | Key props | Lifecycle |
+|---|---|---|---|---|
+| `landing_hero_viewed` | FE | marketing landing hero mounted | — | **Added 2026-06-10** |
+| `sample_report_clicked` | FE | clicked a "See a live example" entry point (hero button or hero preview) | location (hero/hero_preview) | **Added 2026-06-10** |
+| `sample_report_generated` | BE | the public showcase report was lazily generated for the first time | reportId | **Added 2026-06-10** |
+| `sample_make_your_own_clicked` | FE | clicked "Make your own" on the sample report banner | — | **Added 2026-06-10** |
+| `uploader_viewed` | FE | reached the `/app` uploader | — | **Added 2026-06-10** |
+| `file_selected` | FE | picked/dropped a file in the uploader | sizeBytes, ext (csv/xlsx) | **Added 2026-06-10** |

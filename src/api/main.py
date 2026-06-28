@@ -4,6 +4,7 @@ import io
 import json
 import logging
 import os
+import threading
 import time
 import uuid
 from datetime import datetime
@@ -551,6 +552,68 @@ async def generate_report(
     )
 
     return {"session_id": report_id}
+
+
+# A single public showcase report, generated once from a bundled sample CSV and cached
+# at this fixed id. Lets a first-touch visitor — especially mobile, who has no spreadsheet
+# on hand — experience a real report in one tap, without an account, a file, or spending
+# their one free report. The id is a fixed 32-hex string (same shape as uuid4().hex).
+SAMPLE_REPORT_ID = "5a3b1ec05a3b1ec05a3b1ec05a3b1ec0"
+_SAMPLE_CSV_PATH = os.path.join(os.path.dirname(__file__), "samples", "showcase.csv")
+_SAMPLE_FOCUS = (
+    "DTC retail orders for one quarter — surface the revenue trend over time, the regional "
+    "and channel mix, category margins, and what drives order value."
+)
+_sample_lock = threading.Lock()
+
+
+@app.get("/sample-report")
+async def sample_report(
+    claude: ClaudeClient = Depends(get_claude_client),
+    db: SupabaseDB = Depends(get_db),
+    storage: SupabaseStorage = Depends(get_storage),
+    posthog: PostHogServer = Depends(get_posthog),
+):
+    """Public, zero-cost showcase report (see SAMPLE_REPORT_ID). Returns its session_id,
+    generating it on the first ever call and serving the cached row forever after. No auth,
+    no credit debit, no anon-report count — and it never touches the caller's own data."""
+    if db.get_report(SAMPLE_REPORT_ID):
+        return {"session_id": SAMPLE_REPORT_ID}
+
+    # Serialize the one-time generation so concurrent first clicks don't double-insert.
+    with _sample_lock:
+        if db.get_report(SAMPLE_REPORT_ID):
+            return {"session_id": SAMPLE_REPORT_ID}
+        try:
+            with open(_SAMPLE_CSV_PATH, "rb") as fh:
+                content = fh.read()
+            df = normalize_columns(_load_dataframe("showcase.csv", content))
+            profile = profile_dataframe(df)
+            gen = ReportGenerator(
+                profile=profile, df=df, claude=claude,
+                model_selection=MODEL_SELECTION, model_narrative=MODEL_NARRATIVE,
+                custom_prompt=_SAMPLE_FOCUS,
+            )
+            report = gen.build_report(deep=False)
+            csv_key = storage.upload_csv(SAMPLE_REPORT_ID, df.to_csv(index=False).encode("utf-8"))
+            db.save_report(
+                report_id=SAMPLE_REPORT_ID,
+                anon_id=None,
+                user_id=None,
+                report_json=report.model_dump(),
+                csv_storage_key=csv_key,
+                title=_title_from_summary(report.summary),
+            )
+            db.set_report_visibility(SAMPLE_REPORT_ID, True)   # anyone can view it
+        except Exception:
+            logging.exception("Sample report generation failed")
+            raise HTTPException(status_code=503, detail={
+                "code": "SAMPLE_UNAVAILABLE",
+                "message": "Could not load the sample report right now. Please try again.",
+            })
+
+    posthog.capture("system-sample", "sample_report_generated", {"reportId": SAMPLE_REPORT_ID})
+    return {"session_id": SAMPLE_REPORT_ID}
 
 
 @app.get("/report/{session_id}")

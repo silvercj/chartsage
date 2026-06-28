@@ -8,7 +8,7 @@ export const HERO = {
   headlineB: ', from one spreadsheet.',
   sub: 'Upload a CSV or Excel file. ChartSage profiles the data, picks the ten charts that actually say something, and writes the analysis to match.',
   ctaPrimary: "Upload a CSV — first one's free",
-  ctaSecondary: 'See an example ↓',
+  ctaSecondary: 'See a live example',
 };
 
 export const TRUST = [
