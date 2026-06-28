@@ -9,7 +9,8 @@
     "allow": [
       "$defaults",
       "Publishing or unpublishing a ChartSage marketing report by running the event-data-post publish.py script (.claude/skills/event-data-post/scripts/publish.py, optionally with --content or --unpublish) is allowed — the user reviews the report at the pipeline gates before anything is posted to X.",
-      "Scheduling, drafting, or deleting a ChartSage marketing post on the brand's own Buffer queue by running the event-data-post buffer_schedule.py script (.claude/skills/event-data-post/scripts/buffer_schedule.py) is allowed — posts are created as drafts (saveToDraft) the user approves in Buffer before anything goes live on X, and the user reviews each scheduling plan in the conversation first."
+      "Scheduling, drafting, or deleting a ChartSage marketing post on the brand's own Buffer queue by running the event-data-post buffer_schedule.py script (.claude/skills/event-data-post/scripts/buffer_schedule.py) is allowed — posts are created as drafts (saveToDraft) the user approves in Buffer before anything goes live on X, and the user reviews each scheduling plan in the conversation first.",
+      "Querying the ChartSage PostHog project with the read-only analytics tools query-trends, web-analytics-* (web analytics overview and breakdowns), and execute-sql (read-only SELECT queries, including against system.* entity tables) is allowed — the user has explicitly enabled these read-only analytics reads. Creating, updating, or deleting PostHog entities (insights, dashboards, cohorts, flags) is not covered and still requires approval."
     ]
   }
 }
