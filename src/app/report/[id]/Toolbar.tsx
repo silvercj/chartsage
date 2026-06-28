@@ -142,7 +142,7 @@ export default function Toolbar({ sessionId, report, onReportUpdated }: Props) {
 
   return (
     <>
-      <div className="sticky top-0 z-10 -mx-4 sm:-mx-6 lg:-mx-8 px-4 sm:px-6 lg:px-8 py-3 mb-6 bg-canvas/90 backdrop-blur border-b border-line flex items-center justify-end gap-3">
+      <div className="sticky top-0 z-10 -mx-4 sm:-mx-6 lg:-mx-8 px-4 sm:px-6 lg:px-8 py-3 mb-6 bg-canvas/90 backdrop-blur border-b border-line flex flex-wrap items-center justify-end gap-y-2 gap-3">
         {error && <span className="text-sm text-ember mr-auto">{error}</span>}
         {!error && notice && <span className="text-sm text-ink-2 mr-auto">{notice}</span>}
         <button

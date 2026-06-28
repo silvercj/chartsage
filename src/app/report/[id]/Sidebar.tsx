@@ -30,7 +30,7 @@ export default function Sidebar({ charts, onPromote }: Props) {
   }
 
   return (
-    <aside className="w-72 shrink-0">
+    <aside className="w-full lg:w-72 shrink-0">
       <div className="flex items-baseline justify-between mb-3">
         <h3 className="font-mono text-xs uppercase tracking-wide text-ink-3">
           More charts · {charts.length}

@@ -152,7 +152,7 @@ function ReportView({ sessionId, initialReport }: { sessionId: string; initialRe
           collisionDetection={closestCenter}
           onDragEnd={handleDragEnd}
         >
-          <div className="flex gap-6 mt-10">
+          <div className="flex flex-col lg:flex-row gap-6 mt-10">
             <main className="flex-1 min-w-0">
               <SortableContext
                 items={mainCharts.map((c) => c.chart_id)}
