@@ -1,0 +1,62 @@
+name: Deploy backend (Cloud Run)
+
+# Manual, deliberate deploys for CODE-only changes. Mirrors scripts/deploy-backend.sh:
+# build the image, then swap it with `run services update --image`, which PRESERVES all
+# env vars + secrets. It deliberately never runs the cloudbuild.yaml config deploy — that
+# path's substitution DEFAULTS are placeholders that would clobber SUPABASE_URL + Stripe
+# envs (see CLAUDE.md). For env/secret changes, use cloudbuild.yaml with every --substitution.
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Image tag (defaults to the short commit SHA)"
+        required: false
+        default: ""
+
+env:
+  PROJECT: chartsage-497909
+  SERVICE: chartsage-backend
+  REGION: us-central1
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - id: auth
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - uses: google-github-actions/setup-gcloud@v2
+
+      - name: Build + push image (Cloud Build)
+        run: |
+          TAG="${{ github.event.inputs.tag }}"
+          [ -z "$TAG" ] && TAG="${{ github.sha }}"
+          SHORT="$(echo "$TAG" | cut -c1-12)"
+          IMAGE="gcr.io/$PROJECT/$SERVICE:$SHORT"
+          echo "IMAGE=$IMAGE" >> "$GITHUB_ENV"
+          echo ">> building $IMAGE"
+          gcloud builds submit --tag "$IMAGE" --project "$PROJECT" .
+
+      - name: Swap image on Cloud Run (env + secrets preserved)
+        run: |
+          echo ">> swapping $SERVICE -> $IMAGE"
+          gcloud run services update "$SERVICE" \
+            --image="$IMAGE" --region="$REGION" --project="$PROJECT"
+
+      - name: Health check
+        run: |
+          URL="$(gcloud run services describe "$SERVICE" --region="$REGION" --project="$PROJECT" --format='value(status.url)')"
+          echo ">> GET $URL/health"
+          curl -fsS "$URL/health" && echo "  OK"
+
+      - name: Warm the public sample report
+        run: |
+          URL="$(gcloud run services describe "$SERVICE" --region="$REGION" --project="$PROJECT" --format='value(status.url)')"
+          echo ">> warming $URL/sample-report (first call generates it; ~30s)"
+          curl -fsS --max-time 120 "$URL/sample-report" && echo "  sample ready" || echo "  (warm failed; non-fatal — first visitor will generate it)"
